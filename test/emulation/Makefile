@@ -7,6 +7,7 @@ all: merged_filesystems .configured_qemu
 	$(MAKE) -C qemu $@
 
 clean:
+	rm -f .configured_qemu
 	$(MAKE) -C qemu $@
 
 MODIFICATION_FILES = $(shell find modifications/ -type f)
