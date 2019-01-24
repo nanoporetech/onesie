@@ -68,7 +68,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
  * STRUCTURES
  */
 static struct pci_device_id pci_ids[] = {
-    { PCI_DEVICE(0x1172, 0xE003) }, // Altera development card
+    { PCI_DEVICE(0x1ab0, 0x0010) }, // Altera development card
     { 0 }
 };
 
