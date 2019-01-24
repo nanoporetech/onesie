@@ -51,7 +51,7 @@ typedef struct IOTest {
 
 #define CTRL_BAR_NO 0
 #define SPI_BAR_NO 2
-#define CTRL_BAR_SIZE (0x01009000 + 1024)
+#define CTRL_BAR_SIZE (0x02000000)
 #define SPI_BAR_SIZE 64
 
 
@@ -60,8 +60,8 @@ typedef struct PCI_MINIT_State {
     PCIDevice parent_obj;
     /*< public >*/
 
-    MemoryRegion dmaio;
-    MemoryRegion nnio;
+    MemoryRegion ctrlio;
+    MemoryRegion spiio;
     int current;
 } PCI_MINIT_State;
 
@@ -70,8 +70,8 @@ typedef struct PCI_MINIT_State {
 #define PCI_MINIT(obj) \
     OBJECT_CHECK(PCI_MINIT_State, (obj), TYPE_PCI_MINIT)
 
-#define PCI_VENDOR_ID_ONT   0x1172
-#define PCI_DEVICE_ID_MINIT  0xe003
+#define PCI_VENDOR_ID_ONT    0x1ab0
+#define PCI_DEVICE_ID_MINIT  0x0010
 
 typedef struct {
     uint32_t status_desc_base_lo;
@@ -110,39 +110,39 @@ static uint64_t minit_pci_read(void *opaque, hwaddr addr, unsigned size)
     return 0;
 }
 
-static uint64_t minit_pci_dma_read(void *opaque, hwaddr addr, unsigned size)
+static uint64_t minit_pci_ctrl_read(void *opaque, hwaddr addr, unsigned size)
 {
     uint64_t val = 0;
     val = minit_pci_read(opaque, addr,size);
-    printf("dma read [%016lx] => %lx (size %d)\n", addr, val, size);
+    printf("ctrl read [%016lx] => %lx (size %d)\n", addr, val, size);
     return val;
 }
 
-static uint64_t minit_pci_nn_read(void *opaque, hwaddr addr, unsigned size)
+static uint64_t minit_pci_spi_read(void *opaque, hwaddr addr, unsigned size)
 {
     uint64_t val = 0;
     val = minit_pci_read(opaque, addr,size);
-    printf("nn read [%016lx] => %lx (size %d)\n", addr, val, size);
+    printf("spi read [%016lx] => %lx (size %d)\n", addr, val, size);
     return val;
 }
 
-static void minit_pci_dma_write(void *opaque, hwaddr addr, uint64_t val,
+static void minit_pci_ctrl_write(void *opaque, hwaddr addr, uint64_t val,
                        unsigned size)
 {
-    printf("nn write [%016lx] <= %lx (size %d)\n", addr, val, size);
+    printf("ctrl write [%016lx] <= %lx (size %d)\n", addr, val, size);
     minit_pci_write(opaque, addr, val, size, 0);
 }
 
-static void minit_pci_nn_write(void *opaque, hwaddr addr, uint64_t val,
+static void minit_pci_spi_write(void *opaque, hwaddr addr, uint64_t val,
                        unsigned size)
 {
-    printf("nn write [%016lx] <= %lx (size %d)\n", addr, val, size);
+    printf("spi write [%016lx] <= %lx (size %d)\n", addr, val, size);
     minit_pci_write(opaque, addr, val, size, 1);
 }
 
-static const MemoryRegionOps minit_pci_dma_ops = {
-    .read = minit_pci_dma_read,
-    .write = minit_pci_dma_write,
+static const MemoryRegionOps minit_pci_ctrl_ops = {
+    .read = minit_pci_ctrl_read,
+    .write = minit_pci_ctrl_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
     .impl = {
         .min_access_size = 1,
@@ -150,9 +150,9 @@ static const MemoryRegionOps minit_pci_dma_ops = {
     },
 };
 
-static const MemoryRegionOps minit_pci_nn_ops = {
-    .read = minit_pci_nn_read,
-    .write = minit_pci_nn_write,
+static const MemoryRegionOps minit_pci_spi_ops = {
+    .read = minit_pci_spi_read,
+    .write = minit_pci_spi_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
     .impl = {
         .min_access_size = 1,
@@ -169,12 +169,12 @@ static int minit_pci_init(PCIDevice *pci_dev)
 
     pci_conf[PCI_INTERRUPT_PIN] = 0; /* no interrupt pin */
 
-    memory_region_init_io(&d->dmaio, OBJECT(d), &minit_pci_dma_ops, d,
-                          "pci-minit-dmaio", CTRL_BAR_SIZE);
-    memory_region_init_io(&d->nnio, OBJECT(d), &minit_pci_nn_ops, d,
-                          "pci-minit-nnio", SPI_BAR_SIZE);
-    pci_register_bar(pci_dev, CTRL_BAR_NO, PCI_BASE_ADDRESS_SPACE_MEMORY, &d->dmaio);
-    pci_register_bar(pci_dev, SPI_BAR_NO, PCI_BASE_ADDRESS_SPACE_MEMORY, &d->nnio);
+    memory_region_init_io(&d->ctrlio, OBJECT(d), &minit_pci_ctrl_ops, d,
+                          "pci-minit-ctrlio", CTRL_BAR_SIZE);
+    memory_region_init_io(&d->spiio, OBJECT(d), &minit_pci_spi_ops, d,
+                          "pci-minit-spiio", SPI_BAR_SIZE);
+    pci_register_bar(pci_dev, CTRL_BAR_NO, PCI_BASE_ADDRESS_SPACE_MEMORY, &d->ctrlio);
+    pci_register_bar(pci_dev, SPI_BAR_NO, PCI_BASE_ADDRESS_SPACE_MEMORY, &d->spiio);
 
     d->current = -1;
 
@@ -197,8 +197,8 @@ minit_pci_uninit(PCIDevice *dev)
     }
     g_free(d->tests);
 */
-    memory_region_destroy(&d->dmaio);
-    memory_region_destroy(&d->nnio);
+    memory_region_destroy(&d->ctrlio);
+    memory_region_destroy(&d->spiio);
 }
 
 static void qdev_minit_pci_reset(DeviceState *dev)

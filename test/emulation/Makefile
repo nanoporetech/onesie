@@ -13,9 +13,9 @@ clean:
 MODIFICATION_FILES = $(shell find modifications/ -type f)
 merged_filesystems: $(MODIFICATION_FILES)
 	echo $^
-	for file in $^; do ln -f -s $$(readlink -f $${file}) qemu/$${file#modifications/} ; done
+	for file in $^; do ln -s -f $$(readlink -f $${file}) qemu/$${file#modifications/} ; done
 
-.configured_qemu:
+.configured_qemu: merged_filesystems
 	if [ ! -x $@ ] ; then \
 	cd qemu ; \
 	./configure \
