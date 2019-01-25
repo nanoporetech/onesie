@@ -13,23 +13,26 @@ building kernel modules.
 
 To access the Nanopore git repo you need to modify some files:
 
-*  Change /etc/hosts, where the machine name is mapped to 127.0.1.1 add
-<machine-name>.oxfordnanolabs.local
+*  Change _/etc/hosts_, where the machine name is mapped to 127.0.1.1 add
+`<machine-name>.oxfordnanolabs.local`
 
-*  Change /etc/nsswitch.conf, remove "mdns4_minimal [NOTFOUND=return]" from the
-"hosts:  files mdns4_minimal [NOTFOUND=return] dns" line
+*  Change _/etc/nsswitch.conf_, remove `mdns4_minimal [NOTFOUND=return]` from the...  
+`hosts:  files mdns4_minimal [NOTFOUND=return] dns`   
+...line to give...  
+`hosts:  files dns`
 
-Install the nanopore certificaties with
-wget http://deb-repo.oxfordnanolabs.local/apt/pool/non-free/o/ont-ca-certs/ont-ca-certs_2018.04.30-1392589~xenial_all.deb
+Install the nanopore certificaties with  
+```
+wget http://deb-repo.oxfordnanolabs.local/apt/pool/non-free/o/ont-ca-certs/ont-ca-certs_2018.04.30-1392589~xenial_all.deb  
 sudo dpkg -i ont-ca-certs_2018.04.30-1392589~xenial_all.deb
-
+```
 Clone and build this project in the VM, check that the
 driver loads, etc.
 
 ## Starting virtual machine
 
 To start the virtual machine from the commnd line in the onsie/test/emulation directory.
-
+```
 sudo LC_ALL=C PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin QEMU_AUDIO_DRV=none ;
 $(pwd)/qemu/x86_64-softmmu/qemu-system-x86_64 \
 -name xenial \
@@ -58,15 +61,17 @@ $(pwd)/qemu/x86_64-softmmu/qemu-system-x86_64 \
 -device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x5 \
 -device minit-1c,bus=pci.0\
 -display gtk
-
+```
 This should open a window for the VM. The VM starts paused so un-pause from the menu.
 
+## Modifying the command-line
 
+The command-line for starting the VM can be found in the logs in _/var/log/libvirt/qemu_
+add the `-device minit-1c,bus=pci.0` and `-display gtk`, cut out the bits it complains about
 ## Bits of command-line
 
-The command-line for starting the VM can be found in the logs in /var/log/libvirt/qemu
-add the -device minit-1c,bus=pci.0 and -display gtk, cut out the bits it complains about
-
+```
 -device virtio-net-pci,netdev=hostnet0,id=net0,mac=52:54:00:ce:30:78,bus=pci.0,addr=0x3 \
 
 -netdev tap,fd=24,id=hostnet0,vhost=on,vhostfd=25 \
+```
