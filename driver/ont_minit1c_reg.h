@@ -23,8 +23,30 @@
 #ifndef ONT_MINIT1C_REG_H
 #define ONT_MINIT1C_REG_H
 
+#define PCIe_LANE_CLOCK 62500000 //62.5 MHz
+
+#define I2C_PARENT_CLOCK_RATE PCIe_LANE_CLOCK
+#define EEPROM_CLOCK_RATE 390625
+
+/* BASE ADDRESSES BAR-0*/
+#define ASIC_CTRL_BASE          0x02001000
+#define ASIC_HS_DMA_BASE        0x00000060
+#define ASIC_HS_DMA_PREF_BASE   0x00000040
+#define ASIC_HS_RECEIVER_BASE   0x02000000
+#define I2C_BASE                0x00000000
+#define MESSAGE_RAM_BASE        0x01009000
+#define ASIC_SHIFT_BASE         0x03000000
+
+/* BASE ADDRESSES BAR-2*/
+#define ADC_SPI_BASE            0x00000000
+#define DAC_SPI_BASE            0x00000020
 
 
+/* BASE ADDRESSES BAR-3 */
+#define PCI_ISR                 0x0040
+#define PCI_ENB                 0x0050
 
+#define PCI_ISR_I2C             (1 << 0)
+#define PCI_ISR_DMA             (1 << 1)
 
 #endif        //  #ifndef ONT_MINIT1C_REG_H

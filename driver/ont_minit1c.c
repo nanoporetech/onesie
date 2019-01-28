@@ -19,6 +19,8 @@
 #include <linux/unistd.h>
 #include <linux/list.h>
 #include <linux/interrupt.h>
+#include <linux/irqreturn.h>
+
 #include <linux/pci.h>
 #include <linux/fs.h>
 #include <linux/sched.h>
@@ -173,13 +175,13 @@ static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_regi
     /* select bar and check for out of bounds accesses */
     switch (reg_access->bar) {
     case CTRL_BAR:
-        address = minit_dev->ctrl;
+        address = minit_dev->ctrl_bar;
         if ((reg_access->offset + reg_access->size) > CTRL_BAR_EXPECTED_SIZE) {
             return -EFAULT;
         }
         break;
     case SPI_BAR:
-        address = minit_dev->spi;
+        address = minit_dev->spi_bar;
         if ((reg_access->offset + reg_access->size) > SPI_BAR_EXPECTED_SIZE) {
             return -EFAULT;
         }
@@ -319,6 +321,46 @@ static void cleanup_device(void* data) {
     }
 }
 
+static irqreturn_t minit_isr_quick(int irq, void* _dev)
+{
+    struct minit_device_s* minit_dev = _dev;
+    irqreturn_t ret = IRQ_NONE;
+
+    u32 isr = readl(minit_dev->pci_bar + PCI_ISR);
+
+    // call the quick ISR for the two cores that can generate interrupts
+    if (minit_dev->i2c_isr_quick &&
+        (isr & PCI_ISR_I2C) )
+    {
+        ret |= minit_dev->i2c_isr_quick(irq, minit_dev->i2c_dev);
+        set_bit(0, &minit_dev->had_i2c_irq);
+    }
+
+    if (minit_dev->dma_isr_quick &&
+        (isr & PCI_ISR_DMA) )
+    {
+        ret |= minit_dev->dma_isr_quick(irq, minit_dev->dma_dev);
+        set_bit(0, &minit_dev->had_dma_irq);
+    }
+
+    return (ret & IRQ_WAKE_THREAD ? IRQ_WAKE_THREAD : ret);
+}
+
+static irqreturn_t minit_isr(int irq, void* _dev)
+{
+    struct minit_device_s* minit_dev = _dev;
+    irqreturn_t ret = IRQ_NONE;
+
+    // should only get an IRQ from I2C core if it has a message
+    if (minit_dev->i2c_isr && test_and_clear_bit(0,&minit_dev->had_i2c_irq)) {
+        ret |= minit_dev->i2c_isr(irq, minit_dev->i2c_dev);
+    }
+    if (minit_dev->dma_isr && test_and_clear_bit(0,&minit_dev->had_dma_irq)) {
+        ret |= minit_dev->dma_isr(irq, minit_dev->dma_dev);
+    }
+    return ret;
+}
+
 
 /**
  * This should:
@@ -365,11 +407,33 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
         dev_err(&dev->dev, "Failed to claim the SPI BAR\n");
         goto err;
     }
+    rc = pcim_iomap_regions(dev, 1<< PCI_BAR, "MinION PCI-Interface");
+    if (rc < 0) {
+        dev_err(&dev->dev, "Failed to claim the PCI BAR\n");
+        goto err;
+    }
 
-    minit_dev->ctrl  = pcim_iomap_table(dev)[CTRL_BAR];
-    minit_dev->spi = pcim_iomap_table(dev)[SPI_BAR];
-    DPRINTK("Control bar mapped to %p\n", minit_dev->ctrl);
-    DPRINTK("SPI bar mapped to %p\n", minit_dev->spi);
+    minit_dev->ctrl_bar  = pcim_iomap_table(dev)[CTRL_BAR];
+    minit_dev->spi_bar = pcim_iomap_table(dev)[SPI_BAR];
+    minit_dev->pci_bar = pcim_iomap_table(dev)[PCI_BAR];
+    DPRINTK("Control bar mapped to %p\n", minit_dev->ctrl_bar);
+    DPRINTK("SPI bar mapped to %p\n", minit_dev->spi_bar);
+    DPRINTK("PCI bar mapped to %p\n", minit_dev->pci_bar);
+
+    /* Set up a MSI interrupt */
+    if (pci_enable_msi(dev)) {
+        dev_err(&dev->dev, ": Failed to enable MSI.\n");
+        rc = -ENODEV;
+        goto err;
+    }
+
+    rc = devm_request_threaded_irq(&dev->dev, dev->irq, minit_isr_quick,
+                    minit_isr, IRQF_ONESHOT,
+                    "minit", minit_dev);
+    if (rc) {
+        dev_err(&dev->dev, "failed to claim IRQ %d\n", dev->irq);
+        goto err;
+    }
 
     pci_set_master(dev);
 
@@ -405,6 +469,8 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     }
 
     rc = device_table_add(minit_dev->minor_dev_no, minit_dev);
+
+    borrowed_altr_i2c_probe(minit_dev);
 
     DPRINTK("probe finished successfully\n");
 err:
