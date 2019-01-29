@@ -21,6 +21,11 @@
 #ifndef ONT_MINIT_IOCTL_H
 #define ONT_MINIT_IOCTL_H
 
+// Hide the __user pointer modifier when not compiled in the kernel
+#ifndef __KERNEL__
+#define __user
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -38,6 +43,16 @@ struct minit_register_s {
 
 
 #define MINIT_IOCTL_REG_ACCESS _IOWR('b', 64, struct minit_register_s)
+
+struct minit_shift_reg_s {
+    void __user *to_device;
+    void __user *from_device;
+    __u32   clock_hz;
+    __u8    start;
+    __u8    enable;
+};
+
+#define MINIT_IOCTL_SHIFT_REG _IOWR('b', 65, struct minit_shift_reg_s)
 
 #ifdef __cplusplus
 }

@@ -246,7 +246,63 @@ static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_regi
     return rc;
 }
 
+/**
+ * @brief data transfer and control via shift-register
+ * @param minit_dev pointer do driver structure
+ * @param to_dev 282 byte buffer to send to ASIC
+ * @param from_dev 282 byte buffer to receive data from ASIC
+ * @param start  start transfer
+ * @param enable enable module
+ * @param clk clockspeed in Hz, this will be achieved by integer division of
+ * the 62.5 MHz PCIe clock
+ * @return
+ */
+static long minit_shift_register_access(
+        struct minit_device_s* minit_dev,
+        char* const to_dev,
+        char* const from_dev,
+        const u8 start,
+        const u8 enable,
+        const u32 clk)
+{
+    u32 clockdiv;
+    u32 actual_clock;
+    u32 control;
+    // write to data into shift register
+    if (to_dev) {
+        int i;
+        for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
+            writeb(to_dev[i], minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF);
+        }
+        memcpy(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF, to_dev, ASIC_SHIFT_REG_SIZE);
+    }
+    wmb();
 
+    clockdiv = ((PCIe_LANE_CLOCK/clk) - 1) / 2;
+    if (clockdiv > ASIC_SHIFT_CTRL_DIV_MASK) {
+        clockdiv = ASIC_SHIFT_CTRL_DIV_MASK;
+    }
+    actual_clock = PCIe_LANE_CLOCK / ((2*clockdiv) + 1);
+    if (actual_clock != clk) {
+        DPRINTK("Requested SPI Clock of %d couldn't be achieved, best effort %d\n",
+                clk, actual_clock);
+    }
+
+    control = (clockdiv << ASIC_SHIFT_CTRL_DIV_SHIFT) |
+              (start ? ASIC_SHIFT_CTRL_ST : 0) |
+              (enable ? ASIC_SHIFT_CTRL_EN :0);
+    writel(control, minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
+    wmb();
+
+    if (from_dev) {
+        int i;
+        for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
+            from_dev[i] = readb(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF);
+        }
+    }
+
+    return -EINVAL;
+}
 
 /*
  * File OPs
@@ -304,6 +360,44 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             return copy_to_user((void __user*)arg, &reg_access, sizeof(struct minit_register_s) );
         }
         break;
+    case MINIT_IOCTL_SHIFT_REG: {
+            struct minit_shift_reg_s shift_reg_access = {};
+            char shift_reg[ASIC_SHIFT_REG_SIZE];
+            VPRINTK("MINIT_IOCTL_SHIFT_REG\n");
+            rc = copy_from_user(&shift_reg_access, (void __user*)arg, sizeof(struct minit_shift_reg_s));
+            if (rc) {
+                DPRINTK("copy_from_user failed\n");
+                return rc;
+            }
+            if (shift_reg_access.to_device) {
+                rc = copy_from_user(shift_reg, shift_reg_access.to_device, ASIC_SHIFT_REG_SIZE);
+                if (rc) {
+                    DPRINTK("copy_from_user failed\n");
+                    return rc;
+                }
+            }
+
+            // do access
+            rc = minit_shift_register_access(
+                        minit_dev,
+                        shift_reg_access.to_device ? shift_reg : NULL,
+                        shift_reg_access.from_device ? shift_reg : NULL,
+                        shift_reg_access.start,
+                        shift_reg_access.enable,
+                        shift_reg_access.clock_hz);
+            if (rc) {
+                DPRINTK("shift register operation failed\n");
+                return rc;
+            }
+            if (shift_reg_access.from_device) {
+                rc = copy_to_user(shift_reg_access.to_device, shift_reg, ASIC_SHIFT_REG_SIZE);
+                if (rc) {
+                    DPRINTK("copy_to_user failed\n");
+                    return rc;
+                }
+            }
+            return copy_to_user((void __user*)arg, &shift_reg_access, sizeof(struct minit_shift_reg_s) );
+    }
     default:
         printk(KERN_ERR ONT_DRIVER_NAME": Invalid ioctl for this device (%u)\n", cmd);
     }
@@ -468,9 +562,16 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
         goto err;
     }
 
-    rc = device_table_add(minit_dev->minor_dev_no, minit_dev);
+    rc = borrowed_altr_i2c_probe(minit_dev);
+    if (rc) {
+        dev_err(&dev->dev, ": I2C bus controller probe failed\n");
+        goto err;
+    }
 
-    borrowed_altr_i2c_probe(minit_dev);
+
+
+    // add to our internal device table
+    rc = device_table_add(minit_dev->minor_dev_no, minit_dev);
 
     DPRINTK("probe finished successfully\n");
 err:

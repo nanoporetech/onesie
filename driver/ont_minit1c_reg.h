@@ -30,12 +30,37 @@
 
 /* BASE ADDRESSES BAR-0*/
 #define ASIC_CTRL_BASE          0x02001000
+
+/* ASIC Control Bits and masks */
+#define ASIC_CTRL_RESET     (1 << 0)
+#define ASIC_CTRL_ENABLE    (1 << 1)
+#define ASIC_CTRL_CLK_MASK  (3 << 2)
+#define ASIC_CTRL_CLK_128   (1 << 2)
+#define ASIC_CTRL_CLK_64    (2 << 2)
+#define ASIC_CTRL_CLK_32    (3 << 2)
+#define ASIC_CTRL_BUS_MODE  (1 << 4)
+
 #define ASIC_HS_DMA_BASE        0x00000060
 #define ASIC_HS_DMA_PREF_BASE   0x00000040
-#define ASIC_HS_RECEIVER_BASE   0x02000000
 #define I2C_BASE                0x00000000
 #define MESSAGE_RAM_BASE        0x01009000
+
+#define ASIC_HS_RECEIVER_BASE   0x02000000
+
+#define ASIC_HS_RECEIVER_SIZE   5 /* 10 * 16-bit words */
+
+/* ASIC shift register base, buffers and control register */
+
 #define ASIC_SHIFT_BASE         0x03000000
+#define ASIC_SHIFT_REG_SIZE     0x11a
+#define ASIC_SHIFT_OUTPUT_BUF   0
+#define ASIC_SHIFT_INPUT_BUF    0x180
+#define ASIC_SHIFT_CTRL         0x300
+
+#define ASIC_SHIFT_CTRL_EN      (1 << 0)
+#define ASIC_SHIFT_CTRL_ST      (1 << 1)
+#define ASIC_SHIFT_CTRL_DIV_MASK  0x3f
+#define ASIC_SHIFT_CTRL_DIV_SHIFT 2
 
 /* BASE ADDRESSES BAR-2*/
 #define ADC_SPI_BASE            0x00000000
@@ -46,7 +71,12 @@
 #define PCI_ISR                 0x0040
 #define PCI_ENB                 0x0050
 
+/* BAR-3 interrup status and enableb register bits */
 #define PCI_ISR_I2C             (1 << 0)
 #define PCI_ISR_DMA             (1 << 1)
+
+
+
+
 
 #endif        //  #ifndef ONT_MINIT1C_REG_H
