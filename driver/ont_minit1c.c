@@ -19,6 +19,8 @@
 #include <linux/unistd.h>
 #include <linux/list.h>
 #include <linux/interrupt.h>
+#include <linux/irqreturn.h>
+
 #include <linux/pci.h>
 #include <linux/fs.h>
 #include <linux/sched.h>
@@ -173,13 +175,13 @@ static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_regi
     /* select bar and check for out of bounds accesses */
     switch (reg_access->bar) {
     case CTRL_BAR:
-        address = minit_dev->ctrl;
+        address = minit_dev->ctrl_bar;
         if ((reg_access->offset + reg_access->size) > CTRL_BAR_EXPECTED_SIZE) {
             return -EFAULT;
         }
         break;
     case SPI_BAR:
-        address = minit_dev->spi;
+        address = minit_dev->spi_bar;
         if ((reg_access->offset + reg_access->size) > SPI_BAR_EXPECTED_SIZE) {
             return -EFAULT;
         }
@@ -244,7 +246,63 @@ static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_regi
     return rc;
 }
 
+/**
+ * @brief data transfer and control via shift-register
+ * @param minit_dev pointer do driver structure
+ * @param to_dev 282 byte buffer to send to ASIC
+ * @param from_dev 282 byte buffer to receive data from ASIC
+ * @param start  start transfer
+ * @param enable enable module
+ * @param clk clockspeed in Hz, this will be achieved by integer division of
+ * the 62.5 MHz PCIe clock
+ * @return
+ */
+static long minit_shift_register_access(
+        struct minit_device_s* minit_dev,
+        char* const to_dev,
+        char* const from_dev,
+        const u8 start,
+        const u8 enable,
+        const u32 clk)
+{
+    u32 clockdiv;
+    u32 actual_clock;
+    u32 control;
+    // write to data into shift register
+    if (to_dev) {
+        int i;
+        for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
+            writeb(to_dev[i], minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF);
+        }
+        memcpy(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF, to_dev, ASIC_SHIFT_REG_SIZE);
+    }
+    wmb();
 
+    clockdiv = ((PCIe_LANE_CLOCK/clk) - 1) / 2;
+    if (clockdiv > ASIC_SHIFT_CTRL_DIV_MASK) {
+        clockdiv = ASIC_SHIFT_CTRL_DIV_MASK;
+    }
+    actual_clock = PCIe_LANE_CLOCK / ((2*clockdiv) + 1);
+    if (actual_clock != clk) {
+        DPRINTK("Requested SPI Clock of %d couldn't be achieved, best effort %d\n",
+                clk, actual_clock);
+    }
+
+    control = (clockdiv << ASIC_SHIFT_CTRL_DIV_SHIFT) |
+              (start ? ASIC_SHIFT_CTRL_ST : 0) |
+              (enable ? ASIC_SHIFT_CTRL_EN :0);
+    writel(control, minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
+    wmb();
+
+    if (from_dev) {
+        int i;
+        for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
+            from_dev[i] = readb(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF);
+        }
+    }
+
+    return -EINVAL;
+}
 
 /*
  * File OPs
@@ -302,6 +360,44 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             return copy_to_user((void __user*)arg, &reg_access, sizeof(struct minit_register_s) );
         }
         break;
+    case MINIT_IOCTL_SHIFT_REG: {
+            struct minit_shift_reg_s shift_reg_access = {};
+            char shift_reg[ASIC_SHIFT_REG_SIZE];
+            VPRINTK("MINIT_IOCTL_SHIFT_REG\n");
+            rc = copy_from_user(&shift_reg_access, (void __user*)arg, sizeof(struct minit_shift_reg_s));
+            if (rc) {
+                DPRINTK("copy_from_user failed\n");
+                return rc;
+            }
+            if (shift_reg_access.to_device) {
+                rc = copy_from_user(shift_reg, shift_reg_access.to_device, ASIC_SHIFT_REG_SIZE);
+                if (rc) {
+                    DPRINTK("copy_from_user failed\n");
+                    return rc;
+                }
+            }
+
+            // do access
+            rc = minit_shift_register_access(
+                        minit_dev,
+                        shift_reg_access.to_device ? shift_reg : NULL,
+                        shift_reg_access.from_device ? shift_reg : NULL,
+                        shift_reg_access.start,
+                        shift_reg_access.enable,
+                        shift_reg_access.clock_hz);
+            if (rc) {
+                DPRINTK("shift register operation failed\n");
+                return rc;
+            }
+            if (shift_reg_access.from_device) {
+                rc = copy_to_user(shift_reg_access.to_device, shift_reg, ASIC_SHIFT_REG_SIZE);
+                if (rc) {
+                    DPRINTK("copy_to_user failed\n");
+                    return rc;
+                }
+            }
+            return copy_to_user((void __user*)arg, &shift_reg_access, sizeof(struct minit_shift_reg_s) );
+    }
     default:
         printk(KERN_ERR ONT_DRIVER_NAME": Invalid ioctl for this device (%u)\n", cmd);
     }
@@ -317,6 +413,46 @@ static void cleanup_device(void* data) {
 
         device_destroy(minit_class, MKDEV(minit_major, minit_dev->minor_dev_no));
     }
+}
+
+static irqreturn_t minit_isr_quick(int irq, void* _dev)
+{
+    struct minit_device_s* minit_dev = _dev;
+    irqreturn_t ret = IRQ_NONE;
+
+    u32 isr = readl(minit_dev->pci_bar + PCI_ISR);
+
+    // call the quick ISR for the two cores that can generate interrupts
+    if (minit_dev->i2c_isr_quick &&
+        (isr & PCI_ISR_I2C) )
+    {
+        ret |= minit_dev->i2c_isr_quick(irq, minit_dev->i2c_dev);
+        set_bit(0, &minit_dev->had_i2c_irq);
+    }
+
+    if (minit_dev->dma_isr_quick &&
+        (isr & PCI_ISR_DMA) )
+    {
+        ret |= minit_dev->dma_isr_quick(irq, minit_dev->dma_dev);
+        set_bit(0, &minit_dev->had_dma_irq);
+    }
+
+    return (ret & IRQ_WAKE_THREAD ? IRQ_WAKE_THREAD : ret);
+}
+
+static irqreturn_t minit_isr(int irq, void* _dev)
+{
+    struct minit_device_s* minit_dev = _dev;
+    irqreturn_t ret = IRQ_NONE;
+
+    // should only get an IRQ from I2C core if it has a message
+    if (minit_dev->i2c_isr && test_and_clear_bit(0,&minit_dev->had_i2c_irq)) {
+        ret |= minit_dev->i2c_isr(irq, minit_dev->i2c_dev);
+    }
+    if (minit_dev->dma_isr && test_and_clear_bit(0,&minit_dev->had_dma_irq)) {
+        ret |= minit_dev->dma_isr(irq, minit_dev->dma_dev);
+    }
+    return ret;
 }
 
 
@@ -365,11 +501,33 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
         dev_err(&dev->dev, "Failed to claim the SPI BAR\n");
         goto err;
     }
+    rc = pcim_iomap_regions(dev, 1<< PCI_BAR, "MinION PCI-Interface");
+    if (rc < 0) {
+        dev_err(&dev->dev, "Failed to claim the PCI BAR\n");
+        goto err;
+    }
 
-    minit_dev->ctrl  = pcim_iomap_table(dev)[CTRL_BAR];
-    minit_dev->spi = pcim_iomap_table(dev)[SPI_BAR];
-    DPRINTK("Control bar mapped to %p\n", minit_dev->ctrl);
-    DPRINTK("SPI bar mapped to %p\n", minit_dev->spi);
+    minit_dev->ctrl_bar  = pcim_iomap_table(dev)[CTRL_BAR];
+    minit_dev->spi_bar = pcim_iomap_table(dev)[SPI_BAR];
+    minit_dev->pci_bar = pcim_iomap_table(dev)[PCI_BAR];
+    DPRINTK("Control bar mapped to %p\n", minit_dev->ctrl_bar);
+    DPRINTK("SPI bar mapped to %p\n", minit_dev->spi_bar);
+    DPRINTK("PCI bar mapped to %p\n", minit_dev->pci_bar);
+
+    /* Set up a MSI interrupt */
+    if (pci_enable_msi(dev)) {
+        dev_err(&dev->dev, ": Failed to enable MSI.\n");
+        rc = -ENODEV;
+        goto err;
+    }
+
+    rc = devm_request_threaded_irq(&dev->dev, dev->irq, minit_isr_quick,
+                    minit_isr, IRQF_ONESHOT,
+                    "minit", minit_dev);
+    if (rc) {
+        dev_err(&dev->dev, "failed to claim IRQ %d\n", dev->irq);
+        goto err;
+    }
 
     pci_set_master(dev);
 
@@ -404,6 +562,15 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
         goto err;
     }
 
+    rc = borrowed_altr_i2c_probe(minit_dev);
+    if (rc) {
+        dev_err(&dev->dev, ": I2C bus controller probe failed\n");
+        goto err;
+    }
+
+
+
+    // add to our internal device table
     rc = device_table_add(minit_dev->minor_dev_no, minit_dev);
 
     DPRINTK("probe finished successfully\n");

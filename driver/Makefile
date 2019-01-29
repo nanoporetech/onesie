@@ -1,6 +1,8 @@
-MODNAME := ont_minit1c
+MODNAME := minit1c
 
 obj-m	:= $(MODNAME).o
+
+minit1c-objs :=  i2c-altera.o ont_minit1c.o
 
 # Work out the kernel version
 ifeq (,$(KERNELRELEASE))
@@ -16,7 +18,7 @@ RM        := rm -f
 
 # source file groups
 SHARED_HEADERS := #ont_minit1c_ioctl.h
-KERNEL_SRCS    := ont_minit1c.c ont_minit1c.c
+KERNEL_SRCS    := ont_minit1c.c ont_minit1c.h i2c-altera.c
 UDEV_RULE      := 10-ont_minit1c.rules
 DISTFILES := Makefile $(UDEV_RULE) $(SHARED_HEADERS) $(KERNEL_SRCS)
 
