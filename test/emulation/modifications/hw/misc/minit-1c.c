@@ -25,34 +25,15 @@
 #include "qemu/event_notifier.h"
 #include "sysemu/kvm.h"
 
-typedef struct PCITestDevHdr {
-    uint8_t test;
-    uint8_t width;
-    uint8_t pad0[2];
-    uint32_t offset;
-    uint8_t data;
-    uint8_t pad1[3];
-    uint32_t count;
-    uint8_t name[];
-} PCITestDevHdr;
-
-typedef struct IOTest {
-    MemoryRegion *mr;
-    EventNotifier notifier;
-    bool hasnotifier;
-    unsigned size;
-    bool match_data;
-    PCITestDevHdr *hdr;
-    unsigned bufsize;
-} IOTest;
-
 #define IOTEST_DATAMATCH 0xFA
 #define IOTEST_NOMATCH   0xCE
 
 #define CTRL_BAR_NO 0
 #define SPI_BAR_NO 2
-#define CTRL_BAR_SIZE (0x02000000)
+#define PCI_BAR_NO 3
+#define CTRL_BAR_SIZE 0x04000000
 #define SPI_BAR_SIZE 64
+#define PCI_BAR_SIZE 8
 
 
 typedef struct PCI_MINIT_State {
@@ -62,6 +43,7 @@ typedef struct PCI_MINIT_State {
 
     MemoryRegion ctrlio;
     MemoryRegion spiio;
+    MemoryRegion pciio;
     int current;
 } PCI_MINIT_State;
 
@@ -126,6 +108,14 @@ static uint64_t minit_pci_spi_read(void *opaque, hwaddr addr, unsigned size)
     return val;
 }
 
+static uint64_t minit_pci_pci_read(void *opaque, hwaddr addr, unsigned size)
+{
+    uint64_t val = 0;
+    val = minit_pci_read(opaque, addr,size);
+    printf("pci read [%016lx] => %lx (size %d)\n", addr, val, size);
+    return val;
+}
+
 static void minit_pci_ctrl_write(void *opaque, hwaddr addr, uint64_t val,
                        unsigned size)
 {
@@ -137,6 +127,13 @@ static void minit_pci_spi_write(void *opaque, hwaddr addr, uint64_t val,
                        unsigned size)
 {
     printf("spi write [%016lx] <= %lx (size %d)\n", addr, val, size);
+    minit_pci_write(opaque, addr, val, size, 1);
+}
+
+static void minit_pci_pci_write(void *opaque, hwaddr addr, uint64_t val,
+                       unsigned size)
+{
+    printf("pci write [%016lx] <= %lx (size %d)\n", addr, val, size);
     minit_pci_write(opaque, addr, val, size, 1);
 }
 
@@ -160,6 +157,16 @@ static const MemoryRegionOps minit_pci_spi_ops = {
     },
 };
 
+static const MemoryRegionOps minit_pci_pci_ops = {
+    .read = minit_pci_pci_read,
+    .write = minit_pci_pci_write,
+    .endianness = DEVICE_LITTLE_ENDIAN,
+    .impl = {
+        .min_access_size = 1,
+        .max_access_size = 8,
+    },
+};
+
 static int minit_pci_init(PCIDevice *pci_dev)
 {
     PCI_MINIT_State *d = PCI_MINIT(pci_dev);
@@ -167,14 +174,17 @@ static int minit_pci_init(PCIDevice *pci_dev)
 
     pci_conf = pci_dev->config;
 
-    pci_conf[PCI_INTERRUPT_PIN] = 0; /* no interrupt pin */
+    pci_conf[PCI_INTERRUPT_PIN] = 1; /* one interrupt pin */
 
     memory_region_init_io(&d->ctrlio, OBJECT(d), &minit_pci_ctrl_ops, d,
                           "pci-minit-ctrlio", CTRL_BAR_SIZE);
     memory_region_init_io(&d->spiio, OBJECT(d), &minit_pci_spi_ops, d,
                           "pci-minit-spiio", SPI_BAR_SIZE);
+    memory_region_init_io(&d->pciio, OBJECT(d), &minit_pci_pci_ops, d,
+                          "pci-minit-pciio", PCI_BAR_SIZE);
     pci_register_bar(pci_dev, CTRL_BAR_NO, PCI_BASE_ADDRESS_SPACE_MEMORY, &d->ctrlio);
     pci_register_bar(pci_dev, SPI_BAR_NO, PCI_BASE_ADDRESS_SPACE_MEMORY, &d->spiio);
+    pci_register_bar(pci_dev, PCI_BAR_NO, PCI_BASE_ADDRESS_SPACE_MEMORY, &d->pciio);
 
     d->current = -1;
 
