@@ -1,1 +1,7 @@
 test/emulation/.configured_qemu
+*.o.cmd
+*.o
+*.ko
+driver/modules.order
+*.ko.cmd
+*.mod.c
