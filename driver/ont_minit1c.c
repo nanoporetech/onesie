@@ -274,7 +274,6 @@ static long minit_shift_register_access(
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
             writeb(to_dev[i], minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF);
         }
-        memcpy(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF, to_dev, ASIC_SHIFT_REG_SIZE);
     }
     wmb();
 
