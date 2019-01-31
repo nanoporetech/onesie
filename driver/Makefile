@@ -17,9 +17,9 @@ PWD       := $(shell pwd)
 RM        := rm -f
 
 # source file groups
-SHARED_HEADERS := #ont_minit1c_ioctl.h
+SHARED_HEADERS := ont_minit_ioctl.h
 KERNEL_SRCS    := ont_minit1c.c ont_minit1c.h i2c-altera.c
-UDEV_RULE      := 10-ont_minit1c.rules
+UDEV_RULE      := 10-minit1c-perms.rules
 DISTFILES := Makefile $(UDEV_RULE) $(SHARED_HEADERS) $(KERNEL_SRCS)
 
 all: modules

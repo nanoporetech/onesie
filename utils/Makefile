@@ -1,5 +1,5 @@
 # unless told otherwise, files will be installed in this directory
-PREFIX ?= /opt/ONT/minit
+PREFIX ?= /opt/ONT/minit1c-driver-utils
 RM        := rm -f
 
 # list of all the programs to build
