@@ -463,7 +463,7 @@ static irqreturn_t minit_isr(int irq, void* _dev)
  */
 static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 {
-    int rc;
+    int rc,irq;
     struct minit_device_s* minit_dev = NULL;
     struct device* char_device;
     DPRINTK("PROBE\n");
@@ -513,14 +513,25 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     DPRINTK("SPI bar mapped to %p\n", minit_dev->spi_bar);
     DPRINTK("PCI bar mapped to %p\n", minit_dev->pci_bar);
 
-    /* Set up a MSI interrupt */
-    if (pci_enable_msi(dev)) {
-        dev_err(&dev->dev, ": Failed to enable MSI.\n");
-        rc = -ENODEV;
+    // Use the existance of a define as indication that we're compiling on a new
+    // kernel with the simpler way of setting up interrupts for PCIe
+#ifdef PCI_IRQ_ALL_TYPES
+    // can use newer simpler way of setting-up irqs for PCI
+    rc = pci_alloc_irq_vectors(dev, 1, 1, PCI_IRQ_ALL_TYPES|PCI_IRQ_AFFINITY);
+    if (rc < 0) {
+        dev_err(&dev->dev, "Failed to claim the PCI interrupt\n");
         goto err;
     }
+    irq = pci_irq_vector(dev, 0);
+#else
+    rc = pci_enable_msi(dev);
+    if (rc < 0) {
+        DPRINTK("no MSI interrupts, using legacy irq\n");
+    }
+    irq = dev->irq;
+#endif
 
-    rc = devm_request_threaded_irq(&dev->dev, dev->irq, minit_isr_quick,
+    rc = devm_request_threaded_irq(&dev->dev, irq, minit_isr_quick,
                     minit_isr, IRQF_ONESHOT,
                     "minit", minit_dev);
     if (rc) {
@@ -586,8 +597,6 @@ static void __exit pci_remove(struct pci_dev *dev)
         return;
     }
 }
-
-
 
 static int __init ont_minit1c_init(void)
 {
