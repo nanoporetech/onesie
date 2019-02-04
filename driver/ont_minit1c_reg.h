@@ -46,8 +46,11 @@
 #define MESSAGE_RAM_BASE        0x01009000
 
 #define ASIC_HS_RECEIVER_BASE   0x02000000
+#define NUM_HS_REGISTERS 10
 
-#define ASIC_HS_RECEIVER_SIZE   5 /* 10 * 16-bit words */
+/* bitmask of HS Reveiver registers that can be written */
+#define ASIC_HS_REG_WRITE_MASK  0x00000001
+
 
 /* ASIC shift register base, buffers and control register */
 

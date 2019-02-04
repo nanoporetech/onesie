@@ -272,7 +272,7 @@ static long minit_shift_register_access(
     if (to_dev) {
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
-            writeb(to_dev[i], minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF);
+            writeb(to_dev[i], minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
         }
     }
     wmb();
@@ -296,12 +296,32 @@ static long minit_shift_register_access(
     if (from_dev) {
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
-            from_dev[i] = readb(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF);
+            from_dev[i] = readb(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
         }
     }
 
     return -EINVAL;
 }
+
+void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_hs_receiver_s* minit_hs_reg)
+{
+    unsigned int i;
+    DPRINTK("minit_hs_reg_access\n");
+    if (minit_hs_reg->write) {
+        for (i = 0; i < NUM_HS_REGISTERS;++i) {
+            if (((ASIC_HS_REG_WRITE_MASK >> i) & 1) == 1) {
+                writew(minit_hs_reg->registers[i], minit_dev->ctrl_bar + ASIC_HS_RECEIVER_BASE + (i * 2));
+            }
+        }
+
+    }
+
+    // now read registers
+    for (i = 0; i < NUM_HS_REGISTERS;++i) {
+        minit_hs_reg->registers[i] = readw(minit_dev->ctrl_bar + ASIC_HS_RECEIVER_BASE + (i * 2));
+    }
+}
+
 
 /*
  * File OPs
@@ -396,7 +416,21 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
                 }
             }
             return copy_to_user((void __user*)arg, &shift_reg_access, sizeof(struct minit_shift_reg_s) );
-    }
+        }
+        break;
+    case MINIT_IOCTL_HS_RECIEVER: {
+            struct minit_hs_receiver_s minit_hs_reg = {};
+            VPRINTK("MINIT_IOCTL_HS_RECIEVER\n");
+            rc = copy_from_user(&minit_hs_reg, (void __user*)arg, sizeof(minit_hs_reg));
+            if (rc) {
+                DPRINTK("copy_from_user failed\n");
+                return rc;
+            }
+            minit_hs_reg_access(minit_dev, &minit_hs_reg);
+
+            return copy_to_user((void __user*) arg, &minit_hs_reg, sizeof(minit_hs_reg));
+        }
+        break;
     default:
         printk(KERN_ERR ONT_DRIVER_NAME": Invalid ioctl for this device (%u)\n", cmd);
     }
@@ -453,7 +487,6 @@ static irqreturn_t minit_isr(int irq, void* _dev)
     }
     return ret;
 }
-
 
 /**
  * This should:
@@ -530,7 +563,7 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     }
     irq = dev->irq;
 #endif
-
+    DPRINTK("Using irq %d\n",irq);
     rc = devm_request_threaded_irq(&dev->dev, irq, minit_isr_quick,
                     minit_isr, IRQF_ONESHOT,
                     "minit", minit_dev);
