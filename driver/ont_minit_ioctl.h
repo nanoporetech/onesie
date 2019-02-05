@@ -79,6 +79,8 @@ struct minit_shift_reg_s {
 
 #define MINIT_IOCTL_SHIFT_REG _IOWR('b', 65, struct minit_shift_reg_s)
 
+
+#define MINIT_IOCTL_HS_RECEIVER_REG_SIZE 10
 /**
  * @brief Optionally write data, then read the contents of the HS Receiver core
  * registers to/from-driver If write is set then the writable registers will be
@@ -89,7 +91,7 @@ struct minit_shift_reg_s {
  *                      writable is programmed into the driver.
  */
 struct  minit_hs_receiver_s {
-   __u16    registers[10];
+   __u16    registers[MINIT_IOCTL_HS_RECEIVER_REG_SIZE];
    __u8     write;
 };
 

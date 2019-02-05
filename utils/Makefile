@@ -3,7 +3,7 @@ PREFIX ?= /opt/ONT/minit1c-driver-utils
 RM        := rm -f
 
 # list of all the programs to build
-UTILS := minit-reg
+UTILS := minit-reg minit-hsrx
 
 IOCTL := ../driver/ont_minit_ioctl.h
 
@@ -18,8 +18,8 @@ install: $(UTILS)
 uninstall:
 	for util in $(UTILS); do $(RM) "$(DESTDIR)$(PREFIX)/bin/$$util"; done
 
-minit-reg: minit-reg.cpp $(IOCTL)
-	g++ $< $(CXXFLAGS) -o $@
+%: %.cpp $(IOCTL)
+	g++ $(CXXFLAGS) -o $@ $@.cpp
 
 clean:
 	rm -f $(UTILS)
