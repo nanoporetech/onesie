@@ -3,7 +3,7 @@ PREFIX ?= /opt/ONT/minit1c-driver-utils
 RM        := rm -f
 
 # list of all the programs to build
-UTILS := minit-reg minit-hsrx
+UTILS := minit-reg minit-hsrx minit-shift
 
 IOCTL := ../driver/ont_minit_ioctl.h
 

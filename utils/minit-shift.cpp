@@ -14,10 +14,14 @@
 #include <array>
 #include <stdexcept>
 
-void hs_receiver_ioctl(
+const std::size_t asic_shift_reg_size(0x11a);
+
+void shift_ioctl(
         const std::string& device,
-        std::array<std::uint16_t, MINIT_IOCTL_HS_RECEIVER_REG_SIZE>& data,
-        const bool write)
+        std::array<std::uint8_t, asic_shift_reg_size>& data,
+        const bool start = 1,
+        const bool enable = 1,
+        const unsigned int speed = 50000)
 {
     // try and open file
     int fd = open(device.c_str(), O_RDWR);
@@ -25,41 +29,28 @@ void hs_receiver_ioctl(
         throw std::runtime_error("Failed to open device node");
     }
 
-    struct minit_hs_receiver_s hs_rx_ioctl;
-    for (unsigned int i(0); i < MINIT_IOCTL_HS_RECEIVER_REG_SIZE ;++i) {
-        hs_rx_ioctl.registers[i] = data.at(i);
-    }
-    hs_rx_ioctl.write = 1;
-    const auto rc = ioctl(fd, MINIT_IOCTL_HS_RECIEVER, &hs_rx_ioctl);
+    struct minit_shift_reg_s shift_ioctl{
+        nullptr,
+        data.data(),
+        speed,
+        start,
+        enable
+    };
+    const auto rc = ioctl(fd, MINIT_IOCTL_SHIFT_REG, &shift_ioctl);
     if (rc < 0) {
-        throw std::runtime_error(strerror(rc));
-    }
-    for (unsigned int i(0); i < MINIT_IOCTL_HS_RECEIVER_REG_SIZE ;++i) {
-        data.at(i) = hs_rx_ioctl.registers[i];
+        throw std::runtime_error(strerror(-rc));
     }
 }
 
 void usage()
 {
     std::cerr
-        << "usage minit-hsrx [-wx] <device>\n"
-        << " -e, --enable     Set write enable bit\n"
-        << " -r, --sync-reset Set the sync-reset bit\n"
+        << "usage minit-shift [-x] <device>\n"
         << " -x, --hex        Output will be in hexadecimal csv\n";
     exit(1);
 }
 
-
-/*
- * usage minit-hsrx [-erx] <device>
- * -e, --enable     set write enable bit
- * -r, --sync-reset set the sync-reset bit
- * -x, --hex input and output will be in hexadecimal csv
- */
-
 int main(int argc, char* argv[]) {
-    bool enable = false;
-    bool reset = false;
     bool hex = false;
     std::string device;
 
@@ -71,14 +62,6 @@ int main(int argc, char* argv[]) {
         std::string arg(argv[index]);
         if (arg == "-x" || arg == "--hex") {
             hex = true;
-            continue;
-        }
-        if (arg == "-e" || arg == "--enable") {
-            enable = true;
-            continue;
-        }
-        if (arg == "-r" || arg == "--sync-reset") {
-            enable = true;
             continue;
         }
 
@@ -106,28 +89,26 @@ int main(int argc, char* argv[]) {
         usage();
     }
 
-    std::array<std::uint16_t, MINIT_IOCTL_HS_RECEIVER_REG_SIZE> regs{0};
-    regs[0] |= enable ? 1 : 0;
-    regs[0] |= reset  ? 2 : 0;
+    std::array<std::uint8_t, asic_shift_reg_size> data{0};
 
     try {
-        hs_receiver_ioctl(device, regs, write);
+        shift_ioctl(device, data);
     } catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
         exit(1);
     }
 
     if (hex) {
-        for (unsigned int i(0); i < regs.size() ; ++i) {
-            const std::uint16_t word = regs[i] ;
+        for (unsigned int i(0); i < data.size() ; ++i) {
+            const std::uint8_t byte = data[i] ;
             if (i != 0) {
                 printf(", ");
             }
-            printf("0x%04x",word);
+            printf("0x%02x",byte);
         }
         std::cout << std::endl;
     } else {
-        std::cout.write(reinterpret_cast<char*>(regs.data()),regs.size());
+        std::cout.write(reinterpret_cast<char*>(data.data()), data.size());
         // todo
     }
     return -1;
