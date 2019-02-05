@@ -272,7 +272,7 @@ static long minit_shift_register_access(
     if (to_dev) {
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
-            writeb(to_dev[i], minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF);
+            writeb(to_dev[i], minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
         }
     }
     wmb();
@@ -296,12 +296,32 @@ static long minit_shift_register_access(
     if (from_dev) {
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
-            from_dev[i] = readb(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF);
+            from_dev[i] = readb(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
         }
     }
 
     return -EINVAL;
 }
+
+void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_hs_receiver_s* minit_hs_reg)
+{
+    unsigned int i;
+    DPRINTK("minit_hs_reg_access\n");
+    if (minit_hs_reg->write) {
+        for (i = 0; i < NUM_HS_REGISTERS;++i) {
+            if (((ASIC_HS_REG_WRITE_MASK >> i) & 1) == 1) {
+                writew(minit_hs_reg->registers[i], minit_dev->ctrl_bar + ASIC_HS_RECEIVER_BASE + (i * 2));
+            }
+        }
+
+    }
+
+    // now read registers
+    for (i = 0; i < NUM_HS_REGISTERS;++i) {
+        minit_hs_reg->registers[i] = readw(minit_dev->ctrl_bar + ASIC_HS_RECEIVER_BASE + (i * 2));
+    }
+}
+
 
 /*
  * File OPs
@@ -396,7 +416,21 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
                 }
             }
             return copy_to_user((void __user*)arg, &shift_reg_access, sizeof(struct minit_shift_reg_s) );
-    }
+        }
+        break;
+    case MINIT_IOCTL_HS_RECIEVER: {
+            struct minit_hs_receiver_s minit_hs_reg = {};
+            VPRINTK("MINIT_IOCTL_HS_RECIEVER\n");
+            rc = copy_from_user(&minit_hs_reg, (void __user*)arg, sizeof(minit_hs_reg));
+            if (rc) {
+                DPRINTK("copy_from_user failed\n");
+                return rc;
+            }
+            minit_hs_reg_access(minit_dev, &minit_hs_reg);
+
+            return copy_to_user((void __user*) arg, &minit_hs_reg, sizeof(minit_hs_reg));
+        }
+        break;
     default:
         printk(KERN_ERR ONT_DRIVER_NAME": Invalid ioctl for this device (%u)\n", cmd);
     }
@@ -454,7 +488,6 @@ static irqreturn_t minit_isr(int irq, void* _dev)
     return ret;
 }
 
-
 /**
  * This should:
  *  Verify that we're talking to usable minit hardware.
@@ -463,7 +496,7 @@ static irqreturn_t minit_isr(int irq, void* _dev)
  */
 static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 {
-    int rc;
+    int rc,irq;
     struct minit_device_s* minit_dev = NULL;
     struct device* char_device;
     DPRINTK("PROBE\n");
@@ -513,14 +546,25 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     DPRINTK("SPI bar mapped to %p\n", minit_dev->spi_bar);
     DPRINTK("PCI bar mapped to %p\n", minit_dev->pci_bar);
 
-    /* Set up a MSI interrupt */
-    if (pci_enable_msi(dev)) {
-        dev_err(&dev->dev, ": Failed to enable MSI.\n");
-        rc = -ENODEV;
+    // Use the existance of a define as indication that we're compiling on a new
+    // kernel with the simpler way of setting up interrupts for PCIe
+#ifdef PCI_IRQ_ALL_TYPES
+    // can use newer simpler way of setting-up irqs for PCI
+    rc = pci_alloc_irq_vectors(dev, 1, 1, PCI_IRQ_ALL_TYPES|PCI_IRQ_AFFINITY);
+    if (rc < 0) {
+        dev_err(&dev->dev, "Failed to claim the PCI interrupt\n");
         goto err;
     }
-
-    rc = devm_request_threaded_irq(&dev->dev, dev->irq, minit_isr_quick,
+    irq = pci_irq_vector(dev, 0);
+#else
+    rc = pci_enable_msi(dev);
+    if (rc < 0) {
+        DPRINTK("no MSI interrupts, using legacy irq\n");
+    }
+    irq = dev->irq;
+#endif
+    DPRINTK("Using irq %d\n",irq);
+    rc = devm_request_threaded_irq(&dev->dev, irq, minit_isr_quick,
                     minit_isr, IRQF_ONESHOT,
                     "minit", minit_dev);
     if (rc) {
@@ -586,8 +630,6 @@ static void __exit pci_remove(struct pci_dev *dev)
         return;
     }
 }
-
-
 
 static int __init ont_minit1c_init(void)
 {
