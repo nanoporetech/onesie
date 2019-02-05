@@ -86,6 +86,6 @@ dist-deb:
 	cd package && fakeroot dh_installdeb
 	cd package && fakeroot dh_gencontrol
 	cd package && fakeroot dh_builddeb
-	$(RM) package
+	$(RM) -r package
 
 .PHONY: all install driver utils clean
