@@ -617,10 +617,11 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
         goto err;
     }
 
-
-
     // add to our internal device table
     rc = device_table_add(minit_dev->minor_dev_no, minit_dev);
+
+    // enable interrupts
+    writel(PCI_ISR_I2C /*| PCI_ISR_DMA*/, minit_dev->pci_bar + PCI_ENB);
 
     DPRINTK("probe finished successfully\n");
 err:
