@@ -186,6 +186,12 @@ static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_regi
             return -EFAULT;
         }
         break;
+    case PCI_BAR:
+        address = minit_dev->pci_bar;
+        if ((reg_access->offset + reg_access->size) > PCI_BAR_EXPECTED_SIZE) {
+            return -EFAULT;
+        }
+        break;
     default:
         printk(KERN_ERR ONT_DRIVER_NAME": Invalid BAR %d\n", reg_access->bar);
         return -EFAULT;
@@ -300,7 +306,7 @@ static long minit_shift_register_access(
         }
     }
 
-    return -EINVAL;
+    return 0;
 }
 
 void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_hs_receiver_s* minit_hs_reg)
@@ -565,7 +571,7 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 #endif
     DPRINTK("Using irq %d\n",irq);
     rc = devm_request_threaded_irq(&dev->dev, irq, minit_isr_quick,
-                    minit_isr, IRQF_ONESHOT,
+                    minit_isr, IRQF_SHARED,
                     "minit", minit_dev);
     if (rc) {
         dev_err(&dev->dev, "failed to claim IRQ %d\n", dev->irq);
