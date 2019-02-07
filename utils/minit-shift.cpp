@@ -38,7 +38,7 @@ void shift_ioctl(
     };
     const auto rc = ioctl(fd, MINIT_IOCTL_SHIFT_REG, &shift_ioctl);
     if (rc < 0) {
-        throw std::runtime_error(strerror(-rc));
+        throw std::runtime_error(strerror(errno));
     }
 }
 
