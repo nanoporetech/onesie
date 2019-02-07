@@ -447,6 +447,16 @@ static int write_done(struct i2c_adapter* adapter)
 }
 
 
+/**
+ * @brief read data from the eeprom, this should check for valid start, length
+ * and do the appropriate locking and bus mode changes
+ *
+ * @param mdev minit device
+ * @param buffer pointer to the buffer for the data
+ * @param start  start index in eeprom
+ * @param length number of bytes to read
+ * @return error if negative, 0 if OK
+ */
 static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
 {
     int rc=0;
@@ -458,10 +468,7 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
     }
 
     // check the read fits inside the EEPROM
-    if (start > 255) {
-        return -ERANGE;
-    }
-    if ((length + start) > 255) {
+    if (start >= EEPROM_SIZE || (length + start) > EEPROM_SIZE) {
         return -ERANGE;
     }
 
@@ -486,6 +493,17 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
     return (rc < 0) ? rc : 0;
 }
 
+/**
+ * @brief write data to the eeprom, this should check for valid start, length
+ * and do the appropriate locking and bus mode changes. When this returns, the
+ * EEPROM should be programmed.
+ *
+ * @param mdev minit device
+ * @param buffer pointer to the buffer containing the data
+ * @param start  start index in eeprom
+ * @param length number of bytes to read
+ * @return error if negative, 0 if OK
+ */
 static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
 {
     int rc=0;
@@ -496,10 +514,7 @@ static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32
     }
 
     // check the write fits inside the writable bit of the EEPROM
-    if (start > 127) {
-        return -ERANGE;
-    }
-    if ((length + start) > 127) {
+    if (start >= EEPROM_WRITABLE_SIZE || (length + start) > EEPROM_WRITABLE_SIZE) {
         return -ERANGE;
     }
 

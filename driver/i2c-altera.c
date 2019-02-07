@@ -401,7 +401,6 @@ int borrowed_altr_i2c_probe(struct minit_device_s* m_dev)
 {
 	struct altr_i2c_dev *idev = NULL;
     int ret;
-	u32 val;
     struct device* dev = &m_dev->pci_device->dev;
 
     idev = devm_kzalloc(dev, sizeof(*idev), GFP_KERNEL);
@@ -416,17 +415,11 @@ int borrowed_altr_i2c_probe(struct minit_device_s* m_dev)
 	init_completion(&idev->msg_complete);
 	spin_lock_init(&idev->lock);
 
-	if (val) {
-        dev_err(dev, "FIFO size set to default of %d\n",
-			ALTR_I2C_DFLT_FIFO_SZ);
-		idev->fifo_size = ALTR_I2C_DFLT_FIFO_SZ;
-	}
+    dev_info(dev, "FIFO size set to default of %d\n", ALTR_I2C_DFLT_FIFO_SZ);
+    idev->fifo_size = ALTR_I2C_DFLT_FIFO_SZ;
 
-    val = EEPROM_CLOCK_RATE;
-	if (val) {
-        dev_err(dev, "Default to 100kHz\n");
-		idev->bus_clk_rate = 100000;	/* default clock rate */
-	}
+    dev_info(dev, "bus clock set to %dHz\n", EEPROM_CLOCK_RATE);
+    idev->bus_clk_rate = EEPROM_CLOCK_RATE;
 
 	if (idev->bus_clk_rate > 400000) {
         dev_err(dev, "invalid clock-frequency %d\n",

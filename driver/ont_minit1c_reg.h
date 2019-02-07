@@ -28,6 +28,7 @@
 #define I2C_PARENT_CLOCK_RATE PCIe_LANE_CLOCK
 #define EEPROM_CLOCK_RATE 390625
 #define EEPROM_SIZE 256 // its 256 bytes, even though half is mostly zeros
+#define EEPROM_WRITABLE_SIZE 128 // can only write to the bottom half of the EEPROM
 #define EEPROM_ADDRESS 0x50
 
 /* BASE ADDRESSES BAR-0*/
