@@ -447,6 +447,7 @@ int borrowed_altr_i2c_probe(struct minit_device_s* m_dev)
 		return ret;
 	}
 
+    m_dev->i2c_adapter = &idev->adapter;
     m_dev->i2c_dev = idev;
     m_dev->i2c_isr_quick = altr_i2c_isr_quick;
     m_dev->i2c_isr = altr_i2c_isr;

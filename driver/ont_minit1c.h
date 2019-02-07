@@ -34,11 +34,13 @@
 
 struct altr_i2c_dev;
 struct altr_dma_dev;
+struct i2c_client;
 
 struct minit_device_s {
     struct pci_dev* pci_device;
 
     struct altr_i2c_dev* i2c_dev;
+    struct i2c_adapter* i2c_adapter;
     struct altr_dma_dev* dma_dev;
 
     irqreturn_t (*i2c_isr_quick)(int,void*);
@@ -49,6 +51,10 @@ struct minit_device_s {
     // used in bh thread to determine which bh to run
     unsigned long had_i2c_irq;
     unsigned long had_dma_irq;
+
+    // protects against simultanous use of the link to the ASIC shared by the
+    // acquisition hardware and I2C/EEPROM
+    struct mutex link_mtx;
 
     // bar virtual addresses
     void __iomem* ctrl_bar;

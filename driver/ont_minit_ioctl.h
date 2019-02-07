@@ -97,6 +97,26 @@ struct  minit_hs_receiver_s {
 
 #define MINIT_IOCTL_HS_RECIEVER _IOWR('b', 66, struct minit_hs_receiver_s)
 
+/**
+ * @brief Transfer data to/from the EEPROM
+ */
+struct minit_eeprom_transfer_s {
+    char __user*    data;
+    __u32           start;
+    __u32           length;
+};
+
+/**
+ * For these defines the return values may indicate
+ *  EBUSY   The EEPROM shares electrical connections with the ASIC acquisition
+ *          data. If the flow-cell is acquiring data these will return EBUSY
+ *  ENODEV  No flow-cell present (the EEPROM is on the flow-cell)
+ *  EIO     Probably timed out
+ *  ERANGE  Start and/or length are too big for the EEPROM
+ */
+#define MINIT_IOCTL_EEPROM_READ  _IOWR('b', 67, struct minit_eeprom_transfer_s)
+#define MINIT_IOCTL_EEPROM_WRITE _IOWR('b', 68, struct minit_eeprom_transfer_s)
+
 #ifdef __cplusplus
 }
 #endif

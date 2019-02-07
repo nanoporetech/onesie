@@ -1,5 +1,5 @@
 /**
- * ont_minit1c_reg.h
+ * ont_minit1c.c
  *
  * Copyright (C) 2019 Oxford Nanopore Technologies Ltd.
  *
@@ -26,6 +26,8 @@
 #include <linux/sched.h>
 #include <linux/pagemap.h>
 #include <linux/scatterlist.h>
+#include <linux/i2c.h>
+#include <linux/mutex.h>
 
 #include "ont_minit1c.h"
 #include "ont_minit1c_reg.h"
@@ -65,6 +67,11 @@ static int minit_file_open(struct inode* inode, struct file *file);
 static int minit_file_close(struct inode *inode, struct file *file);
 static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 
+enum link_mode_e {
+    link_mode_data,
+    link_mode_i2c
+};
+
 
 /*
  * STRUCTURES
@@ -81,7 +88,7 @@ static struct pci_driver minit_driver_ops = {
     .remove = pci_remove,
 };
 
-struct file_operations minit_fops =
+static struct file_operations minit_fops =
 {
     .owner          = THIS_MODULE,
     .open           = minit_file_open,
@@ -309,7 +316,7 @@ static long minit_shift_register_access(
     return 0;
 }
 
-void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_hs_receiver_s* minit_hs_reg)
+static void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_hs_receiver_s* minit_hs_reg)
 {
     unsigned int i;
     DPRINTK("minit_hs_reg_access\n");
@@ -326,6 +333,200 @@ void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_hs_recei
     for (i = 0; i < NUM_HS_REGISTERS;++i) {
         minit_hs_reg->registers[i] = readw(minit_dev->ctrl_bar + ASIC_HS_RECEIVER_BASE + (i * 2));
     }
+}
+
+static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e mode)
+{
+    u32 asic_ctrl;
+    // check the link wires are not being used
+    if (mutex_trylock(&mdev->link_mtx) == 0) {
+        return -EBUSY;
+    }
+
+    // read and modify the asic-control register to set either I2C or SPI mode
+    asic_ctrl = readl(mdev->ctrl_bar + ASIC_CTRL_BASE);
+    switch(mode) {
+    case link_mode_i2c:
+        asic_ctrl |= ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET;
+        break;
+    case link_mode_data:
+        asic_ctrl &= ~(ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET);
+        break;
+    }
+    writel(asic_ctrl, mdev->ctrl_bar + ASIC_CTRL_BASE);
+
+    return 0;
+}
+
+static void free_link(struct minit_device_s* mdev)
+{
+    mutex_unlock(&mdev->link_mtx);
+}
+
+/**
+ * read bytes from a page in the eeprom, all locking set-up and the read won't
+ * cross page boundries
+ *
+ * @param adapter the i2c adapter that will handle the trasaction
+ * @param buffer pointer to the buffer of data to read
+ * @param start address in the eeprom of the read
+ * @param length number of bytes to write (max 8)
+ * @return negative on error
+ */
+static int read_eeprom_page(struct i2c_adapter* adapter, u8* buffer, u8 start, u16 length)
+{
+    struct i2c_msg read_msgs[2] = {
+        // start, write memory address
+        {
+            .addr = EEPROM_ADDRESS,
+            .flags = 0,
+            .len = 1,
+            .buf = &start
+        },
+        // start again, read data and stop
+        {
+            .addr = EEPROM_ADDRESS,
+            .flags = I2C_M_RD,
+            .len = length,
+            .buf = buffer
+        }
+    };
+
+    return i2c_transfer(adapter, read_msgs, 2);
+}
+
+/**
+ * write bytes to a page in the eeprom, all locking set-up and the read won't
+ * cross page boundries. This may return before the data has been commited to
+ * the eeprom, use write_done() to check the write is complete
+ *
+ * @param adapter the i2c adapter that will handle the trasaction
+ * @param buffer pointer to the buffer of data to write
+ * @param start address in the eeprom of the write
+ * @param length number of bytes to write (max 8)
+ * @return negative on error
+ */
+static int write_eeprom_page(struct i2c_adapter* adapter, u8* buffer, u8 start, u16 length)
+{
+    int i;
+    u8 lendata[9] = {0};
+
+    struct i2c_msg write_msg = {
+        // start, write memory address and data, then stop
+        .addr = EEPROM_ADDRESS,
+        .flags = 0,
+        .len = 1 + length,
+        .buf = lendata
+    };
+
+    // have to copy the data to write to concatenate it with the start address
+    lendata[0] = start;
+    for (i = 0; i < length;++i) {
+        lendata[1+i] = buffer[i];
+    }
+
+    return i2c_transfer(adapter, &write_msg, 1);
+}
+
+/**
+ * @brief wait until the last write has been committed to the eeprom
+ * @param adapter i2c bus handling the transfer
+ * @return negative on error
+ */
+static int write_done(struct i2c_adapter* adapter)
+{
+    u8 buf;
+    struct i2c_msg want_ack_msg = {
+        // start, write memory address and data, then stop
+        .addr = EEPROM_ADDRESS,
+        .flags = 0,
+        .len = 0,
+        .buf = &buf
+    };
+    return i2c_transfer(adapter, &want_ack_msg, 1);
+}
+
+
+static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
+{
+    int rc=0;
+    const u8 eeprom_page_size = 8;
+
+    struct i2c_adapter* adapter = mdev->i2c_adapter;
+    if (!adapter) {
+        return -ENODEV;
+    }
+
+    // check the read fits inside the EEPROM
+    if (start > 255) {
+        return -ERANGE;
+    }
+    if ((length + start) > 255) {
+        return -ERANGE;
+    }
+
+    // switch link to i2c mode
+    rc = switch_link_mode(mdev, link_mode_i2c);
+    if (rc < 0) {
+        return rc;
+    }
+
+    // work through the data breaking on page-boundaries
+    while (length > 0 && rc >= 0) {
+        u32 bytes_left_on_page = eeprom_page_size - (start & eeprom_page_size);
+        u8 this_read_length = (u8)min(bytes_left_on_page, length);
+        rc = read_eeprom_page(adapter, buffer, (u8)start, (u8)this_read_length);
+        length -= this_read_length;
+        start += this_read_length;
+    }
+
+    // switch link out of i2c mode
+    free_link(mdev);
+
+    return (rc < 0) ? rc : 0;
+}
+
+static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
+{
+    int rc=0;
+    const u8 eeprom_page_size = 8;
+    struct i2c_adapter* adapter = mdev->i2c_adapter;
+    if (!adapter) {
+        return -ENODEV;
+    }
+
+    // check the write fits inside the writable bit of the EEPROM
+    if (start > 127) {
+        return -ERANGE;
+    }
+    if ((length + start) > 127) {
+        return -ERANGE;
+    }
+
+    // switch link to i2c mode
+    rc = switch_link_mode(mdev, link_mode_i2c);
+    if (rc < 0) {
+        return rc;
+    }
+
+    // work through the data breaking on page-boundaries
+    while (length > 0 && rc >= 0) {
+        u32 bytes_left_on_page = eeprom_page_size - (start & eeprom_page_size);
+        u8 this_write_length = (u8)min(bytes_left_on_page, length);
+        rc = write_eeprom_page(adapter, buffer, (u8)start, (u8)this_write_length);
+        length -= this_write_length;
+        start += this_write_length;
+    }
+    // after the last write, wait for the write to complete, this should be implicit
+    // when processing a stream of writes.
+    if (rc >= 0) {
+        rc = write_done(adapter);
+    }
+
+    // switch link out of i2c mode
+    free_link(mdev);
+
+    return (rc < 0) ? rc : 0;
 }
 
 
@@ -437,6 +638,55 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             return copy_to_user((void __user*) arg, &minit_hs_reg, sizeof(minit_hs_reg));
         }
         break;
+    case MINIT_IOCTL_EEPROM_READ: {
+            struct minit_eeprom_transfer_s transfer;
+            u8 k_buffer[EEPROM_SIZE] = {0};
+            VPRINTK("MINIT_IOCTL_EEPROM_READ");
+            rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
+            if (rc) {
+                DPRINTK("copy_from_user failed\n");
+                return rc;
+            }
+            rc = read_eeprom(minit_dev, k_buffer, transfer.start, transfer.length );
+            if (rc) {
+                DPRINTK("eeprom access failed\n");
+                return rc;
+            }
+            // transfer.length is assumed to have been checked for a safe size
+            // in read_eeprom
+            rc = copy_to_user(transfer.data, k_buffer, transfer.length);
+            if (rc) {
+                DPRINTK("failed to copy eeprom back into userspace\n");
+                return rc;
+            }
+            return 0;
+        }
+    case MINIT_IOCTL_EEPROM_WRITE: {
+        struct minit_eeprom_transfer_s transfer;
+        u8 k_buffer[EEPROM_SIZE] = {0};
+        VPRINTK("MINIT_IOCTL_EEPROM_WRITE");
+        rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
+        if (rc) {
+            DPRINTK("copy_from_user failed\n");
+            return rc;
+        }
+        if (transfer.length > EEPROM_SIZE) {
+            DPRINTK("EEPROM write size of %d exceeds maximum of %d",
+                    transfer.length,
+                    EEPROM_SIZE);
+        }
+        rc = copy_from_user(k_buffer, transfer.data, transfer.length);
+        if (rc) {
+            DPRINTK("copy_from_user failed to get data from user-space\n");
+            return rc;
+        }
+        rc = write_eeprom(minit_dev, k_buffer, transfer.start, transfer.length );
+        if (rc) {
+            DPRINTK("eeprom access failed\n");
+            return rc;
+        }
+        return 0;
+    }
     default:
         printk(KERN_ERR ONT_DRIVER_NAME": Invalid ioctl for this device (%u)\n", cmd);
     }
@@ -524,6 +774,7 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
         dev_err(&dev->dev, "Unable to allocate memory for managing device\n");
         goto err;
     }
+    mutex_init(&minit_dev->link_mtx);
     minit_dev->pci_device = dev;
     minit_dev->minor_dev_no = minit_minor++;
     pci_set_drvdata(dev, minit_dev);
@@ -611,6 +862,7 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
         goto err;
     }
 
+    // register the Altera I2C core using a slightly modified Altera driver
     rc = borrowed_altr_i2c_probe(minit_dev);
     if (rc) {
         dev_err(&dev->dev, ": I2C bus controller probe failed\n");
@@ -627,7 +879,6 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 err:
     return rc;
 }
-
 
 static void __exit pci_remove(struct pci_dev *dev)
 {
