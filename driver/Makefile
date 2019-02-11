@@ -2,7 +2,7 @@ MODNAME := minit1c
 
 obj-m	:= $(MODNAME).o
 
-minit1c-objs :=  i2c-altera.o ont_minit1c.o
+minit1c-objs :=  i2c-altera.o ont_minit1c.o dma.o
 
 # Work out the kernel version
 ifeq (,$(KERNELRELEASE))

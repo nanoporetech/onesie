@@ -146,7 +146,6 @@ static int device_table_remove(struct minit_device_s* minit_dev)
         }
     }
     DPRINTK("%p not found in device table\n",minit_dev);
-
     return -ENOENT;
 }
 
