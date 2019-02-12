@@ -117,6 +117,57 @@ struct minit_eeprom_transfer_s {
 #define MINIT_IOCTL_EEPROM_READ  _IOWR('b', 67, struct minit_eeprom_transfer_s)
 #define MINIT_IOCTL_EEPROM_WRITE _IOWR('b', 68, struct minit_eeprom_transfer_s)
 
+/**
+ * @brief The minit_data_transfer_s struct
+ * Use to submit transfers to the driver. When these are done, the driver will
+ * send the process that submitted the transfer the signal [signal_number]. The
+ * user-space process should then send a [MINIT_IOCTL_WHATS_COMPLETED] ioctl
+ * to get a list of transfers that are done.
+ */
+struct minit_data_transfer_s {
+    char __user*    buffer;
+    __u32           buffer_size;
+    __u32           transfer_id;
+    int             signal_number;
+};
+#define MINIT_IOCTL_SUBMIT_TRANSFER  _IOWR('b', 69, struct minit_data_transfer_s)
+
+/**
+ * @brief The minit_transfer_status struct
+ */
+struct minit_transfer_status_s {
+    __u32           transfer_id;
+    __u32           status;// 0 = OK
+};
+
+/**
+ * @brief For fetching information about completed transfers.
+ *
+ * [completed_transfers] should point to a buffer with space for
+ * [completed_transfers_size] elements. This will be filled in by the driver
+ * with the status of the transfers.
+ */
+struct minit_completed_transfers_s {
+    struct minit_transfer_status_s*
+                    completed_transfers;
+    __u32           completed_transfers_size;
+
+    /**
+     * if this is returned with a number matching [completed_transfers_size]
+     * then there may be more transfers waiting, check again. */
+    __u32           no_completed_transfers;
+};
+
+/**
+ * After receiving a signal from the driver, the user-space code uses this
+ * ioctl to enquire which transfers are done. When this IOCTL returns, the
+ * transfers for which status is provided are completely disowned by the driver.
+ */
+#define MINIT_IOCTL_WHATS_COMPLETED  _IOWR('b', 70, struct minit_completed_transfers_s)
+
+/** Cancel a transfer, the argument is the transfer_id */
+#define MINIT_IOCTL_CANCEL_TRANSFER  _IOWR('b', 71, __u32)
+
 #ifdef __cplusplus
 }
 #endif

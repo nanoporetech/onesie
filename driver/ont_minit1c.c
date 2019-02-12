@@ -655,7 +655,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
     case MINIT_IOCTL_EEPROM_READ: {
             struct minit_eeprom_transfer_s transfer;
             u8 k_buffer[EEPROM_SIZE] = {0};
-            VPRINTK("MINIT_IOCTL_EEPROM_READ");
+            VPRINTK("MINIT_IOCTL_EEPROM_READ\n");
             rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
             if (rc) {
                 DPRINTK("copy_from_user failed\n");
@@ -678,7 +678,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
     case MINIT_IOCTL_EEPROM_WRITE: {
         struct minit_eeprom_transfer_s transfer;
         u8 k_buffer[EEPROM_SIZE] = {0};
-        VPRINTK("MINIT_IOCTL_EEPROM_WRITE");
+        VPRINTK("MINIT_IOCTL_EEPROM_WRITE\n");
         rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
         if (rc) {
             DPRINTK("copy_from_user failed\n");
@@ -700,6 +700,49 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             return rc;
         }
         return 0;
+    }
+    case MINIT_IOCTL_SUBMIT_TRANSFER: {
+        struct minit_data_transfer_s transfer;
+        VPRINTK("MINIT_IOCTL_SUBMIT_TRANSFER\s");
+        rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
+        if (rc) {
+            DPRINTK("copy_from_user failed\n");
+            return rc;
+        }
+        // make a transfer object to represent the transfer when in the driver
+        rc = queue_data_transfer(&transfer);
+        return rc;
+    }
+    case MINIT_IOCTL_WHATS_COMPLETED: {
+        struct minit_completed_transfers_s completed;
+        struct minit_transfer_status* stuff_done;
+        VPRINTK("MINIT_IOCTL_WHATS_COMPLETED\n");
+        rc = copy_from_user(&completed, (void __user*)arg, sizeof(completed));
+        if (rc) {
+            DPRINTK("copy_from_user failed\n");
+            return rc;
+        }
+        stuff_done = kzalloc(sizeof(struct minit_transfer_status_s) * completed.completed_transfers_size, GFP_KERNEL);
+        if (!stuff_done) {
+            DPRINTK("Failed to allocate memory for completed transfer list\n");
+            return -ENOMEM;
+        }
+        completed.no_completed_transfers = get_completed_data_transfers(
+                    completed.completed_transfers_size,
+                    stuff_done );
+        rc = copy_to_user(
+                    (void __user*)completed.completed_transfers,
+                    stuff_done,
+                    sizeof(struct minit_transfer_status_s) * completed.completed_transfers_size );
+        kfree(stuff_done);
+        if (rc) {
+            DPRINTK("copy_to_user failed\n");
+            return rc;
+        }
+    }
+    case MINIT_IOCTL_CANCEL_TRANSFER: {
+        VPRINTK("MINIT_IOCTL_CANCEL_TRANSFER\n");
+        return cancel_data_transfer(arg);
     }
     default:
         printk(KERN_ERR ONT_DRIVER_NAME": Invalid ioctl for this device (%u)\n", cmd);

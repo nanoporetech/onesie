@@ -9,17 +9,20 @@
  *
  */
 #include <linux/types.h>
-#include <linux/interrupt.h>
 #include <linux/irqreturn.h>
+#include <linux/interrupt.h>
 #include <linux/scatterlist.h>
+#include <linux/slab.h>
 #include "ont_minit1c.h"
+#include "ont_minit1c_reg.h"
+
 /**
  * @brief extended descriptor with some software bits on the end
  */
 struct __attribute__((__packed__, aligned(4) )) minit_dma_extdesc_s {
     u32 read_lo_phys;
     u32 write_lo_phys;
-    u32 length_lo;
+    u32 length;
     u32 next_desc_lo_phys;
     u32 bytes_transferred;
     u32 status;
@@ -33,8 +36,10 @@ struct __attribute__((__packed__, aligned(4) )) minit_dma_extdesc_s {
     u32 reserved_0x38;
     u32 control;
     void* driver_ref;
-    struct minit_dma_desc_s* next_desc_virt;
+    struct minit_dma_extdesc_s* next_desc_virt;
 };
+
+typedef struct __attribute__((__packed__, aligned(4) )) minit_dma_extdesc_s minit_dma_extdesc_t;
 
 /** Prefetcher registers */
 #define PRE_CONTROL         0x00
@@ -100,10 +105,64 @@ struct __attribute__((__packed__, aligned(4) )) minit_dma_extdesc_s {
 #define MSGDMA_VERSION_MASK         0x000000ff
 #define MSGDMA_VERSION_SHIFT        0
 
-struct altera_msgdma {
+struct altr_dma_dev {
     void __iomem* msgdma_base;
     void __iomem* prefetcher_base;
+    // the chain of descriptors that the hardware is currently working on
+    minit_dma_extdesc_t* active_descriptor_chain;
+
+
+    minit_dma_extdesc_t* transfer_queue;
 };
+
+static void dump_descriptor(minit_dma_extdesc_t* desc)
+{
+    u64 big_no;
+    printk(KERN_ERR"Descriptor at virt %p\n",desc);
+    big_no = desc->read_hi_phys;
+    big_no <<= 32;
+    big_no |= desc->read_lo_phys;
+    printk(KERN_ERR"read physical address 0x%016llx\n", big_no);
+    big_no = desc->write_hi_phys;
+    big_no <<= 32;
+    big_no |= desc->write_lo_phys;
+    printk(KERN_ERR"write physical address 0x%016llx\n", big_no);
+
+    printk(KERN_ERR"LENGTH 0x%08x (%d)\n", desc->length, desc->length);
+    printk(KERN_ERR"BYTES TRANSFERRED 0x%08x (%d)\n", desc->length, desc->length);
+
+    printk(KERN_ERR"STATUS 0x%08x\n", desc->status);
+    printk(KERN_ERR" %s %02x\n",
+           (desc->status & (1<<8)) ? "EARLY-TERM" :".",
+           (desc->status & 0xff));
+
+    printk(KERN_ERR"BURST-SEQUENCE 0x%08x\n", desc->burst_sequence);
+    printk(KERN_ERR" write burst count %d, read burst count %d, sequence no %d\n",
+           (desc->burst_sequence & 0xff000000) >> 24,
+           (desc->burst_sequence & 0x00ff0000) >> 16,
+           (desc->burst_sequence & 0x0000ffff));
+
+    printk(KERN_ERR"STRIDE 0x%08x\n",desc->stride);
+    printk(KERN_ERR" write stride %d, read stride %d\n",
+           (desc->stride & 0xffff0000) >> 16,
+           (desc->stride & 0x0000ffff));
+
+    printk(KERN_ERR"CONTROL 0x%08x\n", desc->control);
+    printk(KERN_ERR" %s %s %s error-enable 0x%02x, %s %s %s %s %s %s %s transmit-channel %d\n",
+           desc->control & (1<<31) ? "GO" : ".",
+           desc->control & (1<<30) ? "HW" : ".",
+           desc->control & (1<<24) ? "EARLY DONE" : ".",
+           (desc->control & 0x00ff0000) >> 16,
+           desc->control & (1<<15) ? "EARLY TERM IRQ" : ".",
+           desc->control & (1<<14) ? "TRANS DONE IRQ" : ".",
+           desc->control & (1<<12) ? "END EOP" : ".",
+           desc->control & (1<<11) ? "PARK WRITES" : ".",
+           desc->control & (1<<10) ? "PARK READS" : ".",
+           desc->control & (1<<9) ? "GEN EOP" : ".",
+           desc->control & (1<<8) ? "GEN SOP" : ".",
+           desc->control & 0x000000ff);
+}
+
 
 /**
  * Dump registers and descriptor chains and anything else useful to the
@@ -111,9 +170,11 @@ struct altera_msgdma {
  *
  * @param adma driver structure
  */
-static void crazy_dump_debug(struct altera_msgdma* adma) {
+static void crazy_dump_debug(struct altr_dma_dev* adma) {
     u32 reg;
     u64 hi;
+    minit_dma_extdesc_t* desc;
+
     static char* response_port_strings[] = {
         "memory-mapped",
         "streaming",
@@ -231,12 +292,78 @@ static void crazy_dump_debug(struct altera_msgdma* adma) {
            (reg & 0x00000001) ? "IRQ": ".");
 
     /// @TODO dump descriptor chains.
+    desc = adma->active_descriptor_chain;
+    while (desc) {
+        dump_descriptor(desc);
+        desc = desc->next_desc_virt;
+    }
+}
 
+static irqreturn_t dma_isr_quick(int irq_no, void* dev)
+{
+    return IRQ_HANDLED;
+}
+
+static irqreturn_t dma_isr(int irq_no, void* dev)
+{
+    return IRQ_HANDLED;
+}
+
+
+
+/*
+ * ioctl -> create job structure
+ * convert to scatterlist and map
+ * queue for converting to descriptor list
+ *
+ * convert to descriptor list
+ * queue for hardware
+ *
+ * submit to hardware
+ *
+ * irq from hardware, start bh
+ *
+ * in bh (start next job on hw queue) free descriptor list resources, send to cleanup queue
+ *
+ * from cleanup queue, unmap, signal user-space, add to done queue
+ *
+ */
+
+long queue_data_transfer(struct minit_data_transfer_s* transfer)
+{
+    return -1;
+}
+
+u32 get_completed_data_transfers(u32 max_elem, struct minit_transfer_status* statuses)
+{
+    return 0;
+}
+
+long cancel_data_transfer(u32 transfer_no)
+{
+    return -1;
 }
 
 
 int altera_sgdma_probe(struct minit_device_s* mdev) {
-    crazy_dump_debug(mdev);
+    // confirm correct version of hardware
+
+    // construct dma coordination structure and link with driver
+    struct altr_dma_dev* adma = kzalloc(sizeof(struct altr_dma_dev), GFP_KERNEL);
+    if (!adma) {
+        return -ENOMEM;
+    }
+    adma->msgdma_base = mdev->ctrl_bar + ASIC_HS_DMA_BASE;
+    adma->prefetcher_base = mdev->ctrl_bar + ASIC_HS_DMA_PREF_BASE;
+
+
+
+    mdev->dma_isr_quick = dma_isr_quick;
+    mdev->dma_isr = dma_isr;
+    mdev->dma_dev = adma;
+
+
+    crazy_dump_debug(adma);
     return -1;
 }
 
