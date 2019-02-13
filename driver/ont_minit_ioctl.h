@@ -129,6 +129,7 @@ struct minit_data_transfer_s {
     __u32           buffer_size;
     __u32           transfer_id;
     int             signal_number;
+    int             pid;
 };
 #define MINIT_IOCTL_SUBMIT_TRANSFER  _IOWR('b', 69, struct minit_data_transfer_s)
 

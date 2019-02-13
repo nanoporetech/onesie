@@ -450,11 +450,9 @@ int borrowed_altr_i2c_probe(struct minit_device_s* m_dev)
 	return 0;
 }
 
-int borrowed_altr_i2c_remove(struct platform_device *pdev)
+void borrowed_altr_i2c_remove(struct minit_device_s* m_dev)
 {
-	struct altr_i2c_dev *idev = platform_get_drvdata(pdev);
+    struct i2c_adapter* adapter = m_dev->i2c_adapter;
 
-	i2c_del_adapter(&idev->adapter);
-
-	return 0;
+    i2c_del_adapter(adapter);
 }

@@ -710,7 +710,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             return rc;
         }
         // make a transfer object to represent the transfer when in the driver
-        rc = queue_data_transfer(&transfer);
+        rc = queue_data_transfer(minit_dev->dma_dev, &transfer);
         return rc;
     }
     case MINIT_IOCTL_WHATS_COMPLETED: {
@@ -722,12 +722,16 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             DPRINTK("copy_from_user failed\n");
             return rc;
         }
+
+        // Allocate memory to prepare the list of completed transfers.
+        /// @TODO: This could possibly be done by mapping the user-space buffer into k-space.
         stuff_done = kzalloc(sizeof(struct minit_transfer_status_s) * completed.completed_transfers_size, GFP_KERNEL);
         if (!stuff_done) {
             DPRINTK("Failed to allocate memory for completed transfer list\n");
             return -ENOMEM;
         }
         completed.no_completed_transfers = get_completed_data_transfers(
+                    minit_dev->dma_dev,
                     completed.completed_transfers_size,
                     stuff_done );
         rc = copy_to_user(
@@ -742,7 +746,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
     }
     case MINIT_IOCTL_CANCEL_TRANSFER: {
         VPRINTK("MINIT_IOCTL_CANCEL_TRANSFER\n");
-        return cancel_data_transfer(arg);
+        return cancel_data_transfer(minit_dev->dma_dev, arg);
     }
     default:
         printk(KERN_ERR ONT_DRIVER_NAME": Invalid ioctl for this device (%u)\n", cmd);
@@ -756,7 +760,8 @@ static void cleanup_device(void* data) {
     struct minit_device_s* minit_dev = pci_get_drvdata(dev);
     if (minit_dev) {
         device_table_remove(minit_dev);
-
+        altera_sgdma_remove(minit_dev);
+        borrowed_altr_i2c_remove(minit_dev);
         device_destroy(minit_class, MKDEV(minit_major, minit_dev->minor_dev_no));
     }
 }
@@ -923,6 +928,12 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     rc = borrowed_altr_i2c_probe(minit_dev);
     if (rc) {
         dev_err(&dev->dev, ": I2C bus controller probe failed\n");
+        goto err;
+    }
+
+    rc = altera_sgdma_probe(minit_dev);
+    if (rc) {
+        dev_err(&dev->dev, ": DMA hardware probe failed\n");
         goto err;
     }
 

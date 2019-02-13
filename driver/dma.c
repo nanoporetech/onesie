@@ -13,107 +13,42 @@
 #include <linux/interrupt.h>
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
+#include <linux/list.h>
+#include <linux/pagemap.h>
+#include <linux/scatterlist.h>
+#include <linux/pci.h>
+#include <linux/dmapool.h>
+
 #include "ont_minit1c.h"
+#include "ont_minit_ioctl.h"
 #include "ont_minit1c_reg.h"
-
-/**
- * @brief extended descriptor with some software bits on the end
- */
-struct __attribute__((__packed__, aligned(4) )) minit_dma_extdesc_s {
-    u32 read_lo_phys;
-    u32 write_lo_phys;
-    u32 length;
-    u32 next_desc_lo_phys;
-    u32 bytes_transferred;
-    u32 status;
-    u32 reserved_0x18;
-    u32 burst_sequence;
-    u32 stride;
-    u32 read_hi_phys;
-    u32 write_hi_phys;
-    u32 reserved_0x30;
-    u32 reserved_0x34;
-    u32 reserved_0x38;
-    u32 control;
-    void* driver_ref;
-    struct minit_dma_extdesc_s* next_desc_virt;
-};
-
-typedef struct __attribute__((__packed__, aligned(4) )) minit_dma_extdesc_s minit_dma_extdesc_t;
-
-/** Prefetcher registers */
-#define PRE_CONTROL         0x00
-#define PRE_NEXT_DESC_LO    0x04
-#define PRE_NEXT_DESC_HI    0x08
-#define PRE_DESC_POLL_FREQ  0x0c
-#define PRE_STATUS          0x10
-
-#define PRE_CTRL_PARK_MODE          (1 << 4)
-#define PRE_CTRL_IRQ_MASK           (1 << 3)
-#define PRE_CTRL_RESET              (1 << 2)
-#define PRE_CTRL_POLL_ENABLE        (1 << 1)
-#define PRE_CTRL_RUN                (1 << 0)
-
-#define PRE_POLL_FREQ_MASK          0x0000ffff
-#define PRE_POLL_FREQ_SHIFT         0
-
-#define PRE_STATUS_IRQ              (1 << 0)
-
-/** mSGDMA core registers */
-#define MSGDMA_STATUS       0x00
-#define MSGDMA_CONTROL      0x04
-#define MSGDMA_RW_LEVEL     0x08
-#define MSGDMA_RES_LEVEL    0x0c
-#define MSGDMA_SEQ_NO       0x10
-#define MSGDMA_CONFIG_1     0x14
-#define MSGDMA_CONFIG_2     0x18
-#define MSGDMA_VERSION      0x1c
-
-#define MSGDMA_STATUS_IRQ           (1 << 9)
-#define MSGDMA_STATUS_STOP_EARLY    (1 << 8)
-#define MSGDMA_STATUS_STOP_ERROR    (1 << 7)
-#define MSGDMA_STATUS_RESETTING     (1 << 6)
-#define MSGDMA_STATUS_STOPPED       (1 << 5)
-#define MSGDMA_STATUS_RESP_FULL     (1 << 4)
-#define MSGDMA_STATUS_RESP_EMPTY    (1 << 3)
-#define MSGDMA_STATUS_DESC_FULL     (1 << 2)
-#define MSGDMA_STATUS_DESC_EMPTY    (1 << 1)
-#define MSGDMA_STATUS_BUSY          (1 << 0)
-
-#define MSGDMA_CTRL_STOP_DESC       (1 << 5)
-#define MSGDMA_CTRL_IRQ_MASK        (1 << 4)
-#define MSGDMA_CTRL_STOP_EARLY      (1 << 3)
-#define MSGDMA_CTRL_STOP_ERROR      (1 << 2)
-#define MSGDMA_CTRL_RESET_DISPATCH  (1 << 1)
-#define MSGDMA_CTRL_STOP_DISPATCH   (1 << 0)
-
-#define MSGDMA_WRITE_LEVEL_MASK     0xffff0000
-#define MSGDMA_WRITE_LEVEL_SHIFT    16
-#define MSGDMA_READ_LEVEL_MASK      0x0000ffff
-#define MSGDMA_READ_LEVEL_SHIFT     0
-
-#define MSGDMA_RESP_LEVEL_MASK      0x0000ffff
-#define MSGDMA_RESP_LEVEL_SHIFT     0
-
-#define MSGDMA_WRITE_SEQ_MASK       0xffff0000
-#define MSGDMA_WRITE_SEQ_SHIFT      16
-#define MSGDMA_READ_SEQ_MASK        0x0000ffff
-#define MSGDMA_READ_SEQ_SHIFT       0
-
-#define MSGDMA_TYPE_MASK            0x0000ff00
-#define MSGDMA_TYPE_SHIFT           8
-#define MSGDMA_VERSION_MASK         0x000000ff
-#define MSGDMA_VERSION_SHIFT        0
-
-struct altr_dma_dev {
-    void __iomem* msgdma_base;
-    void __iomem* prefetcher_base;
-    // the chain of descriptors that the hardware is currently working on
-    minit_dma_extdesc_t* active_descriptor_chain;
+#include "dma.h"
 
 
-    minit_dma_extdesc_t* transfer_queue;
-};
+#define ONT_DEBUG
+//#define ONT_VERBOSE_DEBUG
+
+#ifdef DPRINTK
+    #error
+#endif
+#ifdef VPRINTK
+    #error
+#endif
+#ifdef ONT_DEBUG
+    #define STRINGIFY_(X) #X
+    #define STRINGIFY(X) STRINGIFY_(X)
+    #define DPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
+    #ifdef ONT_VERBOSE_DEBUG
+        #define VPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
+    #endif
+#endif
+#ifndef DPRINTK
+    #define DPRINTK(ARGS...) do {} while(0)
+#endif
+#ifndef VPRINTK
+    #define VPRINTK(ARGS...) do {} while(0)
+#endif
+
 
 static void dump_descriptor(minit_dma_extdesc_t* desc)
 {
@@ -292,10 +227,12 @@ static void crazy_dump_debug(struct altr_dma_dev* adma) {
            (reg & 0x00000001) ? "IRQ": ".");
 
     /// @TODO dump descriptor chains.
-    desc = adma->active_descriptor_chain;
-    while (desc) {
-        dump_descriptor(desc);
-        desc = desc->next_desc_virt;
+    if (adma->transfer_on_hardware) {
+        desc = adma->transfer_on_hardware->descriptor;
+        while (desc) {
+            dump_descriptor(desc);
+            desc = desc->next_desc_virt;
+        }
     }
 }
 
@@ -309,6 +246,202 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
     return IRQ_HANDLED;
 }
 
+
+/**
+ * alloc_sg_table_from_pages: this is copied from sg_alloc_table_from_pages, but
+ * this version obeys the max transfer size.
+ *
+ * Allocate and initialize an sg table from an array of pages
+ *
+ * @param sgt:  The sg table header to use
+ * @param pages:    Pointer to an array of page pointers
+ * @param n_pages:  Number of pages in the pages array
+ * @param offset:     Offset from start of the first page to the start of a buffer
+ * @param size:       Number of valid bytes in the buffer (after offset)
+ * @param gfp_mask: GFP allocation mask
+ *
+ * Allocate and initialize an sg table from a list of pages. Contiguous
+ * ranges of the pages are squashed together into scatterlist nodes that are
+ * under the DMA_MAX_SIZE.
+ * A user may provide an offset at a start and a size of valid data in a buffer
+ * specified by the page array. The returned sg table is released by
+ * sg_free_table.
+ *
+ * @return 0 on success, negative error on failure
+ */
+static int alloc_sg_table_from_pages(struct sg_table *sgt,
+    struct page **pages, unsigned int n_pages,
+    unsigned long offset, unsigned long size,
+    unsigned long max_transfer_size,
+    gfp_t gfp_mask)
+{
+    unsigned int chunks;
+    unsigned long chunk_size;
+    unsigned int i;
+    unsigned int cur_page;
+    int ret;
+    struct scatterlist *s;
+
+    /* compute number of contiguous chunks, under our size limit */
+    chunks = 1;
+    chunk_size = PAGE_SIZE - offset;
+    for (i = 1; i < n_pages; ++i) {
+        // if not contiguous or chunk too big
+        if ((page_to_pfn(pages[i]) != page_to_pfn(pages[i - 1]) + 1) ||
+            ((chunk_size + PAGE_SIZE) > max_transfer_size))
+        {
+            ++chunks;
+            chunk_size = 0;
+        }
+        chunk_size += PAGE_SIZE;
+    }
+    VPRINTK("%d pages in %d chunks/sg-elements\n",n_pages, chunks);
+
+    ret = sg_alloc_table(sgt, chunks, gfp_mask);
+    if (unlikely(ret))
+        return ret;
+
+    /* merging chunks and putting them into the scatterlist */
+    cur_page = 0;
+    chunk_size = PAGE_SIZE - offset;
+    for_each_sg(sgt->sgl, s, sgt->orig_nents, i) {
+        unsigned int j;
+        VPRINTK("sg-elem %d\n",i);
+
+        /* look for the end of the current chunk. within size limit*/
+        for (j = cur_page + 1; j < n_pages; ++j) {
+            VPRINTK("%lx vs %lx\n", page_to_pfn(pages[j]) ,page_to_pfn(pages[j-1])+PAGE_SIZE);
+            if ((page_to_pfn(pages[j]) != page_to_pfn(pages[j - 1]) + 1) ||
+                ((chunk_size + PAGE_SIZE) > max_transfer_size))
+            {
+                VPRINTK("break between pages %d..%d size %ld (%lx)\n",j-1,j, chunk_size, chunk_size);
+                break;
+            }
+            chunk_size += PAGE_SIZE;
+            VPRINTK("adding page %d size %ld (%lx)\n",j, chunk_size, chunk_size);
+        }
+
+        VPRINTK("sg_elem %d at %p size %ld (%lx), offset %lx\n", i, page_address(pages[cur_page]), min(size, chunk_size), min(size, chunk_size), offset);
+        sg_set_page(s, pages[cur_page], min(size, chunk_size), offset);
+        size -= chunk_size;
+        chunk_size = PAGE_SIZE;
+        offset = 0;
+        cur_page = j;
+    }
+
+    return 0;
+}
+
+static inline void descriptor_set_phys(u32* hi, u32* lo, dma_addr_t desc_phys)
+{
+#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+    *hi = (u32)(desc_phys >> 32);
+    *lo = (u32)(desc_phys & 0x00000000ffffffff);
+#else
+    *hi = 0;
+    *lo = desc_phys;
+#endif
+}
+
+static inline  dma_addr_t descriptor_get_phys(u32* hi, u32* lo)
+{
+    dma_addr_t ret;
+
+#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+    ret = *hi;
+    ret <<= 32;
+    ret |= *lo;
+#else
+    ret = *lo;
+#endif
+    return ret;
+}
+
+static long submit_transfer_to_hw_or_queue(struct altr_dma_dev* adma, struct transfer_job_s* job)
+{
+    // if the hardware is idle, queue
+    if (1) {
+        list_add_tail(&job->list, &adma->transfers_ready_for_hardware);
+        // check hardware again in case something finished whilst we were queueing
+    } else {
+        // run on hardware
+    }
+
+    return -1;
+}
+
+static void free_descriptor_list(struct altr_dma_dev* adma, struct transfer_job_s* job)
+{
+    minit_dma_extdesc_t* desc = job->descriptor;
+    dma_addr_t desc_phys = job->descriptor_phys;
+
+    while (desc) {
+        minit_dma_extdesc_t* next = desc->next_desc_virt;
+        dma_addr_t next_phys = descriptor_get_phys(&desc->next_desc_hi_phys, &desc->next_desc_lo_phys);
+        dma_pool_free(adma->descriptor_pool, desc, desc_phys);
+        desc = next;
+        desc_phys = next_phys;
+    }
+    job->descriptor = NULL;
+    job->descriptor_phys = 0;
+}
+
+static long create_descriptor_list(struct altr_dma_dev* adma, struct transfer_job_s* job)
+{
+    struct scatterlist* sg_elem;
+    int sg_index;
+    int rc;
+
+    minit_dma_extdesc_t* prev_desc = NULL;
+
+    // allocate DMA descriptors for transfer from dma-pool
+    for_each_sg(job->sgt.sgl, sg_elem, job->sgt.nents, sg_index) {
+        minit_dma_extdesc_t* desc;
+        dma_addr_t desc_phys;
+        desc = dma_pool_alloc(adma->descriptor_pool, GFP_KERNEL, &desc_phys);
+        if (!desc) {
+            // oh poop!
+            rc = -ENOMEM;
+            goto err_free_descriptors;
+        }
+        // fill in transfer details
+        descriptor_set_phys(&desc->read_hi_phys, &desc->read_lo_phys, 0);
+        descriptor_set_phys(&desc->write_hi_phys, &desc->write_lo_phys, sg_elem->dma_address);
+        desc->length = sg_elem->length;
+        desc->bytes_transferred = 0;
+        desc->status = 0;
+        desc->burst_sequence = 0;
+        desc->stride = 0x00010000; //write stride 1 read stride 0
+        desc->control = ALTERA_DMA_DESC_CONTROL_NOT_END;
+
+        // make the head or previous descriptor link to this one
+        if (sg_index == 0) {
+            job->descriptor = desc;
+            job->descriptor_phys = desc_phys;
+        } else {
+            prev_desc->next_desc_virt = desc;
+            descriptor_set_phys(
+                        &prev_desc->next_desc_hi_phys,
+                        &prev_desc->next_desc_lo_phys,
+                        desc_phys);
+        }
+
+        prev_desc = desc;
+    }
+    prev_desc->control = ALTERA_DMA_DESC_CONTROL_END;
+
+    // should be ready for hardware
+    rc = submit_transfer_to_hw_or_queue(adma, job);
+    if (rc) {
+        goto err_free_descriptors;
+    }
+    return 0;
+
+err_free_descriptors:
+    free_descriptor_list(adma, job);
+
+    return rc;
+}
 
 
 /*
@@ -329,24 +462,141 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
  *
  */
 
-long queue_data_transfer(struct minit_data_transfer_s* transfer)
+/**
+ * This performs the DMA mapping to get DMA addresses for the memory buffer
+ * supplied. It then passes the transfer along to the next stage.
+ *
+ * @brief Queue the transfer for fetching data from the hardware
+ * @param adma deviec structure
+ * @param transfer Information about the transfer, field validation will be performed
+ * in this function
+ * @return < 0 if an error.
+ */
+long queue_data_transfer(struct altr_dma_dev* adma, struct minit_data_transfer_s* transfer)
 {
-    return -1;
+    long rc = 0;
+    struct page** pages;
+    int actual_pages;
+    int nents;
+    unsigned long pg_start;
+    unsigned long pg_start_offset;
+    unsigned long pg_end;
+    unsigned int no_pages;
+
+    // create job structure
+    struct transfer_job_s* job = kzalloc(sizeof(struct transfer_job_s), GFP_KERNEL);
+    if (!job) {
+        DPRINTK("Failed to allocate memory for transfer_job\n");
+        return -ENOMEM;
+    }
+    job->buffer = transfer->buffer;
+    job->buffer_size = transfer->buffer_size;
+    job->transfer_id = transfer->transfer_id;
+    job->signal_number = transfer->signal_number;
+    job->pid = transfer->pid;
+
+    // convert to scaterlist and do dma mapping
+    pg_start = (unsigned long)job->buffer & PAGE_MASK;
+    pg_start_offset = (unsigned long)job->buffer & ~PAGE_MASK;
+    pg_end = PAGE_ALIGN((unsigned long)(job->buffer + job->buffer_size));
+    no_pages = (pg_end - pg_start) >> PAGE_SHIFT;
+
+    DPRINTK("DMA transfer, usespace buffer %p len %d\n",
+        job->buffer,
+        job->buffer_size);
+
+    // Alocate memory for page list
+    pages = kzalloc(sizeof(struct page*) * no_pages, GFP_KERNEL);
+    if (!pages) {
+        printk(KERN_ERR"Couldn't allocate memory for page-table\n");
+        rc = -ENOMEM;
+        goto err;
+    }
+    VPRINTK("page list at %p",pages);
+
+    // get page entries for buffer pages (write to pages)
+    actual_pages = get_user_pages_fast(pg_start, no_pages, 1, pages);
+    VPRINTK("mapped %d pages from userspace\n",actual_pages);
+    VPRINTK("start page addr %lx, end page addr %lx, start offset %lx\n",
+        pg_start, pg_end, pg_start_offset);
+
+    // check we got all the pages of the buffer
+    if ( actual_pages != no_pages) {
+        printk(KERN_ERR"couldn't get all the buffer's pages (%d vs %d)\n",actual_pages, no_pages);
+        rc = -ENOMEM;
+        goto err_free_pages;
+    }
+
+    // create scatterlist
+    if (alloc_sg_table_from_pages(
+        &job->sgt,
+        pages,
+        actual_pages,
+        pg_start_offset,
+        job->buffer_size,
+        adma->max_transfer_size,
+        GFP_KERNEL))
+    {
+        printk(KERN_ERR"Couldn't allocate memory for scatterlist\n");
+        rc = -ENOMEM;
+        goto err_free_pages;
+    }
+
+    // map dma
+    nents = pci_map_sg( adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
+    if (!nents) {
+        printk(KERN_ERR"Error mapping dma to bus addresses\n");
+        rc = -ENOMEM;
+        goto err_free_scatterlist;
+    }
+    VPRINTK("Mapped scattelist to %d transfers\n", nents);
+
+    // queue for creating descriptor list, return if no error
+    rc = create_descriptor_list(adma, job);
+    if (rc) {
+        // success
+        goto err_unmap;
+    }
+
+
+    return 0;
+err_unmap:
+    // unmap dma
+    VPRINTK("unmap sg\n");
+    pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE );
+err_free_scatterlist:
+    // free scatterlist
+    VPRINTK("free scatterlist table\n");
+    sg_free_table(&job->sgt);
+err_free_pages:
+    // release any allocated pages, no writing done yet.
+    while (actual_pages > 0) {
+        struct page* page;
+        --actual_pages;
+        page = pages[actual_pages];
+        VPRINTK("release page %d %p -> %p\n",actual_pages, page, page_address(page) );
+
+        // release it back into the wild
+        put_page(page);
+    }
+    kfree(pages);
+err:
+    return rc;
 }
 
-u32 get_completed_data_transfers(u32 max_elem, struct minit_transfer_status* statuses)
+u32 get_completed_data_transfers(struct altr_dma_dev* adma, u32 max_elem, struct minit_transfer_status* statuses)
 {
     return 0;
 }
 
-long cancel_data_transfer(u32 transfer_no)
+long cancel_data_transfer(struct altr_dma_dev* adma, u32 transfer_no)
 {
     return -1;
 }
 
 
 int altera_sgdma_probe(struct minit_device_s* mdev) {
-    // confirm correct version of hardware
+    /// @TODO confirm correct version of hardware
 
     // construct dma coordination structure and link with driver
     struct altr_dma_dev* adma = kzalloc(sizeof(struct altr_dma_dev), GFP_KERNEL);
@@ -355,18 +605,33 @@ int altera_sgdma_probe(struct minit_device_s* mdev) {
     }
     adma->msgdma_base = mdev->ctrl_bar + ASIC_HS_DMA_BASE;
     adma->prefetcher_base = mdev->ctrl_bar + ASIC_HS_DMA_PREF_BASE;
-
-
+    adma->pci_device = mdev->pci_device;
+    adma->max_transfer_size = 2048; /// @TODO get this from the hardware registers
 
     mdev->dma_isr_quick = dma_isr_quick;
     mdev->dma_isr = dma_isr;
     mdev->dma_dev = adma;
 
+    // allocate a bunch of descriptors in coherant memory
+    ///@TODO replace number of descriptors (128) with some sort of global constant
+    adma->descriptor_pool = dmam_pool_create("MinION DMA", &mdev->pci_device->dev, sizeof(minit_dma_extdesc_t) * 128, 4, 0);
+    if (!adma->descriptor_pool) {
+        DPRINTK("Unable to allocate a pool of memory for dma descriptors\n");
+        return -ENOMEM;
+    }
 
     crazy_dump_debug(adma);
     return -1;
 }
 
 void altera_sgdma_remove(struct minit_device_s* mdev) {
+    struct altr_dma_dev* adma = mdev->dma_dev;
+    if (!adma) {
+        return;
+    }
 
+    kfree(adma);
+    mdev->dma_isr_quick = NULL;
+    mdev->dma_isr = NULL;
+    mdev->dma_dev = NULL;
 }
