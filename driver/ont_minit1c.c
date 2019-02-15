@@ -656,7 +656,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
     case MINIT_IOCTL_EEPROM_READ: {
             struct minit_eeprom_transfer_s transfer;
             u8 k_buffer[EEPROM_SIZE] = {0};
-            VPRINTK("MINIT_IOCTL_EEPROM_READ");
+            VPRINTK("MINIT_IOCTL_EEPROM_READ\n");
             rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
             if (rc) {
                 DPRINTK("copy_from_user failed\n");
@@ -679,7 +679,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
     case MINIT_IOCTL_EEPROM_WRITE: {
         struct minit_eeprom_transfer_s transfer;
         u8 k_buffer[EEPROM_SIZE] = {0};
-        VPRINTK("MINIT_IOCTL_EEPROM_WRITE");
+        VPRINTK("MINIT_IOCTL_EEPROM_WRITE\n");
         rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
         if (rc) {
             DPRINTK("copy_from_user failed\n");
@@ -714,7 +714,7 @@ static void cleanup_device(void* data) {
     struct minit_device_s* minit_dev = pci_get_drvdata(dev);
     if (minit_dev) {
         device_table_remove(minit_dev);
-
+        borrowed_altr_i2c_remove(minit_dev);
         device_destroy(minit_class, MKDEV(minit_major, minit_dev->minor_dev_no));
     }
 }
