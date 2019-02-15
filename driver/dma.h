@@ -30,6 +30,8 @@
 
 #define PRE_STATUS_IRQ              (1 << 0)
 
+#define ALTERA_DMA_PRE_START (PRE_CTRL_IRQ_MASK|PRE_CTRL_RUN)
+
 /** mSGDMA core registers */
 #define MSGDMA_STATUS       0x00
 #define MSGDMA_CONTROL      0x04
@@ -82,6 +84,8 @@
 #define ALTERA_DMA_DESC_CONTROL_NOT_END 0x0
 #define ALTERA_DMA_DESC_CONTROL_END     0x0
 
+struct transfer_job_s;
+
 /**
  * @brief extended descriptor with some software bits on the end
  */
@@ -102,7 +106,7 @@ struct __attribute__((__packed__, aligned(4) )) minit_dma_extdesc_s {
     u32 reserved_0x34;          // 34
     u32 reserved_0x38;          // 38
     u32 control;                // 3c
-    void* driver_ref;
+    struct transfer_job_s* driver_ref;
     struct minit_dma_extdesc_s* next_desc_virt;
 };
 
@@ -116,6 +120,7 @@ struct transfer_job_s {
     int signal_number;
     int pid;
     struct sg_table sgt;
+    u32 status;
 
     // DMA descriptor chain virtual and dma addreses
     minit_dma_extdesc_t* descriptor;
@@ -129,14 +134,20 @@ struct altr_dma_dev {
     struct pci_dev* pci_device;
     unsigned long max_transfer_size;
 
-    struct mutex waiting_mtx;
+    // This covers transfers_ready_for_hardware, transfers_on_hardware and post_hardware
+    spinlock_t hardware_lock;
 
     struct list_head transfers_ready_for_hardware;
-
     struct transfer_job_s* transfer_on_hardware;
+    struct list_head post_hardware;
+
+    // covers transfers_done, do-not attempt to take the hardware_lock after
+    // taking this lock as that can deadlock.
+    spinlock_t done_lock;
     struct list_head transfers_done;
 
     struct dma_pool* descriptor_pool;
-
+    struct workqueue_struct* finishing_queue;
+    struct work_struct finishing_work;
 };
 #endif // ONT_ALTERA_DMA_H

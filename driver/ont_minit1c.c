@@ -715,7 +715,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
     }
     case MINIT_IOCTL_WHATS_COMPLETED: {
         struct minit_completed_transfers_s completed;
-        struct minit_transfer_status* stuff_done;
+        struct minit_transfer_status_s* stuff_done;
         VPRINTK("MINIT_IOCTL_WHATS_COMPLETED\n");
         rc = copy_from_user(&completed, (void __user*)arg, sizeof(completed));
         if (rc) {

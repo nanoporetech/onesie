@@ -36,7 +36,7 @@ struct altr_i2c_dev;
 struct altr_dma_dev;
 struct i2c_client;
 struct minit_data_transfer_s;
-struct minit_transfer_status;
+struct minit_transfer_status_s;
 
 struct minit_device_s {
     struct pci_dev* pci_device;
@@ -72,7 +72,7 @@ extern void borrowed_altr_i2c_remove(struct minit_device_s* m_dev);
 extern int altera_sgdma_probe(struct minit_device_s* mdev);
 extern void altera_sgdma_remove(struct minit_device_s* mdev);
 extern long queue_data_transfer(struct altr_dma_dev*, struct minit_data_transfer_s*);
-extern u32 get_completed_data_transfers(struct altr_dma_dev*, u32, struct minit_transfer_status*);
+extern u32 get_completed_data_transfers(struct altr_dma_dev*, u32, struct minit_transfer_status_s*);
 extern long cancel_data_transfer(struct altr_dma_dev*, u32);
 
 #endif        //  #ifndef ONT_MINIT1C_H
