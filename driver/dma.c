@@ -721,6 +721,11 @@ long cancel_data_transfer(struct altr_dma_dev* adma, u32 transfer_id)
     return -1;
 }
 
+/**
+ * @brief interrupt handler, was it us?
+ *
+ * If the irq came from dma hardware, clear irq and start bottom-half
+ */
 static irqreturn_t dma_isr_quick(int irq_no, void* dev)
 {
     irqreturn_t ret = IRQ_HANDLED;
@@ -739,6 +744,13 @@ static irqreturn_t dma_isr_quick(int irq_no, void* dev)
     return ret;
 }
 
+/**
+ * @brief bottom-half interrupt handler, remove done transfer and start
+ * next transfer.
+ *
+ * Queues the complete transfer to have the resources freed, etc done in a
+ * workqueue
+ */
 static irqreturn_t dma_isr(int irq_no, void* dev)
 {
     struct altr_dma_dev* adma = (struct altr_dma_dev*)dev;
@@ -759,6 +771,7 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
         status = readl(adma->msgdma_base + MSGDMA_STATUS);
         job->status = status;
         if (status & (MSGDMA_STATUS_STOP_EARLY| MSGDMA_STATUS_STOP_ERROR|MSGDMA_STATUS_STOPPED)) {
+            crazy_dump_debug(adma);
             reset_dma_hardware(adma);
         }
 
