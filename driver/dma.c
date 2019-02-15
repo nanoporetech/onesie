@@ -525,7 +525,7 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minit_data_transfer_s
     unsigned long pg_end;
     unsigned int no_pages;
 
-    // create job structure
+    // create job structure, freed in get_completed_data_transfers, or cancel_data_transfer
     struct transfer_job_s* job = kzalloc(sizeof(struct transfer_job_s), GFP_KERNEL);
     if (!job) {
         DPRINTK("Failed to allocate memory for transfer_job\n");
@@ -626,6 +626,15 @@ err:
     return rc;
 }
 
+/**
+ * @brief get completed data transfers
+ * @param adma driver object
+ * @param max_elem size (in number of elements) of statuses
+ * @param statuses details of completed transfers written here
+ * @return number of completed transfers found
+ *
+ * Returns details about completed transfers and frees resources associated with the transfer
+ */
 u32 get_completed_data_transfers(struct altr_dma_dev* adma, u32 max_elem, struct minit_transfer_status_s* statuses)
 {
     u32 i;
@@ -641,11 +650,74 @@ u32 get_completed_data_transfers(struct altr_dma_dev* adma, u32 max_elem, struct
         // destroy the job object
         kfree(job);
     }
+
+    // 'i' should now be the number of jobs or max_elem
     return i;
 }
 
+static struct transfer_job_s* find_job_to_cancel(struct altr_dma_dev* adma, u32 transfer_id)
+{
+    struct transfer_job_s* job;
+    unsigned long flags;
+
+    spin_lock_irqsave(&adma->hardware_lock, flags);
+    list_for_each_entry(job, &adma->transfers_ready_for_hardware, list) {
+        if (job->transfer_id == transfer_id) {
+            list_del(&job->list);
+            return job;
+        }
+    }
+    if (adma->transfer_on_hardware->transfer_id == transfer_id) {
+        job = adma->transfer_on_hardware;
+        reset_dma_hardware(adma);
+        return job;
+    }
+    list_for_each_entry(job, &adma->post_hardware, list) {
+        if (job->transfer_id == transfer_id) {
+            list_del(&job->list);
+            return job;
+        }
+    }
+    spin_unlock_irqrestore(&adma->hardware_lock,flags);
+
+    return NULL;
+}
+
+/**
+ * @brief cancel_data_transfer
+ * @param adma
+ * @param transfer_id
+ * @return
+ *
+ * proceed through the queues looking for the transfer
+ */
 long cancel_data_transfer(struct altr_dma_dev* adma, u32 transfer_id)
 {
+    unsigned long flags;
+    struct transfer_job_s* job;
+
+    job = find_job_to_cancel(adma, transfer_id);
+    if (job) {
+        // free descriptors and unmap dma
+        free_descriptor_list(adma, job);
+        pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
+        kfree(job);
+        return 0;
+    }
+
+    // may have already completed, but the userspace app still wants to cancel
+    spin_lock_irqsave(&adma->done_lock, flags);
+    list_for_each_entry(job, &adma->transfers_ready_for_hardware, list) {
+        if (job->transfer_id == transfer_id) {
+            list_del(&job->list);
+            kfree(job);
+            spin_unlock_irqrestore(&adma->done_lock, flags);
+            return 0;
+        }
+    }
+    spin_unlock_irqrestore(&adma->done_lock, flags);
+
+    // not found
     return -1;
 }
 
@@ -721,15 +793,7 @@ static void post_transfer(struct work_struct *work)
     while ((job = pop_job(&adma->post_hardware, &adma->hardware_lock)) != NULL) {
 
         // release dma descriptors
-        minit_dma_extdesc_t* desc = job->descriptor;
-        dma_addr_t desc_phys = job->descriptor_phys;
-        while (desc && desc_phys) {
-            minit_dma_extdesc_t* free_desc = desc;
-            dma_addr_t free_desc_phys = desc_phys;
-            desc_phys = descriptor_get_phys(&desc->next_desc_hi_phys, &desc->next_desc_lo_phys);
-            desc = desc->next_desc_virt;
-            dma_pool_free(adma->descriptor_pool, free_desc, free_desc_phys);
-        }
+        free_descriptor_list(adma,job);
 
         // unmap sgdma
         pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
