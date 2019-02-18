@@ -713,8 +713,8 @@ static void cleanup_device(void* data) {
     struct pci_dev* dev = (struct pci_dev*)data;
     struct minit_device_s* minit_dev = pci_get_drvdata(dev);
     if (minit_dev) {
-        device_table_remove(minit_dev);
         borrowed_altr_i2c_remove(minit_dev);
+        device_table_remove(minit_dev);
         device_destroy(minit_class, MKDEV(minit_major, minit_dev->minor_dev_no));
     }
 }

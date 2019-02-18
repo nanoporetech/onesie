@@ -453,6 +453,7 @@ int borrowed_altr_i2c_probe(struct minit_device_s* m_dev)
 void borrowed_altr_i2c_remove(struct minit_device_s* m_dev)
 {
     struct i2c_adapter* adapter = m_dev->i2c_adapter;
-
-    i2c_del_adapter(adapter);
+    if (adapter) {
+        i2c_del_adapter(adapter);
+    }
 }
