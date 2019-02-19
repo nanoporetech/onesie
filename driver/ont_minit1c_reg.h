@@ -32,7 +32,7 @@
 #define EEPROM_ADDRESS 0x50
 
 /* BASE ADDRESSES BAR-0*/
-#define ASIC_CTRL_BASE          0x02001000
+#define ASIC_CTRL_BASE          0x04004000
 
 /* ASIC Control Bits and masks */
 #define ASIC_CTRL_RESET     (1 << 0)
@@ -46,9 +46,9 @@
 #define ASIC_HS_DMA_BASE        0x00000060
 #define ASIC_HS_DMA_PREF_BASE   0x00000040
 #define I2C_BASE                0x00000000
-#define MESSAGE_RAM_BASE        0x01009000
+#define MESSAGE_RAM_BASE        0x0100a000
 
-#define ASIC_HS_RECEIVER_BASE   0x02000000
+#define ASIC_HS_RECEIVER_BASE   0x05008000
 #define NUM_HS_REGISTERS 10
 
 /* bitmask of HS Reveiver registers that can be written */
@@ -57,7 +57,7 @@
 
 /* ASIC shift register base, buffers and control register */
 
-#define ASIC_SHIFT_BASE         0x03000000
+#define ASIC_SHIFT_BASE         0x04000000
 #define ASIC_SHIFT_REG_SIZE     0x11a
 #define ASIC_SHIFT_OUTPUT_BUF   0
 #define ASIC_SHIFT_INPUT_BUF    0x180
