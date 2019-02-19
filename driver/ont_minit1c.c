@@ -34,7 +34,7 @@
 #include "ont_minit_ioctl.h"
 
 #define ONT_DEBUG
-//#define ONT_VERBOSE_DEBUG
+#define ONT_VERBOSE_DEBUG
 
 #ifdef DPRINTK
     #error
@@ -117,6 +117,7 @@ static struct minit_device_s* minit_device_table[MINIT_MAX_DEVICES] = {};
  */
 static int device_table_add(unsigned int minor, struct minit_device_s* minit_dev)
 {
+    VPRINTK("device_table_add\n");
     if (minor >= MINIT_MAX_DEVICES) {
         printk(KERN_ERR ONT_DRIVER_NAME":Too many devices\n");
         return -EINVAL;
@@ -138,6 +139,7 @@ static int device_table_add(unsigned int minor, struct minit_device_s* minit_dev
 static int device_table_remove(struct minit_device_s* minit_dev)
 {
     int index;
+    VPRINTK("device_table_remove\n");
     for (index = 0; index < MINIT_MAX_DEVICES; ++index) {
         if (minit_device_table[index] == minit_dev) {
             DPRINTK("Removing entry %p at %d\n",minit_dev, index);
@@ -152,6 +154,7 @@ static int device_table_remove(struct minit_device_s* minit_dev)
 
 static struct minit_device_s* device_table_lookup(unsigned int minor)
 {
+    VPRINTK("device_table_lookup\n");
     if (minor >= MINIT_MAX_DEVICES) {
         printk(KERN_ERR ONT_DRIVER_NAME":invalid device number %d\n",minor);
         return NULL;
@@ -281,6 +284,8 @@ static long minit_shift_register_access(
     u32 clockdiv;
     u32 actual_clock;
     u32 control;
+    VPRINTK("minit_shift_register_access to_dev %p, from_dev %p, start %d, enable %d, clk %d\n",
+            to_dev, from_dev, start, enable, clk);
     // write to data into shift register
     if (to_dev) {
         int i;
@@ -339,6 +344,7 @@ static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e 
 {
     u32 asic_ctrl;
     // check the link wires are not being used
+    VPRINTK("switch_link_mode %s\n", mode == link_mode_i2c ? "i2c" : "data");
     if (mutex_trylock(&mdev->link_mtx) == 0) {
         return -EBUSY;
     }
@@ -360,6 +366,7 @@ static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e 
 
 static void free_link(struct minit_device_s* mdev)
 {
+    VPRINTK("free_link\n");
     mutex_unlock(&mdev->link_mtx);
 }
 
@@ -392,6 +399,7 @@ static int read_eeprom_page(struct i2c_adapter* adapter, u8* buffer, u8 start, u
         }
     };
 
+    VPRINTK("read_eeprom_page buffer %p, start %d, len %d\n", buffer, start, length);
     return i2c_transfer(adapter, read_msgs, 2);
 }
 
@@ -419,6 +427,7 @@ static int write_eeprom_page(struct i2c_adapter* adapter, u8* buffer, u8 start, 
         .buf = lendata
     };
 
+    VPRINTK("write_eeprom_page buffer %p, start %d, len %d\n", buffer, start, length);
     // have to copy the data to write to concatenate it with the start address
     lendata[0] = start;
     for (i = 0; i < length;++i) {
@@ -443,6 +452,7 @@ static int write_done(struct i2c_adapter* adapter)
         .len = 0,
         .buf = &buf
     };
+    VPRINTK("write_done fn call\n");
     return i2c_transfer(adapter, &want_ack_msg, 1);
 }
 
@@ -463,6 +473,7 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
     const u8 eeprom_page_size = 8;
 
     struct i2c_adapter* adapter = mdev->i2c_adapter;
+    VPRINTK("read_eeprom buffer %p, start %d, len %d\n",buffer,start,length);
     if (!adapter) {
         return -ENODEV;
     }
@@ -509,6 +520,7 @@ static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32
     int rc=0;
     const u8 eeprom_page_size = 8;
     struct i2c_adapter* adapter = mdev->i2c_adapter;
+    VPRINTK("write_eeprom buffer %p, start %d, len %d\n",buffer,start,length);
     if (!adapter) {
         return -ENODEV;
     }
@@ -553,6 +565,7 @@ static int minit_file_open(struct inode* inode, struct file *file)
 {
     struct minit_device_s* minit_dev;
 
+    VPRINTK("minit_file_open\n");
     /* work out which hardware the user is expecting to talk to from the device no */
     minit_dev = device_table_lookup(iminor(inode));
     if (!minit_dev) {
@@ -569,6 +582,7 @@ static int minit_file_open(struct inode* inode, struct file *file)
  */
 static int minit_file_close(struct inode *inode, struct file *file)
 {
+    VPRINTK("minit_file_close\n");
     return 0;
 }
 
@@ -712,6 +726,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
 static void cleanup_device(void* data) {
     struct pci_dev* dev = (struct pci_dev*)data;
     struct minit_device_s* minit_dev = pci_get_drvdata(dev);
+    VPRINTK("cleanup_device\n");
     if (minit_dev) {
         borrowed_altr_i2c_remove(minit_dev);
         device_table_remove(minit_dev);
@@ -724,6 +739,7 @@ static irqreturn_t minit_isr_quick(int irq, void* _dev)
     struct minit_device_s* minit_dev = _dev;
     irqreturn_t ret = IRQ_NONE;
 
+    VPRINTK("minit_isr_quick\n");
     u32 isr = readl(minit_dev->pci_bar + PCI_ISR);
 
     // call the quick ISR for the two cores that can generate interrupts
@@ -749,6 +765,7 @@ static irqreturn_t minit_isr(int irq, void* _dev)
     struct minit_device_s* minit_dev = _dev;
     irqreturn_t ret = IRQ_NONE;
 
+    VPRINTK("minit_isr (bh)\n");
     // should only get an IRQ from I2C core if it has a message
     if (minit_dev->i2c_isr && test_and_clear_bit(0,&minit_dev->had_i2c_irq)) {
         ret |= minit_dev->i2c_isr(irq, minit_dev->i2c_dev);
