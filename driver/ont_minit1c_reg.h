@@ -32,7 +32,7 @@
 #define EEPROM_ADDRESS 0x50
 
 /* BASE ADDRESSES BAR-0*/
-#define ASIC_CTRL_BASE          0x04004000
+#define ASIC_CTRL_BASE          0x04000400
 
 /* ASIC Control Bits and masks */
 #define ASIC_CTRL_RESET     (1 << 0)
