@@ -127,7 +127,7 @@ int main(int argc, char* argv[]) {
         }
         std::cout << std::endl;
     } else {
-        std::cout.write(reinterpret_cast<char*>(regs.data()),regs.size());
+        std::cout.write(reinterpret_cast<char*>(regs.data()),regs.size() * sizeof(std::uint16_t) );
         // todo
     }
     return -1;
