@@ -631,7 +631,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
                 return rc;
             }
             if (shift_reg_access.from_device) {
-                rc = copy_to_user(shift_reg_access.to_device, shift_reg, ASIC_SHIFT_REG_SIZE);
+                rc = copy_to_user(shift_reg_access.from_device, shift_reg, ASIC_SHIFT_REG_SIZE);
                 if (rc) {
                     DPRINTK("copy_to_user failed\n");
                     return rc;
