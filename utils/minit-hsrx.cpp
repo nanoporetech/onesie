@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
             continue;
         }
         if (arg == "-r" || arg == "--sync-reset") {
-            enable = true;
+            reset = true;
             continue;
         }
 
