@@ -72,6 +72,9 @@
 #define ALTR_I2C_TIMEOUT	100000	/* 100ms */
 #define ALTR_I2C_XFER_TIMEOUT	(msecs_to_jiffies(250))
 
+#define WRITEL(VAL,ADDR) do{u32 val=(VAL); void* addr=(ADDR); printk(KERN_ERR"i2c 0x%08x => %p\n",val,addr);writel(val,addr); } while(0)
+static inline u32 myreadl(void* addr) {u32 r=readl(addr);printk(KERN_ERR"i2c 0x%08x <= %p\n",r,addr);return r;}
+#define READL(ADDR) myreadl(ADDR)
 /**
  * altr_i2c_dev - I2C device context
  * @base: pointer to register struct
@@ -113,36 +116,36 @@ altr_i2c_int_enable(struct altr_i2c_dev *idev, u32 mask, bool enable)
 
 	spin_lock_irqsave(&idev->lock, flags);
 
-	int_en = readl(idev->base + ALTR_I2C_ISER);
+    int_en = READL(idev->base + ALTR_I2C_ISER);
 	if (enable)
 		idev->isr_mask = int_en | mask;
 	else
 		idev->isr_mask = int_en & ~mask;
 
-	writel(idev->isr_mask, idev->base + ALTR_I2C_ISER);
+    WRITEL(idev->isr_mask, idev->base + ALTR_I2C_ISER);
 
 	spin_unlock_irqrestore(&idev->lock, flags);
 }
 
 static void altr_i2c_int_clear(struct altr_i2c_dev *idev, u32 mask)
 {
-	u32 int_en = readl(idev->base + ALTR_I2C_ISR);
+    u32 int_en = READL(idev->base + ALTR_I2C_ISR);
 
-	writel(int_en | mask, idev->base + ALTR_I2C_ISR);
+    WRITEL(int_en | mask, idev->base + ALTR_I2C_ISR);
 }
 
 static void altr_i2c_core_disable(struct altr_i2c_dev *idev)
 {
-	u32 tmp = readl(idev->base + ALTR_I2C_CTRL);
+    u32 tmp = READL(idev->base + ALTR_I2C_CTRL);
 
-	writel(tmp & ~ALTR_I2C_CTRL_EN, idev->base + ALTR_I2C_CTRL);
+    WRITEL(tmp & ~ALTR_I2C_CTRL_EN, idev->base + ALTR_I2C_CTRL);
 }
 
 static void altr_i2c_core_enable(struct altr_i2c_dev *idev)
 {
-	u32 tmp = readl(idev->base + ALTR_I2C_CTRL);
+    u32 tmp = READL(idev->base + ALTR_I2C_CTRL);
 
-	writel(tmp | ALTR_I2C_CTRL_EN, idev->base + ALTR_I2C_CTRL);
+    WRITEL(tmp | ALTR_I2C_CTRL_EN, idev->base + ALTR_I2C_CTRL);
 }
 
 static void altr_i2c_reset(struct altr_i2c_dev *idev)
@@ -153,7 +156,7 @@ static void altr_i2c_reset(struct altr_i2c_dev *idev)
 
 static inline void altr_i2c_stop(struct altr_i2c_dev *idev)
 {
-	writel(ALTR_I2C_TFR_CMD_STO, idev->base + ALTR_I2C_TFR_CMD);
+    WRITEL(ALTR_I2C_TFR_CMD_STO, idev->base + ALTR_I2C_TFR_CMD);
 }
 
 static void altr_i2c_init(struct altr_i2c_dev *idev)
@@ -175,20 +178,20 @@ static void altr_i2c_init(struct altr_i2c_dev *idev)
 		t_high = divisor * 1 / 3;
 		t_low = divisor * 2 / 3;
 	}
-	writel(tmp, idev->base + ALTR_I2C_CTRL);
+    WRITEL(tmp, idev->base + ALTR_I2C_CTRL);
 
-	dev_dbg(idev->dev, "rate=%uHz per_clk=%uMHz -> ratio=1:%u\n",
+    dev_info(idev->dev, "rate=%uHz per_clk=%uMHz -> ratio=1:%u\n",
 		idev->bus_clk_rate, clk_mhz, divisor);
 
 	/* Reset controller */
 	altr_i2c_reset(idev);
 
 	/* SCL High Time */
-	writel(t_high, idev->base + ALTR_I2C_SCL_HIGH);
+    WRITEL(t_high, idev->base + ALTR_I2C_SCL_HIGH);
 	/* SCL Low Time */
-	writel(t_low, idev->base + ALTR_I2C_SCL_LOW);
+    WRITEL(t_low, idev->base + ALTR_I2C_SCL_LOW);
 	/* SDA Hold Time, 300ns */
-	writel(div_u64(300 * clk_mhz, 1000), idev->base + ALTR_I2C_SDA_HOLD);
+    WRITEL(div_u64(300 * clk_mhz, 1000), idev->base + ALTR_I2C_SDA_HOLD);
 
 	/* Mask all master interrupt bits */
 	altr_i2c_int_enable(idev, ALTR_I2C_ALL_IRQ, false);
@@ -204,7 +207,7 @@ static void altr_i2c_transfer(struct altr_i2c_dev *idev, u32 data)
 	if (idev->msg_len == 1)
 		data |= ALTR_I2C_TFR_CMD_STO;
 	if (idev->msg_len > 0)
-		writel(data, idev->base + ALTR_I2C_TFR_CMD);
+        WRITEL(data, idev->base + ALTR_I2C_TFR_CMD);
 }
 
 /**
@@ -213,11 +216,11 @@ static void altr_i2c_transfer(struct altr_i2c_dev *idev, u32 data)
  */
 static void altr_i2c_empty_rx_fifo(struct altr_i2c_dev *idev)
 {
-	size_t rx_fifo_avail = readl(idev->base + ALTR_I2C_RX_FIFO_LVL);
+    size_t rx_fifo_avail = READL(idev->base + ALTR_I2C_RX_FIFO_LVL);
 	int bytes_to_transfer = min(rx_fifo_avail, idev->msg_len);
 
 	while (bytes_to_transfer-- > 0) {
-		*idev->buf++ = readl(idev->base + ALTR_I2C_RX_DATA);
+        *idev->buf++ = READL(idev->base + ALTR_I2C_RX_DATA);
 		idev->msg_len--;
 		altr_i2c_transfer(idev, 0);
 	}
@@ -229,7 +232,7 @@ static void altr_i2c_empty_rx_fifo(struct altr_i2c_dev *idev)
  */
 static int altr_i2c_fill_tx_fifo(struct altr_i2c_dev *idev)
 {
-	size_t tx_fifo_avail = idev->fifo_size - readl(idev->base +
+    size_t tx_fifo_avail = idev->fifo_size - READL(idev->base +
 						       ALTR_I2C_TC_FIFO_LVL);
 	int bytes_to_transfer = min(tx_fifo_avail, idev->msg_len);
 	int ret = idev->msg_len - bytes_to_transfer;
@@ -248,7 +251,7 @@ static irqreturn_t altr_i2c_isr_quick(int irq, void *_dev)
 	irqreturn_t ret = IRQ_HANDLED;
 
 	/* Read IRQ status but only interested in Enabled IRQs. */
-	idev->isr_status = readl(idev->base + ALTR_I2C_ISR) & idev->isr_mask;
+    idev->isr_status = READL(idev->base + ALTR_I2C_ISR) & idev->isr_mask;
 	if (idev->isr_status)
 		ret = IRQ_WAKE_THREAD;
 
@@ -307,7 +310,7 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
 
 	if (finish) {
 		/* Wait for the Core to finish */
-		ret = readl_poll_timeout_atomic(idev->base + ALTR_I2C_STATUS,
+        ret = readl_poll_timeout_atomic(idev->base + ALTR_I2C_STATUS,
 						status,
 						!(status & ALTR_I2C_STAT_CORE),
 						1, ALTR_I2C_TIMEOUT);
@@ -339,10 +342,10 @@ static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg)
 
 	/* Make sure RX FIFO is empty */
 	do {
-		readl(idev->base + ALTR_I2C_RX_DATA);
-	} while (readl(idev->base + ALTR_I2C_RX_FIFO_LVL));
+        READL(idev->base + ALTR_I2C_RX_DATA);
+    } while (READL(idev->base + ALTR_I2C_RX_FIFO_LVL));
 
-	writel(ALTR_I2C_TFR_CMD_STA | addr, idev->base + ALTR_I2C_TFR_CMD);
+    WRITEL(ALTR_I2C_TFR_CMD_STA | addr, idev->base + ALTR_I2C_TFR_CMD);
 
 	if ((msg->flags & I2C_M_RD) != 0) {
 		imask |= ALTR_I2C_ISER_RXOF_EN | ALTR_I2C_ISER_RXRDY_EN;
@@ -359,7 +362,7 @@ static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg)
 						ALTR_I2C_XFER_TIMEOUT);
 	altr_i2c_int_enable(idev, imask, false);
 
-	value = readl(idev->base + ALTR_I2C_STATUS) & ALTR_I2C_STAT_CORE;
+    value = READL(idev->base + ALTR_I2C_STATUS) & ALTR_I2C_STAT_CORE;
 	if (value)
 		dev_err(idev->dev, "Core Status not IDLE...\n");
 

@@ -42,6 +42,7 @@
 #define ASIC_CTRL_CLK_64    (2 << 2)
 #define ASIC_CTRL_CLK_32    (3 << 2)
 #define ASIC_CTRL_BUS_MODE  (1 << 4)
+#define ASIC_CTRL_MASK      0x0000001f /* all the above */
 
 #define ASIC_HS_DMA_BASE        0x00000060
 #define ASIC_HS_DMA_PREF_BASE   0x00000040

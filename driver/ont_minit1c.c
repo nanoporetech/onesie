@@ -47,6 +47,10 @@
     #define STRINGIFY(X) STRINGIFY_(X)
     #define DPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
     #ifdef ONT_VERBOSE_DEBUG
+        #define WRITEL(VAL,ADDR) do{u32 val=(VAL); void* addr=(ADDR); printk(KERN_ERR"minit 0x%08x => %p\n",val,addr);writel(val,addr); } while(0)
+        static inline u32 myreadl(void* addr) {u32 r=readl(addr);printk(KERN_ERR"minit 0x%08x <= %p\n",r,addr);return r;}
+        #define READL(ADDR) myreadl(ADDR)
+
         #define VPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
     #endif
 #endif
@@ -55,6 +59,8 @@
 #endif
 #ifndef VPRINTK
     #define VPRINTK(ARGS...) do {} while(0)
+    #define READL(ADDR) readl(ADDR)
+    #define WRITEL(VAL,ADDR) writel(VAL,ADDR)
 #endif
 
 /*
@@ -222,7 +228,7 @@ static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_regi
             break;
         case 4:
             VPRINTK("write-32 0x%08x -> %p\n", (u32)reg_access->value, address);
-            writel((u32)reg_access->value, address);
+            WRITEL((u32)reg_access->value, address);
             break;
         case 8:
             VPRINTK("write-64 0x%016llx -> %p\n", (u64)reg_access->value, address);
@@ -245,7 +251,7 @@ static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_regi
             VPRINTK("read-16 0x%04x <- %p\n", (u16)reg_access->value, address);
             break;
         case 4:
-            reg_access->value = (u64)readl(address);
+            reg_access->value = (u64)READL(address);
             VPRINTK("read-32 0x%08x <- %p\n", (u32)reg_access->value, address);
             break;
         case 8:
@@ -308,7 +314,7 @@ static long minit_shift_register_access(
     control = (clockdiv << ASIC_SHIFT_CTRL_DIV_SHIFT) |
               (start ? ASIC_SHIFT_CTRL_ST : 0) |
               (enable ? ASIC_SHIFT_CTRL_EN :0);
-    writel(control, minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
+    WRITEL(control, minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
     wmb();
 
     if (from_dev) {
@@ -350,16 +356,16 @@ static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e 
     }
 
     // read and modify the asic-control register to set either I2C or SPI mode
-    asic_ctrl = readl(mdev->ctrl_bar + ASIC_CTRL_BASE);
+    asic_ctrl = READL(mdev->ctrl_bar + ASIC_CTRL_BASE) & ASIC_CTRL_MASK;
     switch(mode) {
     case link_mode_i2c:
-        asic_ctrl |= ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET;
+        asic_ctrl |= ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET |/*debug*/ ASIC_CTRL_CLK_32;
         break;
     case link_mode_data:
-        asic_ctrl &= ~(ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET);
+        asic_ctrl &= ~(ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET );
         break;
     }
-    writel(asic_ctrl, mdev->ctrl_bar + ASIC_CTRL_BASE);
+    WRITEL(asic_ctrl, mdev->ctrl_bar + ASIC_CTRL_BASE);
 
     return 0;
 }
@@ -740,7 +746,7 @@ static irqreturn_t minit_isr_quick(int irq, void* _dev)
     irqreturn_t ret = IRQ_NONE;
 
     VPRINTK("minit_isr_quick\n");
-    u32 isr = readl(minit_dev->pci_bar + PCI_ISR);
+    u32 isr = READL(minit_dev->pci_bar + PCI_ISR);
 
     // call the quick ISR for the two cores that can generate interrupts
     if (minit_dev->i2c_isr_quick &&
@@ -905,7 +911,7 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     rc = device_table_add(minit_dev->minor_dev_no, minit_dev);
 
     // enable interrupts
-    writel(PCI_ISR_I2C /*| PCI_ISR_DMA*/, minit_dev->pci_bar + PCI_ENB);
+    WRITEL(PCI_ISR_I2C /*| PCI_ISR_DMA*/, minit_dev->pci_bar + PCI_ENB);
 
     DPRINTK("probe finished successfully\n");
 err:
