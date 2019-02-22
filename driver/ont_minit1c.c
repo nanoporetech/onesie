@@ -497,7 +497,7 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
 
     // work through the data breaking on page-boundaries
     while (length > 0 && rc >= 0) {
-        u32 bytes_left_on_page = eeprom_page_size - (start & eeprom_page_size);
+        u32 bytes_left_on_page = eeprom_page_size - (start % eeprom_page_size);
         u8 this_read_length = (u8)min(bytes_left_on_page, length);
         rc = read_eeprom_page(adapter, buffer, (u8)start, (u8)this_read_length);
         length -= this_read_length;
@@ -544,7 +544,7 @@ static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32
 
     // work through the data breaking on page-boundaries
     while (length > 0 && rc >= 0) {
-        u32 bytes_left_on_page = eeprom_page_size - (start & eeprom_page_size);
+        u32 bytes_left_on_page = eeprom_page_size - (start % eeprom_page_size);
         u8 this_write_length = (u8)min(bytes_left_on_page, length);
         rc = write_eeprom_page(adapter, buffer, (u8)start, (u8)this_write_length);
         length -= this_write_length;
@@ -742,11 +742,12 @@ static void cleanup_device(void* data) {
 
 static irqreturn_t minit_isr_quick(int irq, void* _dev)
 {
+    u32 isr;
     struct minit_device_s* minit_dev = _dev;
     irqreturn_t ret = IRQ_NONE;
 
     VPRINTK("minit_isr_quick\n");
-    u32 isr = READL(minit_dev->pci_bar + PCI_ISR);
+    isr = READL(minit_dev->pci_bar + PCI_ISR);
 
     // call the quick ISR for the two cores that can generate interrupts
     if (minit_dev->i2c_isr_quick &&
