@@ -96,6 +96,7 @@ struct altr_i2c_dev {
 	void __iomem *base;
 	struct i2c_msg *msg;
 	size_t msg_len;
+    bool stop;
 	int msg_err;
 	struct completion msg_complete;
 	struct device *dev;
@@ -204,7 +205,7 @@ static void altr_i2c_init(struct altr_i2c_dev *idev)
 static void altr_i2c_transfer(struct altr_i2c_dev *idev, u32 data)
 {
 	/* On the last byte to be transmitted, send STOP */
-	if (idev->msg_len == 1)
+    if (idev->msg_len == 1 && idev->stop)
 		data |= ALTR_I2C_TFR_CMD_STO;
 	if (idev->msg_len > 0)
         WRITEL(data, idev->base + ALTR_I2C_TFR_CMD);
@@ -325,7 +326,7 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
 	return IRQ_HANDLED;
 }
 
-static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg)
+static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg, bool last_message)
 {
 	u32 imask = ALTR_I2C_ISR_RXOF | ALTR_I2C_ISR_ARB | ALTR_I2C_ISR_NACK;
 	unsigned long time_left;
@@ -335,6 +336,7 @@ static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg)
 
 	idev->msg = msg;
 	idev->msg_len = msg->len;
+    idev->stop = last_message | (msg->flags & I2C_M_STOP ? true : false);
 	idev->buf = msg->buf;
 	idev->msg_err = 0;
 	reinit_completion(&idev->msg_complete);
@@ -380,13 +382,14 @@ static int
 altr_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 {
 	struct altr_i2c_dev *idev = i2c_get_adapdata(adap);
-	int i, ret;
+    int ret;
 
-	for (i = 0; i < num; i++) {
-		ret = altr_i2c_xfer_msg(idev, msgs++);
-		if (ret)
-			return ret;
-	}
+    while (num) {
+        num--;
+        ret = altr_i2c_xfer_msg(idev, msgs++, num == 0);
+        if (ret)
+            return ret;
+    }
 	return num;
 }
 
