@@ -74,13 +74,13 @@
 #define DAC_SPI_BASE            0x00000020
 
 
-/* BASE ADDRESSES BAR-3 */
+/* BASE ADDRESSES BAR-4 */
 #define PCI_ISR                 0x0040
 #define PCI_ENB                 0x0050
 
 /* BAR-3 interrup status and enableb register bits */
-#define PCI_ISR_I2C             (1 << 0)
-#define PCI_ISR_DMA             (1 << 1)
+#define PCI_ISR_I2C             (1 << 1)
+#define PCI_ISR_DMA             (1 << 0)
 
 
 
