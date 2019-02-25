@@ -316,13 +316,17 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
 
 	if (finish) {
 		/* Wait for the Core to finish */
-        printk(KERN_ERR"polling status\n");
-        ret = readl_poll_timeout_atomic(idev->base + ALTR_I2C_STATUS,
-						status,
-						!(status & ALTR_I2C_STAT_CORE),
-                        1, ALTR_I2C_TIMEOUT);
-		if (ret)
-            dev_err(idev->dev, "message timeout (isr)\n");
+        if (!idev->stop) {
+            printk(KERN_ERR"polling status\n");
+            ret = readl_poll_timeout_atomic(idev->base + ALTR_I2C_STATUS,
+                            status,
+                            !(status & ALTR_I2C_STAT_CORE),
+                            1, ALTR_I2C_TIMEOUT);
+            if (ret)
+                dev_err(idev->dev, "message timeout (isr)\n");
+        } else {
+            printk(KERN_ERR"not waiting for idle\n");
+        }
 		altr_i2c_int_enable(idev, ALTR_I2C_ALL_IRQ, false);
 		altr_i2c_int_clear(idev, ALTR_I2C_ALL_IRQ);
 		complete(&idev->msg_complete);
@@ -374,6 +378,12 @@ static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg, boo
 	altr_i2c_int_enable(idev, imask, false);
 
     value = READL(idev->base + ALTR_I2C_STATUS) & ALTR_I2C_STAT_CORE;
+
+    // if we didn't send a stop bit, don't expect the core to be idle
+    if (!idev->stop) {
+        printk(KERN_ERR"ignoring core busy as we didn't send a stop bit\n");
+        value &= ~ALTR_I2C_STAT_CORE;
+    }
 	if (value)
 		dev_err(idev->dev, "Core Status not IDLE...\n");
 
@@ -382,6 +392,9 @@ static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg, boo
         dev_info(idev->dev, "Transaction timed out.\n");
 	}
 
+    if (idev->msg_err) {
+        altr_i2c_stop(idev);
+    }
     if (last_message || idev->msg_err) {
         altr_i2c_core_disable(idev);
     }
