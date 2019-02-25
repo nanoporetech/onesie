@@ -70,7 +70,9 @@
 #define ALTR_I2C_THRESHOLD	0	/* IRQ Threshold at 1 element */
 #define ALTR_I2C_DFLT_FIFO_SZ	4
 #define ALTR_I2C_TIMEOUT	100000	/* 100ms */
-#define ALTR_I2C_XFER_TIMEOUT	(msecs_to_jiffies(250))
+
+/* increased to 2500ms from 250ms due to all the debug printks added */
+#define ALTR_I2C_XFER_TIMEOUT	(msecs_to_jiffies(2500))
 
 #define WRITEL(VAL,ADDR) do{u32 val=(VAL); void* addr=(ADDR); printk(KERN_ERR"i2c 0x%08x => %p\n",val,addr);writel(val,addr); } while(0)
 static inline u32 myreadl(void* addr) {u32 r=readl(addr);printk(KERN_ERR"i2c 0x%08x <= %p\n",r,addr);return r;}

@@ -505,6 +505,7 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
         rc = read_eeprom_page(adapter, buffer, (u8)start, (u8)this_read_length);
         length -= this_read_length;
         start += this_read_length;
+        buffer += this_read_length;
     }
 
     // switch link out of i2c mode
@@ -553,6 +554,7 @@ static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32
         rc = write_eeprom_page(adapter, buffer, (u8)start, (u8)this_write_length);
         length -= this_write_length;
         start += this_write_length;
+        buffer += this_write_length;
     }
     // after the last write, wait for the write to complete, this should be implicit
     // when processing a stream of writes.
