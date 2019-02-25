@@ -205,8 +205,10 @@ static void altr_i2c_init(struct altr_i2c_dev *idev)
 static void altr_i2c_transfer(struct altr_i2c_dev *idev, u32 data)
 {
 	/* On the last byte to be transmitted, send STOP */
-    if (idev->msg_len == 1 && idev->stop)
+    if (idev->msg_len == 1 && idev->stop) {
+        printk(KERN_ERR"stop bit set\n");
 		data |= ALTR_I2C_TFR_CMD_STO;
+    }
 	if (idev->msg_len > 0)
         WRITEL(data, idev->base + ALTR_I2C_TFR_CMD);
 }
@@ -266,6 +268,8 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
 	struct altr_i2c_dev *idev = _dev;
 	u32 status = idev->isr_status;
 
+    printk(KERN_ERR"altr_i2c_isr\n");
+
 	if (!idev->msg) {
 		dev_warn(idev->dev, "unexpected interrupt\n");
 		altr_i2c_int_clear(idev, ALTR_I2C_ALL_IRQ);
@@ -279,13 +283,13 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
 		idev->msg_err = -EAGAIN;
 		finish = true;
 	} else if (unlikely(status & ALTR_I2C_ISR_NACK)) {
-		dev_dbg(idev->dev, "Could not get ACK\n");
+        dev_info(idev->dev, "Could not get ACK\n");
 		idev->msg_err = -ENXIO;
 		altr_i2c_int_clear(idev, ALTR_I2C_ISR_NACK);
 		altr_i2c_stop(idev);
 		finish = true;
 	} else if (read && unlikely(status & ALTR_I2C_ISR_RXOF)) {
-		/* handle RX FIFO Overflow */
+        /* handle RX FIFO Overflow */
 		altr_i2c_empty_rx_fifo(idev);
 		altr_i2c_int_clear(idev, ALTR_I2C_ISR_RXRDY);
 		altr_i2c_stop(idev);
@@ -303,6 +307,7 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
 		if (idev->msg_len > 0)
 			altr_i2c_fill_tx_fifo(idev);
 		else
+            printk(KERN_ERR"completed message\n");
 			finish = true;
 	} else {
 		dev_warn(idev->dev, "Unexpected interrupt: 0x%x\n", status);
@@ -311,16 +316,17 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
 
 	if (finish) {
 		/* Wait for the Core to finish */
+        printk(KERN_ERR"polling status\n");
         ret = readl_poll_timeout_atomic(idev->base + ALTR_I2C_STATUS,
 						status,
 						!(status & ALTR_I2C_STAT_CORE),
-						1, ALTR_I2C_TIMEOUT);
+                        1, ALTR_I2C_TIMEOUT);
 		if (ret)
-			dev_err(idev->dev, "message timeout\n");
+            dev_err(idev->dev, "message timeout (isr)\n");
 		altr_i2c_int_enable(idev, ALTR_I2C_ALL_IRQ, false);
 		altr_i2c_int_clear(idev, ALTR_I2C_ALL_IRQ);
 		complete(&idev->msg_complete);
-		dev_dbg(idev->dev, "Message Complete\n");
+        dev_info(idev->dev, "Message Complete\n");
 	}
 
 	return IRQ_HANDLED;
@@ -336,6 +342,9 @@ static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg, boo
 
 	idev->msg = msg;
 	idev->msg_len = msg->len;
+    printk(KERN_ERR" last-message %s, stop flag %s\n",
+           last_message ? "set" : "clear",
+           msg->flags & I2C_M_STOP ? "set" : "clear");
     idev->stop = last_message | (msg->flags & I2C_M_STOP ? true : false);
 	idev->buf = msg->buf;
 	idev->msg_err = 0;
@@ -350,14 +359,14 @@ static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg, boo
     WRITEL(ALTR_I2C_TFR_CMD_STA | addr, idev->base + ALTR_I2C_TFR_CMD);
 
 	if ((msg->flags & I2C_M_RD) != 0) {
-		imask |= ALTR_I2C_ISER_RXOF_EN | ALTR_I2C_ISER_RXRDY_EN;
+        /* write the first byte to start the RX */
+        altr_i2c_transfer(idev, 0);
+        imask |= ALTR_I2C_ISER_RXOF_EN | ALTR_I2C_ISER_RXRDY_EN;
 		altr_i2c_int_enable(idev, imask, true);
-		/* write the first byte to start the RX */
-		altr_i2c_transfer(idev, 0);
 	} else {
-		imask |= ALTR_I2C_ISR_TXRDY;
+        altr_i2c_fill_tx_fifo(idev);
+        imask |= ALTR_I2C_ISR_TXRDY;
 		altr_i2c_int_enable(idev, imask, true);
-		altr_i2c_fill_tx_fifo(idev);
 	}
 
 	time_left = wait_for_completion_timeout(&idev->msg_complete,
@@ -370,10 +379,12 @@ static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg, boo
 
 	if (time_left == 0) {
 		idev->msg_err = -ETIMEDOUT;
-		dev_dbg(idev->dev, "Transaction timed out.\n");
+        dev_info(idev->dev, "Transaction timed out.\n");
 	}
 
-	altr_i2c_core_disable(idev);
+    if (last_message || idev->msg_err) {
+        altr_i2c_core_disable(idev);
+    }
 
 	return idev->msg_err;
 }
@@ -386,6 +397,7 @@ altr_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 
     while (num) {
         num--;
+        printk(KERN_ERR"message %d\n",num);
         ret = altr_i2c_xfer_msg(idev, msgs++, num == 0);
         if (ret)
             return ret;

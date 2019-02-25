@@ -346,7 +346,7 @@ static void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_h
     }
 }
 
-static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e mode)
+static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e mode, u32* old_mode)
 {
     u32 asic_ctrl;
     // check the link wires are not being used
@@ -356,10 +356,11 @@ static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e 
     }
 
     // read and modify the asic-control register to set either I2C or SPI mode
-    asic_ctrl = READL(mdev->ctrl_bar + ASIC_CTRL_BASE) & ASIC_CTRL_MASK;
-    switch(mode) {
+    asic_ctrl = READL(mdev->ctrl_bar + ASIC_CTRL_BASE) ;
+    *old_mode = asic_ctrl;
+    switch(mode & ASIC_CTRL_MASK) {
     case link_mode_i2c:
-        asic_ctrl |= ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET |/*debug*/ ASIC_CTRL_CLK_32;
+        asic_ctrl |= ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET ;
         break;
     case link_mode_data:
         asic_ctrl &= ~(ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET );
@@ -370,9 +371,10 @@ static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e 
     return 0;
 }
 
-static void free_link(struct minit_device_s* mdev)
+static void free_link(struct minit_device_s* mdev, const enum link_mode_e mode)
 {
     VPRINTK("free_link\n");
+    WRITEL(mode, mdev->ctrl_bar + ASIC_CTRL_BASE);
     mutex_unlock(&mdev->link_mtx);
 }
 
@@ -450,12 +452,12 @@ static int write_eeprom_page(struct i2c_adapter* adapter, u8* buffer, u8 start, 
  */
 static int write_done(struct i2c_adapter* adapter)
 {
-    u8 buf;
+    u8 buf = 0xff;
     struct i2c_msg want_ack_msg = {
         // start, write memory address and data, then stop
         .addr = EEPROM_ADDRESS,
         .flags = 0,
-        .len = 0,
+        .len = 1,
         .buf = &buf
     };
     VPRINTK("write_done fn call\n");
@@ -475,6 +477,7 @@ static int write_done(struct i2c_adapter* adapter)
  */
 static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
 {
+    u32 old_mode;
     int rc=0;
     const u8 eeprom_page_size = 8;
 
@@ -490,7 +493,7 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
     }
 
     // switch link to i2c mode
-    rc = switch_link_mode(mdev, link_mode_i2c);
+    rc = switch_link_mode(mdev, link_mode_i2c, &old_mode);
     if (rc < 0) {
         return rc;
     }
@@ -505,7 +508,7 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
     }
 
     // switch link out of i2c mode
-    free_link(mdev);
+    free_link(mdev, old_mode);
 
     return (rc < 0) ? rc : 0;
 }
@@ -523,6 +526,7 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
  */
 static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
 {
+    u32 old_mode;
     int rc=0;
     const u8 eeprom_page_size = 8;
     struct i2c_adapter* adapter = mdev->i2c_adapter;
@@ -537,7 +541,7 @@ static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32
     }
 
     // switch link to i2c mode
-    rc = switch_link_mode(mdev, link_mode_i2c);
+    rc = switch_link_mode(mdev, link_mode_i2c, &old_mode);
     if (rc < 0) {
         return rc;
     }
@@ -557,7 +561,7 @@ static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32
     }
 
     // switch link out of i2c mode
-    free_link(mdev);
+    free_link(mdev, old_mode);
 
     return (rc < 0) ? rc : 0;
 }
@@ -750,15 +754,15 @@ static irqreturn_t minit_isr_quick(int irq, void* _dev)
     isr = READL(minit_dev->pci_bar + PCI_ISR);
 
     // call the quick ISR for the two cores that can generate interrupts
-    if (minit_dev->i2c_isr_quick &&
-        (isr & PCI_ISR_I2C) )
+    if (minit_dev->i2c_isr_quick/* &&
+        (isr & PCI_ISR_I2C)*/ )
     {
         ret |= minit_dev->i2c_isr_quick(irq, minit_dev->i2c_dev);
         set_bit(0, &minit_dev->had_i2c_irq);
     }
 
-    if (minit_dev->dma_isr_quick &&
-        (isr & PCI_ISR_DMA) )
+    if (minit_dev->dma_isr_quick/* &&
+        (isr & PCI_ISR_DMA)*/ )
     {
         ret |= minit_dev->dma_isr_quick(irq, minit_dev->dma_dev);
         set_bit(0, &minit_dev->had_dma_irq);
