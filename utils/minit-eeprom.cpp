@@ -37,7 +37,7 @@ void write_eeprom(int fd, std::istream& in, unsigned int start, unsigned int len
 
     // write to driver
     struct minit_eeprom_transfer_s eeprom_transaction{ buffer.data(),start,length};
-    const auto rc = ioctl(fd, MINIT_IOCTL_EEPROM_READ, &eeprom_transaction);
+    const auto rc = ioctl(fd, MINIT_IOCTL_EEPROM_WRITE, &eeprom_transaction);
     if (rc < 0) {
         throw std::runtime_error(strerror(errno));
     }
@@ -86,7 +86,7 @@ int main(int argc, char* argv[]) {
             ++index;
             std::string field(argv[index]);
             try {
-                start = (unsigned int)std::stoul(field);
+                start = (unsigned int)std::stoul(field,0);
             } catch(std::invalid_argument& e) {
                 std::cerr << "couldn't convert '" << field << "'to a number" << std::endl;
                 exit(1);
@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
             ++index;
             std::string field(argv[index]);
             try {
-                length = (unsigned int)std::stoul(field);
+                length = (unsigned int)std::stoul(field,0);
             } catch(std::invalid_argument& e) {
                 std::cerr << "couldn't convert '" << field << "'to a number" << std::endl;
                 exit(1);

@@ -23,9 +23,9 @@
 /* BAR numbers */
 #define CTRL_BAR 0
 #define SPI_BAR 2
-#define PCI_BAR 3
+#define PCI_BAR 4
 
-#define CTRL_BAR_EXPECTED_SIZE  0x01009400
+#define CTRL_BAR_EXPECTED_SIZE  0x08000000
 
 #define SPI_BAR_EXPECTED_SIZE   64
 

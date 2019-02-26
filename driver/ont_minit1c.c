@@ -34,7 +34,7 @@
 #include "ont_minit_ioctl.h"
 
 #define ONT_DEBUG
-//#define ONT_VERBOSE_DEBUG
+#define ONT_VERBOSE_DEBUG
 
 #ifdef DPRINTK
     #error
@@ -47,6 +47,10 @@
     #define STRINGIFY(X) STRINGIFY_(X)
     #define DPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
     #ifdef ONT_VERBOSE_DEBUG
+        #define WRITEL(VAL,ADDR) do{u32 val=(VAL); void* addr=(ADDR); printk(KERN_ERR"minit 0x%08x => %p\n",val,addr);writel(val,addr); } while(0)
+        static inline u32 myreadl(void* addr) {u32 r=readl(addr);printk(KERN_ERR"minit 0x%08x <= %p\n",r,addr);return r;}
+        #define READL(ADDR) myreadl(ADDR)
+
         #define VPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
     #endif
 #endif
@@ -55,6 +59,8 @@
 #endif
 #ifndef VPRINTK
     #define VPRINTK(ARGS...) do {} while(0)
+    #define READL(ADDR) readl(ADDR)
+    #define WRITEL(VAL,ADDR) writel(VAL,ADDR)
 #endif
 
 /*
@@ -117,6 +123,7 @@ static struct minit_device_s* minit_device_table[MINIT_MAX_DEVICES] = {};
  */
 static int device_table_add(unsigned int minor, struct minit_device_s* minit_dev)
 {
+    VPRINTK("device_table_add\n");
     if (minor >= MINIT_MAX_DEVICES) {
         printk(KERN_ERR ONT_DRIVER_NAME":Too many devices\n");
         return -EINVAL;
@@ -138,6 +145,7 @@ static int device_table_add(unsigned int minor, struct minit_device_s* minit_dev
 static int device_table_remove(struct minit_device_s* minit_dev)
 {
     int index;
+    VPRINTK("device_table_remove\n");
     for (index = 0; index < MINIT_MAX_DEVICES; ++index) {
         if (minit_device_table[index] == minit_dev) {
             DPRINTK("Removing entry %p at %d\n",minit_dev, index);
@@ -151,6 +159,7 @@ static int device_table_remove(struct minit_device_s* minit_dev)
 
 static struct minit_device_s* device_table_lookup(unsigned int minor)
 {
+    VPRINTK("device_table_lookup\n");
     if (minor >= MINIT_MAX_DEVICES) {
         printk(KERN_ERR ONT_DRIVER_NAME":invalid device number %d\n",minor);
         return NULL;
@@ -218,7 +227,7 @@ static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_regi
             break;
         case 4:
             VPRINTK("write-32 0x%08x -> %p\n", (u32)reg_access->value, address);
-            writel((u32)reg_access->value, address);
+            WRITEL((u32)reg_access->value, address);
             break;
         case 8:
             VPRINTK("write-64 0x%016llx -> %p\n", (u64)reg_access->value, address);
@@ -241,7 +250,7 @@ static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_regi
             VPRINTK("read-16 0x%04x <- %p\n", (u16)reg_access->value, address);
             break;
         case 4:
-            reg_access->value = (u64)readl(address);
+            reg_access->value = (u64)READL(address);
             VPRINTK("read-32 0x%08x <- %p\n", (u32)reg_access->value, address);
             break;
         case 8:
@@ -280,6 +289,8 @@ static long minit_shift_register_access(
     u32 clockdiv;
     u32 actual_clock;
     u32 control;
+    VPRINTK("minit_shift_register_access to_dev %p, from_dev %p, start %d, enable %d, clk %d\n",
+            to_dev, from_dev, start, enable, clk);
     // write to data into shift register
     if (to_dev) {
         int i;
@@ -302,7 +313,7 @@ static long minit_shift_register_access(
     control = (clockdiv << ASIC_SHIFT_CTRL_DIV_SHIFT) |
               (start ? ASIC_SHIFT_CTRL_ST : 0) |
               (enable ? ASIC_SHIFT_CTRL_EN :0);
-    writel(control, minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
+    WRITEL(control, minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
     wmb();
 
     if (from_dev) {
@@ -334,31 +345,35 @@ static void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_h
     }
 }
 
-static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e mode)
+static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e mode, u32* old_mode)
 {
     u32 asic_ctrl;
     // check the link wires are not being used
+    VPRINTK("switch_link_mode %s\n", mode == link_mode_i2c ? "i2c" : "data");
     if (mutex_trylock(&mdev->link_mtx) == 0) {
         return -EBUSY;
     }
 
     // read and modify the asic-control register to set either I2C or SPI mode
-    asic_ctrl = readl(mdev->ctrl_bar + ASIC_CTRL_BASE);
-    switch(mode) {
+    asic_ctrl = READL(mdev->ctrl_bar + ASIC_CTRL_BASE) ;
+    *old_mode = asic_ctrl;
+    switch(mode & ASIC_CTRL_MASK) {
     case link_mode_i2c:
-        asic_ctrl |= ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET;
+        asic_ctrl |= ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET ;
         break;
     case link_mode_data:
-        asic_ctrl &= ~(ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET);
+        asic_ctrl &= ~(ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET );
         break;
     }
-    writel(asic_ctrl, mdev->ctrl_bar + ASIC_CTRL_BASE);
+    WRITEL(asic_ctrl, mdev->ctrl_bar + ASIC_CTRL_BASE);
 
     return 0;
 }
 
-static void free_link(struct minit_device_s* mdev)
+static void free_link(struct minit_device_s* mdev, const enum link_mode_e mode)
 {
+    VPRINTK("free_link\n");
+    WRITEL(mode, mdev->ctrl_bar + ASIC_CTRL_BASE);
     mutex_unlock(&mdev->link_mtx);
 }
 
@@ -391,6 +406,7 @@ static int read_eeprom_page(struct i2c_adapter* adapter, u8* buffer, u8 start, u
         }
     };
 
+    VPRINTK("read_eeprom_page buffer %p, start %d, len %d\n", buffer, start, length);
     return i2c_transfer(adapter, read_msgs, 2);
 }
 
@@ -418,6 +434,7 @@ static int write_eeprom_page(struct i2c_adapter* adapter, u8* buffer, u8 start, 
         .buf = lendata
     };
 
+    VPRINTK("write_eeprom_page buffer %p, start %d, len %d\n", buffer, start, length);
     // have to copy the data to write to concatenate it with the start address
     lendata[0] = start;
     for (i = 0; i < length;++i) {
@@ -434,14 +451,15 @@ static int write_eeprom_page(struct i2c_adapter* adapter, u8* buffer, u8 start, 
  */
 static int write_done(struct i2c_adapter* adapter)
 {
-    u8 buf;
+    u8 buf = 0xff;
     struct i2c_msg want_ack_msg = {
         // start, write memory address and data, then stop
         .addr = EEPROM_ADDRESS,
         .flags = 0,
-        .len = 0,
+        .len = 1,
         .buf = &buf
     };
+    VPRINTK("write_done fn call\n");
     return i2c_transfer(adapter, &want_ack_msg, 1);
 }
 
@@ -458,10 +476,12 @@ static int write_done(struct i2c_adapter* adapter)
  */
 static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
 {
+    u32 old_mode;
     int rc=0;
     const u8 eeprom_page_size = 8;
 
     struct i2c_adapter* adapter = mdev->i2c_adapter;
+    VPRINTK("read_eeprom buffer %p, start %d, len %d\n",buffer,start,length);
     if (!adapter) {
         return -ENODEV;
     }
@@ -472,22 +492,23 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
     }
 
     // switch link to i2c mode
-    rc = switch_link_mode(mdev, link_mode_i2c);
+    rc = switch_link_mode(mdev, link_mode_i2c, &old_mode);
     if (rc < 0) {
         return rc;
     }
 
     // work through the data breaking on page-boundaries
     while (length > 0 && rc >= 0) {
-        u32 bytes_left_on_page = eeprom_page_size - (start & eeprom_page_size);
+        u32 bytes_left_on_page = eeprom_page_size - (start % eeprom_page_size);
         u8 this_read_length = (u8)min(bytes_left_on_page, length);
         rc = read_eeprom_page(adapter, buffer, (u8)start, (u8)this_read_length);
         length -= this_read_length;
         start += this_read_length;
+        buffer += this_read_length;
     }
 
     // switch link out of i2c mode
-    free_link(mdev);
+    free_link(mdev, old_mode);
 
     return (rc < 0) ? rc : 0;
 }
@@ -505,9 +526,11 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
  */
 static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
 {
+    u32 old_mode;
     int rc=0;
     const u8 eeprom_page_size = 8;
     struct i2c_adapter* adapter = mdev->i2c_adapter;
+    VPRINTK("write_eeprom buffer %p, start %d, len %d\n",buffer,start,length);
     if (!adapter) {
         return -ENODEV;
     }
@@ -518,18 +541,19 @@ static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32
     }
 
     // switch link to i2c mode
-    rc = switch_link_mode(mdev, link_mode_i2c);
+    rc = switch_link_mode(mdev, link_mode_i2c, &old_mode);
     if (rc < 0) {
         return rc;
     }
 
     // work through the data breaking on page-boundaries
     while (length > 0 && rc >= 0) {
-        u32 bytes_left_on_page = eeprom_page_size - (start & eeprom_page_size);
+        u32 bytes_left_on_page = eeprom_page_size - (start % eeprom_page_size);
         u8 this_write_length = (u8)min(bytes_left_on_page, length);
         rc = write_eeprom_page(adapter, buffer, (u8)start, (u8)this_write_length);
         length -= this_write_length;
         start += this_write_length;
+        buffer += this_write_length;
     }
     // after the last write, wait for the write to complete, this should be implicit
     // when processing a stream of writes.
@@ -538,7 +562,7 @@ static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32
     }
 
     // switch link out of i2c mode
-    free_link(mdev);
+    free_link(mdev, old_mode);
 
     return (rc < 0) ? rc : 0;
 }
@@ -552,6 +576,7 @@ static int minit_file_open(struct inode* inode, struct file *file)
 {
     struct minit_device_s* minit_dev;
 
+    VPRINTK("minit_file_open\n");
     /* work out which hardware the user is expecting to talk to from the device no */
     minit_dev = device_table_lookup(iminor(inode));
     if (!minit_dev) {
@@ -568,6 +593,7 @@ static int minit_file_open(struct inode* inode, struct file *file)
  */
 static int minit_file_close(struct inode *inode, struct file *file)
 {
+    VPRINTK("minit_file_close\n");
     return 0;
 }
 
@@ -630,7 +656,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
                 return rc;
             }
             if (shift_reg_access.from_device) {
-                rc = copy_to_user(shift_reg_access.to_device, shift_reg, ASIC_SHIFT_REG_SIZE);
+                rc = copy_to_user(shift_reg_access.from_device, shift_reg, ASIC_SHIFT_REG_SIZE);
                 if (rc) {
                     DPRINTK("copy_to_user failed\n");
                     return rc;
@@ -758,7 +784,9 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
 static void cleanup_device(void* data) {
     struct pci_dev* dev = (struct pci_dev*)data;
     struct minit_device_s* minit_dev = pci_get_drvdata(dev);
+    VPRINTK("cleanup_device\n");
     if (minit_dev) {
+        borrowed_altr_i2c_remove(minit_dev);
         device_table_remove(minit_dev);
         altera_sgdma_remove(minit_dev);
         borrowed_altr_i2c_remove(minit_dev);
@@ -768,21 +796,23 @@ static void cleanup_device(void* data) {
 
 static irqreturn_t minit_isr_quick(int irq, void* _dev)
 {
+    u32 isr;
     struct minit_device_s* minit_dev = _dev;
     irqreturn_t ret = IRQ_NONE;
 
-    u32 isr = readl(minit_dev->pci_bar + PCI_ISR);
+    VPRINTK("minit_isr_quick\n");
+    isr = READL(minit_dev->pci_bar + PCI_ISR);
 
     // call the quick ISR for the two cores that can generate interrupts
-    if (minit_dev->i2c_isr_quick &&
-        (isr & PCI_ISR_I2C) )
+    if (minit_dev->i2c_isr_quick/* &&
+        (isr & PCI_ISR_I2C)*/ )
     {
         ret |= minit_dev->i2c_isr_quick(irq, minit_dev->i2c_dev);
         set_bit(0, &minit_dev->had_i2c_irq);
     }
 
-    if (minit_dev->dma_isr_quick &&
-        (isr & PCI_ISR_DMA) )
+    if (minit_dev->dma_isr_quick/* &&
+        (isr & PCI_ISR_DMA)*/ )
     {
         ret |= minit_dev->dma_isr_quick(irq, minit_dev->dma_dev);
         set_bit(0, &minit_dev->had_dma_irq);
@@ -796,6 +826,7 @@ static irqreturn_t minit_isr(int irq, void* _dev)
     struct minit_device_s* minit_dev = _dev;
     irqreturn_t ret = IRQ_NONE;
 
+    VPRINTK("minit_isr (bh)\n");
     // should only get an IRQ from I2C core if it has a message
     if (minit_dev->i2c_isr && test_and_clear_bit(0,&minit_dev->had_i2c_irq)) {
         ret |= minit_dev->i2c_isr(irq, minit_dev->i2c_dev);
@@ -941,7 +972,7 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     rc = device_table_add(minit_dev->minor_dev_no, minit_dev);
 
     // enable interrupts
-    writel(PCI_ISR_I2C /*| PCI_ISR_DMA*/, minit_dev->pci_bar + PCI_ENB);
+    WRITEL(PCI_ISR_I2C /*| PCI_ISR_DMA*/, minit_dev->pci_bar + PCI_ENB);
 
     DPRINTK("probe finished successfully\n");
 err:
