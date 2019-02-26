@@ -1,12 +1,12 @@
 /**
- * ont_pci_minit_ioctl.h
+ * ont_minit_ioctl.h
  *
- * Copyright (C) 2016 Oxford Nanopore Technologies Ltd.
+ * Copyright (C) 2019 Oxford Nanopore Technologies Ltd.
  *
  * Author: Richard Crewe <richard.crewe@nanoporetech.com>
  *
  * These are the IOCTL definition for interacting with the Oxford Nanopore 
- * Technologies Base-caller On A Stick.
+ * Technologies MinIT-1C firmware and hardware.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
