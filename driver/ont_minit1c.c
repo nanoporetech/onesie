@@ -28,6 +28,7 @@
 #include <linux/scatterlist.h>
 #include <linux/i2c.h>
 #include <linux/mutex.h>
+#include <linux/delay.h>
 
 #include "ont_minit1c.h"
 #include "ont_minit1c_reg.h"
@@ -497,6 +498,7 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
  */
 static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
 {
+    int retry_count;
     u32 old_mode;
     int rc=0;
     const u8 eeprom_page_size = 8;
@@ -521,14 +523,24 @@ static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32
     while (length > 0 && rc >= 0) {
         u32 bytes_left_on_page = eeprom_page_size - (start % eeprom_page_size);
         u8 this_write_length = (u8)min(bytes_left_on_page, length);
-        rc = write_eeprom_page(adapter, buffer, (u8)start, (u8)this_write_length);
+        retry_count = 10;
+        do {
+            rc = write_eeprom_page(adapter, buffer, (u8)start, (u8)this_write_length);
+            // the eeprom will not acknowledge further comms until it's finished
+            // it's last write, so errors are likely, retry in a few ms
+            if (rc) {
+                msleep(5);
+            }
+        } while (--retry_count && rc);
         length -= this_write_length;
         start += this_write_length;
         buffer += this_write_length;
     }
-    // after the last write, wait for the write to complete, this should be implicit
-    // when processing a stream of writes.
-    if (rc >= 0) {
+    // after the last write, wait for the write to complete
+    retry_count = 10;
+    rc = write_done(adapter);
+    while (--retry_count && rc) {
+        msleep(5);
         rc = write_done(adapter);
     }
 

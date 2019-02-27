@@ -395,7 +395,8 @@ static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg, boo
         value &= ~ALTR_I2C_STAT_CORE;
     }
     if (value) {
-        dev_err(idev->dev, "Core Status not IDLE...\n");
+        // this happens a lot when writing
+        dev_dbg(idev->dev, "Core Status not IDLE...\n");
     }
 
     if (time_left == 0) {
@@ -418,6 +419,9 @@ altr_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 {
     struct altr_i2c_dev *idev = i2c_get_adapdata(adap);
     int ret;
+
+    // clear any pending interrupts
+    altr_i2c_int_clear(idev, ALTR_I2C_ALL_IRQ);
 
     while (num) {
         num--;
