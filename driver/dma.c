@@ -818,36 +818,13 @@ static void post_transfer(struct work_struct *work)
     struct altr_dma_dev* adma = (struct altr_dma_dev*)
             container_of(work, struct altr_dma_dev, finishing_work);
 
-    // for coalescing signals
-    int previous_signal;
-    int previous_pid;
-    bool pending_signal = false;
-
     while ((job = pop_job(&adma->post_hardware, &adma->hardware_lock)) != NULL) {
-
-        // release dma descriptors
         free_descriptor_list(adma,job);
-
-        // unmap sgdma
         pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
 
         // move to done
         push_job(&adma->transfers_done, &adma->done_lock, job);
-
-        // send pending signal to a userspace process if this one is different
-        if (pending_signal &&
-            (previous_signal != job->signal_number ||
-             previous_pid != job->pid))
-        {
-            send_signal(previous_signal,previous_pid);
-        }
-        previous_signal = job->signal_number;
-        previous_pid = job->pid;
-        pending_signal = true;
-    }
-    // flush pending signals
-    if (pending_signal) {
-        send_signal(previous_signal,previous_pid);
+        send_signal(job->signal_number,job->pid);
     }
 }
 
