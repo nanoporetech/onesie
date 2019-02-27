@@ -121,11 +121,11 @@ altr_i2c_int_enable(struct altr_i2c_dev *idev, u32 mask, bool enable)
 	spin_lock_irqsave(&idev->lock, flags);
 
     int_en = READL(idev->base + ALTR_I2C_ISER);
-	if (enable)
+    if (enable) {
 		idev->isr_mask = int_en | mask;
-	else
+    } else {
 		idev->isr_mask = int_en & ~mask;
-
+    }
     WRITEL(idev->isr_mask, idev->base + ALTR_I2C_ISER);
 
 	spin_unlock_irqrestore(&idev->lock, flags);
@@ -212,8 +212,9 @@ static void altr_i2c_transfer(struct altr_i2c_dev *idev, u32 data)
         VPRINTK("stop bit set\n");
 		data |= ALTR_I2C_TFR_CMD_STO;
     }
-	if (idev->msg_len > 0)
+    if (idev->msg_len > 0) {
         WRITEL(data, idev->base + ALTR_I2C_TFR_CMD);
+    }
 }
 
 /**
@@ -258,8 +259,9 @@ static irqreturn_t altr_i2c_isr_quick(int irq, void *_dev)
 
 	/* Read IRQ status but only interested in Enabled IRQs. */
     idev->isr_status = READL(idev->base + ALTR_I2C_ISR) & idev->isr_mask;
-	if (idev->isr_status)
+    if (idev->isr_status) {
 		ret = IRQ_WAKE_THREAD;
+    }
 
 	return ret;
 }
@@ -392,8 +394,9 @@ static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg, boo
         VPRINTK("ignoring core busy as we didn't send a stop bit\n");
         value &= ~ALTR_I2C_STAT_CORE;
     }
-	if (value)
+    if (value) {
 		dev_err(idev->dev, "Core Status not IDLE...\n");
+    }
 
 	if (time_left == 0) {
 		idev->msg_err = -ETIMEDOUT;
@@ -420,8 +423,9 @@ altr_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
         num--;
         VPRINTK("message %d\n",num);
         ret = altr_i2c_xfer_msg(idev, msgs++, num == 0);
-        if (ret)
+        if (ret) {
             return ret;
+        }
     }
 	return num;
 }
@@ -443,12 +447,14 @@ int borrowed_altr_i2c_probe(struct minit_device_s* m_dev)
     struct device* dev = &m_dev->pci_device->dev;
 
     idev = devm_kzalloc(dev, sizeof(*idev), GFP_KERNEL);
-	if (!idev)
+    if (!idev) {
 		return -ENOMEM;
+    }
 
     idev->base = m_dev->ctrl_bar + I2C_BASE;
-	if (IS_ERR(idev->base))
-		return PTR_ERR(idev->base);
+    if (IS_ERR(idev->base)) {
+        return PTR_ERR(idev->base);
+    }
 
     idev->dev = dev;
 	init_completion(&idev->msg_complete);
