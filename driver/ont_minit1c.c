@@ -729,7 +729,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
     }
     case MINIT_IOCTL_SUBMIT_TRANSFER: {
         struct minit_data_transfer_s transfer;
-        VPRINTK("MINIT_IOCTL_SUBMIT_TRANSFER\s");
+        VPRINTK("MINIT_IOCTL_SUBMIT_TRANSFER\n");
         rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
         if (rc) {
             DPRINTK("copy_from_user failed\n");
@@ -804,16 +804,12 @@ static irqreturn_t minit_isr_quick(int irq, void* _dev)
     isr = READL(minit_dev->pci_bar + PCI_ISR);
 
     // call the quick ISR for the two cores that can generate interrupts
-    if (minit_dev->i2c_isr_quick/* &&
-        (isr & PCI_ISR_I2C)*/ )
-    {
+    if (minit_dev->i2c_isr_quick ) {
         ret |= minit_dev->i2c_isr_quick(irq, minit_dev->i2c_dev);
         set_bit(0, &minit_dev->had_i2c_irq);
     }
 
-    if (minit_dev->dma_isr_quick/* &&
-        (isr & PCI_ISR_DMA)*/ )
-    {
+    if (minit_dev->dma_isr_quick ) {
         ret |= minit_dev->dma_isr_quick(irq, minit_dev->dma_dev);
         set_bit(0, &minit_dev->had_dma_irq);
     }

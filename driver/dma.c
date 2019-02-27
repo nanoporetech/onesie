@@ -202,7 +202,7 @@ static void crazy_dump_debug(struct altr_dma_dev* adma) {
 
     printk(KERN_ERR"Descriptor Prefetcher core\n");
     reg = readl(adma->prefetcher_base + PRE_CONTROL);
-    printk(KERN_ERR"PRE_CONTROL = %0x08x\n",reg);
+    printk(KERN_ERR"PRE_CONTROL = 0x%08x\n",reg);
     printk(KERN_ERR" %s %s %s %s %s\n",
            reg & (1 << 4) ? "PARK_MODE" : ".",
            reg & (1 << 3) ? "IRQ_EN" : ".",
@@ -212,18 +212,18 @@ static void crazy_dump_debug(struct altr_dma_dev* adma) {
 
 
     hi = reg = readl(adma->prefetcher_base + PRE_NEXT_DESC_LO);
-    printk(KERN_ERR"PRE_NEXT_DESC_LO = %0x08x\n",reg);
+    printk(KERN_ERR"PRE_NEXT_DESC_LO = 0x%08x\n",reg);
     reg = readl(adma->prefetcher_base + PRE_NEXT_DESC_HI);
-    printk(KERN_ERR"PRE_NEXT_DESC_HI = %0x08x\n",reg);
+    printk(KERN_ERR"PRE_NEXT_DESC_HI = 0x%08x\n",reg);
     printk(KERN_ERR" next descriptor address 0x%016llx\n", (hi << 32) + reg);
 
     reg = readl(adma->prefetcher_base + PRE_DESC_POLL_FREQ);
-    printk(KERN_ERR"PRE_DESC_POLL_FREQ = %0x08x\n",reg);
+    printk(KERN_ERR"PRE_DESC_POLL_FREQ = 0x%08x\n",reg);
     printk(KERN_ERR" poll frequency %d cycles\n",
            reg & 0x0000ffff);
 
     reg = readl(adma->prefetcher_base + PRE_STATUS);
-    printk(KERN_ERR"PRE_STATUS = %0x08x\n",reg);
+    printk(KERN_ERR"PRE_STATUS = 0x%08x\n",reg);
     printk(KERN_ERR" %s\n",
            (reg & 0x00000001) ? "IRQ": ".");
 
