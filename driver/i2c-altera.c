@@ -71,12 +71,13 @@
 #define ALTR_I2C_DFLT_FIFO_SZ	4
 #define ALTR_I2C_TIMEOUT	100000	/* 100ms */
 
-/* increased to 2500ms from 250ms due to all the debug printks added */
+#ifdef ONT_VERBOSE_DEBUG
+/* increased to 2500ms from 250ms due to all the debugging output */
 #define ALTR_I2C_XFER_TIMEOUT	(msecs_to_jiffies(2500))
+#else
+#define ALTR_I2C_XFER_TIMEOUT	(msecs_to_jiffies(250))
+#endif
 
-#define WRITEL(VAL,ADDR) do{u32 val=(VAL); void* addr=(ADDR); printk(KERN_ERR"i2c 0x%08x => %p\n",val,addr);writel(val,addr); } while(0)
-static inline u32 myreadl(void* addr) {u32 r=readl(addr);printk(KERN_ERR"i2c 0x%08x <= %p\n",r,addr);return r;}
-#define READL(ADDR) myreadl(ADDR)
 /**
  * altr_i2c_dev - I2C device context
  * @base: pointer to register struct
@@ -183,7 +184,7 @@ static void altr_i2c_init(struct altr_i2c_dev *idev)
 	}
     WRITEL(tmp, idev->base + ALTR_I2C_CTRL);
 
-    dev_info(idev->dev, "rate=%uHz per_clk=%uMHz -> ratio=1:%u\n",
+    dev_dbg(idev->dev, "rate=%uHz per_clk=%uMHz -> ratio=1:%u\n",
 		idev->bus_clk_rate, clk_mhz, divisor);
 
 	/* Reset controller */
@@ -208,7 +209,7 @@ static void altr_i2c_transfer(struct altr_i2c_dev *idev, u32 data)
 {
 	/* On the last byte to be transmitted, send STOP */
     if (idev->msg_len == 1 && idev->stop) {
-        printk(KERN_ERR"stop bit set\n");
+        VPRINTK("stop bit set\n");
 		data |= ALTR_I2C_TFR_CMD_STO;
     }
 	if (idev->msg_len > 0)
@@ -270,7 +271,7 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
 	struct altr_i2c_dev *idev = _dev;
 	u32 status = idev->isr_status;
 
-    printk(KERN_ERR"altr_i2c_isr\n");
+    VPRINTK("altr_i2c_isr\n");
 
 	if (!idev->msg) {
 		dev_warn(idev->dev, "unexpected interrupt\n");
@@ -285,7 +286,7 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
 		idev->msg_err = -EAGAIN;
 		finish = true;
 	} else if (unlikely(status & ALTR_I2C_ISR_NACK)) {
-        dev_info(idev->dev, "Could not get ACK\n");
+        dev_dbg(idev->dev, "Could not get ACK\n");
 		idev->msg_err = -ENXIO;
 		altr_i2c_int_clear(idev, ALTR_I2C_ISR_NACK);
 		altr_i2c_stop(idev);
@@ -309,7 +310,7 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
 		if (idev->msg_len > 0)
 			altr_i2c_fill_tx_fifo(idev);
 		else
-            printk(KERN_ERR"completed message\n");
+            VPRINTK("completed message\n");
 			finish = true;
 	} else {
 		dev_warn(idev->dev, "Unexpected interrupt: 0x%x\n", status);
@@ -318,8 +319,8 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
 
 	if (finish) {
 		/* Wait for the Core to finish */
-        if (!idev->stop) {
-            printk(KERN_ERR"polling status\n");
+        if (idev->stop) {
+            VPRINTK("polling status\n");
             ret = readl_poll_timeout_atomic(idev->base + ALTR_I2C_STATUS,
                             status,
                             !(status & ALTR_I2C_STAT_CORE),
@@ -327,12 +328,12 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
             if (ret)
                 dev_err(idev->dev, "message timeout (isr)\n");
         } else {
-            printk(KERN_ERR"not waiting for idle\n");
+            VPRINTK("not waiting for idle\n");
         }
 		altr_i2c_int_enable(idev, ALTR_I2C_ALL_IRQ, false);
 		altr_i2c_int_clear(idev, ALTR_I2C_ALL_IRQ);
 		complete(&idev->msg_complete);
-        dev_info(idev->dev, "Message Complete\n");
+        dev_dbg(idev->dev, "Message Complete\n");
 	}
 
 	return IRQ_HANDLED;
@@ -348,7 +349,7 @@ static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg, boo
 
 	idev->msg = msg;
 	idev->msg_len = msg->len;
-    printk(KERN_ERR" last-message %s, stop flag %s\n",
+    VPRINTK(" last-message %s, stop flag %s\n",
            last_message ? "set" : "clear",
            msg->flags & I2C_M_STOP ? "set" : "clear");
     idev->stop = last_message | (msg->flags & I2C_M_STOP ? true : false);
@@ -383,7 +384,7 @@ static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg, boo
 
     // if we didn't send a stop bit, don't expect the core to be idle
     if (!idev->stop) {
-        printk(KERN_ERR"ignoring core busy as we didn't send a stop bit\n");
+        VPRINTK("ignoring core busy as we didn't send a stop bit\n");
         value &= ~ALTR_I2C_STAT_CORE;
     }
 	if (value)
@@ -391,7 +392,7 @@ static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg, boo
 
 	if (time_left == 0) {
 		idev->msg_err = -ETIMEDOUT;
-        dev_info(idev->dev, "Transaction timed out.\n");
+        dev_dbg(idev->dev, "Transaction timed out.\n");
 	}
 
     if (idev->msg_err) {
@@ -412,7 +413,7 @@ altr_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 
     while (num) {
         num--;
-        printk(KERN_ERR"message %d\n",num);
+        VPRINTK("message %d\n",num);
         ret = altr_i2c_xfer_msg(idev, msgs++, num == 0);
         if (ret)
             return ret;
