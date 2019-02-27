@@ -271,7 +271,7 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
 	struct altr_i2c_dev *idev = _dev;
 	u32 status = idev->isr_status;
 
-    VPRINTK("altr_i2c_isr\n");
+    VPRINTK("altr_i2c_isr 0x%08x\n",status);
 
 	if (!idev->msg) {
 		dev_warn(idev->dev, "unexpected interrupt\n");
@@ -302,16 +302,19 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
 		/* RX FIFO needs service? */
 		altr_i2c_empty_rx_fifo(idev);
 		altr_i2c_int_clear(idev, ALTR_I2C_ISR_RXRDY);
-		if (!idev->msg_len)
+        if (!idev->msg_len) {
+            VPRINTK("completed rx message\n");
 			finish = true;
+        }
 	} else if (!read && (status & ALTR_I2C_ISR_TXRDY)) {
 		/* TX FIFO needs service? */
 		altr_i2c_int_clear(idev, ALTR_I2C_ISR_TXRDY);
-		if (idev->msg_len > 0)
+        if (idev->msg_len > 0) {
 			altr_i2c_fill_tx_fifo(idev);
-		else
-            VPRINTK("completed message\n");
+        } else {
+            VPRINTK("completed tx message\n");
 			finish = true;
+        }
 	} else {
 		dev_warn(idev->dev, "Unexpected interrupt: 0x%x\n", status);
 		altr_i2c_int_clear(idev, ALTR_I2C_ALL_IRQ);
@@ -325,8 +328,9 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
                             status,
                             !(status & ALTR_I2C_STAT_CORE),
                             1, ALTR_I2C_TIMEOUT);
-            if (ret)
+            if (ret) {
                 dev_err(idev->dev, "message timeout (isr)\n");
+            }
         } else {
             VPRINTK("not waiting for idle\n");
         }
@@ -336,7 +340,8 @@ static irqreturn_t altr_i2c_isr(int irq, void *_dev)
         dev_dbg(idev->dev, "Message Complete\n");
 	}
 
-	return IRQ_HANDLED;
+    VPRINTK("exiting bh\n");
+    return IRQ_HANDLED;
 }
 
 static int altr_i2c_xfer_msg(struct altr_i2c_dev *idev, struct i2c_msg *msg, bool last_message)
