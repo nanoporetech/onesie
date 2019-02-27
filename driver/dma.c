@@ -639,6 +639,7 @@ u32 get_completed_data_transfers(struct altr_dma_dev* adma, u32 max_elem, struct
 {
     u32 i;
     for (i = 0 ; i < max_elem ; ++i) {
+        /// @todo need to only pop job if pid matches
         struct transfer_job_s* job = pop_job(&adma->transfers_done, &adma->done_lock);
         if (!job) {
             break;
@@ -788,6 +789,22 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
     return IRQ_HANDLED;
 }
 
+static void send_signal(const int signal_number, const int pid)
+{
+    if (signal_number) {
+        int rc;
+        struct task_struct* task;
+
+        rcu_read_lock();
+        task = pid_task(find_vpid( pid ), PIDTYPE_PID);
+        rcu_read_unlock();
+        rc = send_sig(signal_number, task, 0);
+        if (rc < 0) {
+            DPRINTK("error sending signal\n");
+        }
+    }
+}
+
 /**
  * @brief post_transfer houskeeping and signal to userspace
  * @param work embedded in the device structure.
@@ -797,11 +814,14 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
  */
 static void post_transfer(struct work_struct *work)
 {
-    int rc;
-    struct task_struct* task;
     struct transfer_job_s* job;
     struct altr_dma_dev* adma = (struct altr_dma_dev*)
             container_of(work, struct altr_dma_dev, finishing_work);
+
+    // for coalescing signals
+    int previous_signal;
+    int previous_pid;
+    bool pending_signal = false;
 
     while ((job = pop_job(&adma->post_hardware, &adma->hardware_lock)) != NULL) {
 
@@ -814,14 +834,20 @@ static void post_transfer(struct work_struct *work)
         // move to done
         push_job(&adma->transfers_done, &adma->done_lock, job);
 
-        // send signal to a userspace process
-        rcu_read_lock();
-        task = pid_task(find_vpid( job->pid ), PIDTYPE_PID);
-        rcu_read_unlock();
-        rc = send_sig(job->signal_number,   task, 0);
-        if (rc < 0) {
-            DPRINTK("error sending signal\n");
+        // send pending signal to a userspace process if this one is different
+        if (pending_signal &&
+            (previous_signal != job->signal_number ||
+             previous_pid != job->pid))
+        {
+            send_signal(previous_signal,previous_pid);
         }
+        previous_signal = job->signal_number;
+        previous_pid = job->pid;
+        pending_signal = true;
+    }
+    // flush pending signals
+    if (pending_signal) {
+        send_signal(previous_signal,previous_pid);
     }
 }
 
