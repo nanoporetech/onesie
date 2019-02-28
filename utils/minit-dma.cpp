@@ -23,6 +23,8 @@
 #include <chrono>
 #include <algorithm>
 
+static_assert(sizeof(struct minit_data_transfer_s) == MINIT_DATA_TRANSFER_SIZE , "ioctl size wrong");
+
 class transfer {
 public:
     typedef std::vector<char> buffer_t;
@@ -49,6 +51,7 @@ public:
         data_transfer.transfer_id = _transfer_id;
         data_transfer.signal_number = SIGUSR1;
         data_transfer.pid = getpid();
+        _deadline = std::chrono::steady_clock::now() + timeout;
 
         const auto rc = ioctl(fd, MINIT_IOCTL_SUBMIT_TRANSFER, &data_transfer);
         if (rc < 0) {
@@ -108,6 +111,8 @@ private:
         usr_action.sa_mask = block_mask; //block all signal inside signal handler.
         usr_action.sa_flags = SA_NODEFER;//do not block SIGUSR1 within sig_handler_int.
         sigaction (SIGUSR1, &usr_action, nullptr);
+
+        std::cerr << "file descriptor " << _fd << std::endl;
     }
 
     static void signal_receiver(int signal)
@@ -304,7 +309,7 @@ int main(int argc, char* argv[]) {
 
     // open device file
     int fd = open(device.c_str(), O_RDWR);
-    if (fd < 0) {
+    if (fd <= 0) {
         throw std::runtime_error("Failed to open device node");
     }
 

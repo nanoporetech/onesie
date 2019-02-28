@@ -104,7 +104,7 @@ extern int borrowed_altr_i2c_probe(struct minit_device_s* base);
 extern void borrowed_altr_i2c_remove(struct minit_device_s* m_dev);
 extern int altera_sgdma_probe(struct minit_device_s* mdev);
 extern void altera_sgdma_remove(struct minit_device_s* mdev);
-extern long queue_data_transfer(struct altr_dma_dev*, struct minit_data_transfer_s*);
+extern long queue_data_transfer(struct altr_dma_dev*, struct minit_data_transfer_s*, struct file* file);
 extern u32 get_completed_data_transfers(struct altr_dma_dev*, u32, struct minit_transfer_status_s*);
 extern long cancel_data_transfer(struct altr_dma_dev*, u32);
 extern void cancel_data_transfer_for_file(struct altr_dma_dev* , struct file*);

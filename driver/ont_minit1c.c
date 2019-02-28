@@ -581,11 +581,11 @@ static int minit_file_close(struct inode *inode, struct file *file)
     struct minit_device_s* minit_dev;
 
     VPRINTK("minit_file_close\n");
-    if (!file->private_data) {
+    minit_dev = (struct minit_device_s*)file->private_data;
+    if (!minit_dev) {
         DPRINTK("file->private_data null, can't clear-up!\n");
         return 0;
     }
-    minit_dev = (struct minit_device_s*)file;
 
     // find all DMAs started by the user of this file and cancel them.
     cancel_data_transfer_for_file(minit_dev->dma_dev, file);
@@ -750,7 +750,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             return rc;
         }
         // make a transfer object to represent the transfer when in the driver
-        rc = queue_data_transfer(minit_dev->dma_dev, &transfer);
+        rc = queue_data_transfer(minit_dev->dma_dev, &transfer, file);
         return rc;
     }
     case MINIT_IOCTL_WHATS_COMPLETED: {

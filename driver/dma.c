@@ -270,7 +270,7 @@ static void crazy_dump_debug(struct altr_dma_dev* adma)
     dump_dma_registers(adma);
 
     printk(KERN_ERR"pci_device %p\n",adma->pci_device);
-    printk(KERN_ERR"max transfer size 0x%lx (%ld)\n",adma->max_transfer_size,adma->max_transfer_size);
+    printk(KERN_ERR"max transfer size 0x%x (%d)\n",adma->max_transfer_size,adma->max_transfer_size);
     printk(KERN_ERR"hardware lock %s\n", spin_is_locked(&adma->hardware_lock) ? "locked" : "unlocked" ); /// @todo
     printk(KERN_ERR"transfers ready for hardware\n");
     list_for_each_entry(job, &adma->transfers_ready_for_hardware, list) {
@@ -289,6 +289,11 @@ static void crazy_dump_debug(struct altr_dma_dev* adma)
     }
     printk(KERN_ERR"descriptor pool %p\n",adma->descriptor_pool);
     printk(KERN_ERR"finishing queue %p\n",adma->finishing_queue);
+}
+
+static unsigned long get_max_transfer_size(struct altr_dma_dev* adma)
+{
+    return 1 << (((READL(adma->msgdma_base + MSGDMA_CONFIG_1) & 0xf8000000) >> 27) + 10);
 }
 
 static inline struct transfer_job_s* pop_job(struct list_head* list, spinlock_t* lock)
@@ -310,91 +315,6 @@ static inline void push_job(struct list_head* list, spinlock_t* lock, struct tra
     spin_lock_irqsave(lock, flags);
     list_add_tail(list, &job->list);
     spin_unlock_irqrestore(lock, flags);
-}
-
-/**
- * alloc_sg_table_from_pages: this is copied from sg_alloc_table_from_pages, but
- * this version obeys the max transfer size.
- *
- * Allocate and initialize an sg table from an array of pages
- *
- * @param sgt:  The sg table header to use
- * @param pages:    Pointer to an array of page pointers
- * @param n_pages:  Number of pages in the pages array
- * @param offset:     Offset from start of the first page to the start of a buffer
- * @param size:       Number of valid bytes in the buffer (after offset)
- * @param gfp_mask: GFP allocation mask
- *
- * Allocate and initialize an sg table from a list of pages. Contiguous
- * ranges of the pages are squashed together into scatterlist nodes that are
- * under the DMA_MAX_SIZE.
- * A user may provide an offset at a start and a size of valid data in a buffer
- * specified by the page array. The returned sg table is released by
- * sg_free_table.
- *
- * @return 0 on success, negative error on failure
- */
-static int alloc_sg_table_from_pages(struct sg_table *sgt,
-    struct page **pages, unsigned int n_pages,
-    unsigned long offset, unsigned long size,
-    unsigned long max_transfer_size,
-    gfp_t gfp_mask)
-{
-    unsigned int chunks;
-    unsigned long chunk_size;
-    unsigned int i;
-    unsigned int cur_page;
-    int ret;
-    struct scatterlist *s;
-
-    /* compute number of contiguous chunks, under our size limit */
-    chunks = 1;
-    chunk_size = PAGE_SIZE - offset;
-    for (i = 1; i < n_pages; ++i) {
-        // if not contiguous or chunk too big
-        if ((page_to_pfn(pages[i]) != page_to_pfn(pages[i - 1]) + 1) ||
-            ((chunk_size + PAGE_SIZE) > max_transfer_size))
-        {
-            ++chunks;
-            chunk_size = 0;
-        }
-        chunk_size += PAGE_SIZE;
-    }
-    VPRINTK("%d pages in %d chunks/sg-elements\n",n_pages, chunks);
-
-    ret = sg_alloc_table(sgt, chunks, gfp_mask);
-    if (unlikely(ret))
-        return ret;
-
-    /* merging chunks and putting them into the scatterlist */
-    cur_page = 0;
-    chunk_size = PAGE_SIZE - offset;
-    for_each_sg(sgt->sgl, s, sgt->orig_nents, i) {
-        unsigned int j;
-        VPRINTK("sg-elem %d\n",i);
-
-        /* look for the end of the current chunk. within size limit*/
-        for (j = cur_page + 1; j < n_pages; ++j) {
-            VPRINTK("%lx vs %lx\n", page_to_pfn(pages[j]) ,page_to_pfn(pages[j-1])+PAGE_SIZE);
-            if ((page_to_pfn(pages[j]) != page_to_pfn(pages[j - 1]) + 1) ||
-                ((chunk_size + PAGE_SIZE) > max_transfer_size))
-            {
-                VPRINTK("break between pages %d..%d size %ld (%lx)\n",j-1,j, chunk_size, chunk_size);
-                break;
-            }
-            chunk_size += PAGE_SIZE;
-            VPRINTK("adding page %d size %ld (%lx)\n",j, chunk_size, chunk_size);
-        }
-
-        VPRINTK("sg_elem %d at %p size %ld (%lx), offset %lx\n", i, page_address(pages[cur_page]), min(size, chunk_size), min(size, chunk_size), offset);
-        sg_set_page(s, pages[cur_page], min(size, chunk_size), offset);
-        size -= chunk_size;
-        chunk_size = PAGE_SIZE;
-        offset = 0;
-        cur_page = j;
-    }
-
-    return 0;
 }
 
 static inline void descriptor_set_phys(u32* hi, u32* lo, dma_addr_t desc_phys)
@@ -424,19 +344,19 @@ static inline dma_addr_t descriptor_get_phys(u32* hi, u32* lo)
 
 static int dma_busy(struct altr_dma_dev* adma)
 {
-    return readl(adma->msgdma_base + MSGDMA_CONTROL) & MSGDMA_STATUS_BUSY;
+    return READL(adma->msgdma_base + MSGDMA_CONTROL) & MSGDMA_STATUS_BUSY;
 }
 
 static void reset_dma_hardware(struct altr_dma_dev* adma)
 {
     // reset prefetcher and wait for hardware to clear reset
-    writel(PRE_CTRL_RESET, adma->prefetcher_base + PRE_CONTROL);
-    while(readl(adma->prefetcher_base + PRE_CONTROL) | PRE_CTRL_RESET)
+    WRITEL(PRE_CTRL_RESET, adma->prefetcher_base + PRE_CONTROL);
+    while(READL(adma->prefetcher_base + PRE_CONTROL) & PRE_CTRL_RESET)
         ;
 
     // reset mSGDMA/dispatcher core and wait for the hardware to clear reset
-    writel(MSGDMA_CTRL_RESET_DISPATCH, adma->msgdma_base + MSGDMA_CONTROL);
-    while(readl(adma->msgdma_base + MSGDMA_STATUS) | MSGDMA_STATUS_RESETTING)
+    WRITEL(MSGDMA_CTRL_RESET_DISPATCH, adma->msgdma_base + MSGDMA_CONTROL);
+    while(READL(adma->msgdma_base + MSGDMA_STATUS) & MSGDMA_STATUS_RESETTING)
         ;
 
 }
@@ -445,15 +365,17 @@ static void start_transfer_unlocked(struct altr_dma_dev* adma)
 {
     struct transfer_job_s* job;
 
+    VPRINTK("start_transfer_unlocked\n");
     // if the hardware is busy or we're already processing a job, exit
     if (dma_busy(adma) ||
         adma->transfer_on_hardware ||
         list_empty(&adma->transfers_ready_for_hardware))
     {
+        VPRINTK("start_transfer_unlocked we already seem busy\n");
         return;
     }
 
-    job = list_first_entry(&job->list, struct transfer_job_s, list);
+    job = list_first_entry(&adma->transfers_ready_for_hardware, struct transfer_job_s, list);
     list_del(&job->list);
     adma->transfer_on_hardware = job;
 
@@ -465,13 +387,14 @@ static void start_transfer_unlocked(struct altr_dma_dev* adma)
     wmb();
 
     // start the prefetcher core
-    writel(ALTERA_DMA_PRE_START, adma->prefetcher_base + PRE_CONTROL);
+    WRITEL(ALTERA_DMA_PRE_START, adma->prefetcher_base + PRE_CONTROL);
 }
 
 static long submit_transfer_to_hw_or_queue(struct altr_dma_dev* adma, struct transfer_job_s* job)
 {
     unsigned long flags;
 
+    VPRINTK("submit_transfer_to_hw_or_queue\n");
     // lock something
     spin_lock_irqsave(&adma->hardware_lock, flags);
 
@@ -481,7 +404,7 @@ static long submit_transfer_to_hw_or_queue(struct altr_dma_dev* adma, struct tra
 
     // unlock something
     spin_unlock_irqrestore(&adma->hardware_lock, flags);
-    return -1;
+    return 0;
 }
 
 static void free_descriptor_list(struct altr_dma_dev* adma, struct transfer_job_s* job)
@@ -500,47 +423,64 @@ static void free_descriptor_list(struct altr_dma_dev* adma, struct transfer_job_
     job->descriptor_phys = 0;
 }
 
-static long create_descriptor_list(struct altr_dma_dev* adma, struct transfer_job_s* job)
+static long create_descriptor_list(struct altr_dma_dev* adma, struct transfer_job_s* job, int nents)
 {
     struct scatterlist* sg_elem;
     int sg_index;
+    int descriptor_no = 0;
     int rc;
 
     minit_dma_extdesc_t* prev_desc = NULL;
 
+    VPRINTK("create_descriptor_list\n");
     // allocate DMA descriptors for transfer from dma-pool
-    for_each_sg(job->sgt.sgl, sg_elem, job->sgt.nents, sg_index) {
-        minit_dma_extdesc_t* desc;
-        dma_addr_t desc_phys;
-        desc = dma_pool_alloc(adma->descriptor_pool, GFP_KERNEL, &desc_phys);
-        if (!desc) {
-            // oh poop!
-            rc = -ENOMEM;
-            goto err_free_descriptors;
-        }
-        // fill in transfer details
-        descriptor_set_phys(&desc->read_hi_phys, &desc->read_lo_phys, 0);
-        descriptor_set_phys(&desc->write_hi_phys, &desc->write_lo_phys, sg_elem->dma_address);
-        desc->length = sg_elem->length;
-        desc->bytes_transferred = 0;
-        desc->status = 0;
-        desc->burst_sequence = 0;
-        desc->stride = 0x00010000; //write stride 1 read stride 0
-        desc->control = ALTERA_DMA_DESC_CONTROL_NOT_END;
-
-        // make the head or previous descriptor link to this one
-        if (sg_index == 0) {
-            job->descriptor = desc;
-            job->descriptor_phys = desc_phys;
-        } else {
-            prev_desc->next_desc_virt = desc;
+    for(sg_index = 0, sg_elem = job->sgt.sgl; sg_index < nents; sg_index++, sg_elem++) {
+        unsigned int length = sg_dma_len(sg_elem);
+        dma_addr_t dma_address = sg_dma_address(sg_elem);
+        while (length) {
+            minit_dma_extdesc_t* desc;
+            dma_addr_t desc_phys;
+            desc = dma_pool_alloc(adma->descriptor_pool, GFP_KERNEL, &desc_phys);
+            VPRINTK("allocated memory for desciptor at %p",desc);
+            if (!desc) {
+                DPRINTK("error, couldn't allocate dma descriptor\n");
+                // oh poop!
+                rc = -ENOMEM;
+                goto err_free_descriptors;
+            }
+            // fill in transfer details
+            descriptor_set_phys(&desc->read_hi_phys, &desc->read_lo_phys, 0);
+            descriptor_set_phys(&desc->write_hi_phys, &desc->write_lo_phys, dma_address);
+            desc->length = min(length, adma->max_transfer_size);
+            length -= desc->length;
+            dma_address += desc->length;
+            desc->bytes_transferred = 0;
+            desc->status = 0;
+            desc->burst_sequence = 0;
+            desc->stride = 0x00010000; //write stride 1 read stride 0
+            desc->control = ALTERA_DMA_DESC_CONTROL_NOT_END;
+            desc->driver_ref = job;
+            desc->next_desc_virt = NULL;
             descriptor_set_phys(
-                        &prev_desc->next_desc_hi_phys,
-                        &prev_desc->next_desc_lo_phys,
-                        desc_phys);
-        }
+                        &desc->next_desc_hi_phys,
+                        &desc->next_desc_lo_phys,
+                        0);
 
-        prev_desc = desc;
+            // make the head or previous descriptor link to this one
+            if (descriptor_no++ == 0) {
+                job->descriptor = desc;
+                job->descriptor_phys = desc_phys;
+            } else {
+                prev_desc->next_desc_virt = desc;
+                descriptor_set_phys(
+                            &prev_desc->next_desc_hi_phys,
+                            &prev_desc->next_desc_lo_phys,
+                            desc_phys);
+            }
+            dump_descriptor(desc);
+
+            prev_desc = desc;
+        }
     }
     prev_desc->control = ALTERA_DMA_DESC_CONTROL_END;
 
@@ -567,7 +507,7 @@ err_free_descriptors:
  * in this function
  * @return < 0 if an error.
  */
-long queue_data_transfer(struct altr_dma_dev* adma, struct minit_data_transfer_s* transfer)
+long queue_data_transfer(struct altr_dma_dev* adma, struct minit_data_transfer_s* transfer,struct file* file)
 {
     long rc = 0;
     struct page** pages;
@@ -589,6 +529,7 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minit_data_transfer_s
     job->transfer_id = transfer->transfer_id;
     job->signal_number = transfer->signal_number;
     job->pid = transfer->pid;
+    job->file = file;
 
     // convert to scaterlist and do dma mapping
     pg_start = (unsigned long)job->buffer & PAGE_MASK;
@@ -623,13 +564,12 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minit_data_transfer_s
     }
 
     // create scatterlist
-    if (alloc_sg_table_from_pages(
+    if (sg_alloc_table_from_pages(
         &job->sgt,
         pages,
-        actual_pages,
+        no_pages,
         pg_start_offset,
         job->buffer_size,
-        adma->max_transfer_size,
         GFP_KERNEL))
     {
         printk(KERN_ERR"Couldn't allocate memory for scatterlist\n");
@@ -647,13 +587,13 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minit_data_transfer_s
     VPRINTK("Mapped scattelist to %d transfers\n", nents);
 
     // queue for creating descriptor list, return if no error
-    rc = create_descriptor_list(adma, job);
+    rc = create_descriptor_list(adma, job, nents);
     if (rc) {
-        // success
         goto err_unmap;
     }
 
-
+    dump_job(job);
+    // success
     return 0;
 err_unmap:
     // unmap dma
@@ -718,17 +658,22 @@ static struct transfer_job_s* find_job_by_id(struct altr_dma_dev* adma, u32 tran
     list_for_each_entry(job, &adma->transfers_ready_for_hardware, list) {
         if (job->transfer_id == transfer_id) {
             list_del(&job->list);
+            spin_unlock_irqrestore(&adma->hardware_lock, flags);
             return job;
         }
     }
-    if (adma->transfer_on_hardware->transfer_id == transfer_id) {
+    if (adma->transfer_on_hardware &&
+        adma->transfer_on_hardware->transfer_id == transfer_id)
+    {
         job = adma->transfer_on_hardware;
         reset_dma_hardware(adma);
+        spin_unlock_irqrestore(&adma->hardware_lock, flags);
         return job;
     }
     list_for_each_entry(job, &adma->post_hardware, list) {
         if (job->transfer_id == transfer_id) {
             list_del(&job->list);
+            spin_unlock_irqrestore(&adma->hardware_lock, flags);
             return job;
         }
     }
@@ -744,19 +689,33 @@ static struct transfer_job_s* find_job_by_file(struct altr_dma_dev* adma, struct
 
     spin_lock_irqsave(&adma->hardware_lock, flags);
     list_for_each_entry(job, &adma->transfers_ready_for_hardware, list) {
+        DPRINTK("investigating job %p",job);
+        dump_job(job);
         if (job->file == file) {
+            DPRINTK("job found queued ready for hardware\n");
             list_del(&job->list);
+            spin_unlock_irqrestore(&adma->hardware_lock, flags);
             return job;
         }
     }
-    if (adma->transfer_on_hardware->file == file) {
+    if (adma->transfer_on_hardware &&
+        adma->transfer_on_hardware->file == file)
+    {
         job = adma->transfer_on_hardware;
+        DPRINTK("job found on hardware %p",job);
+        dump_job(job);
         reset_dma_hardware(adma);
+        adma->transfer_on_hardware = NULL; // it's not on hardware now!
+        spin_unlock_irqrestore(&adma->hardware_lock, flags);
         return job;
     }
     list_for_each_entry(job, &adma->post_hardware, list) {
+        DPRINTK("investigating job %p",job);
+        dump_job(job);
         if (job->file == file) {
+            DPRINTK("job found queued post hardware\n");
             list_del(&job->list);
+            spin_unlock_irqrestore(&adma->hardware_lock, flags);
             return job;
         }
     }
@@ -808,9 +767,13 @@ void cancel_data_transfer_for_file(struct altr_dma_dev* adma, struct file* file)
 {
     unsigned long flags;
     struct transfer_job_s* job;
+
+    DPRINTK("cancel_data_transfer_for_file %p\n",file);
     do {
         job = find_job_by_file(adma, file);
         if (job) {
+            DPRINTK("freeing job %p",job);
+            dump_job(job);
             // free descriptors and unmap dma
             free_descriptor_list(adma, job);
             pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
@@ -818,17 +781,18 @@ void cancel_data_transfer_for_file(struct altr_dma_dev* adma, struct file* file)
         }
     } while (job);
 
-    do {
-        // may have already completed, but the userspace app still wants to cancel
-        spin_lock_irqsave(&adma->done_lock, flags);
-        list_for_each_entry(job, &adma->transfers_done, list) {
-            if (job->file == file) {
-                list_del(&job->list);
-                kfree(job);
-            }
+    // may have already completed, but still cancel
+    spin_lock_irqsave(&adma->done_lock, flags);
+    list_for_each_entry(job, &adma->transfers_done, list) {
+        DPRINTK("investigating job %p",job);
+        dump_job(job);
+        if (job->file == file) {
+            DPRINTK("freeing job %p",job);
+            list_del(&job->list);
+            kfree(job);
         }
-        spin_unlock_irqrestore(&adma->done_lock, flags);
-    } while (job);
+    }
+    spin_unlock_irqrestore(&adma->done_lock, flags);
 }
 
 
@@ -847,8 +811,8 @@ static irqreturn_t dma_isr_quick(int irq_no, void* dev)
     }
 
     // check the hardware, if the interrupt was us then run bh
-    if (readl(adma->prefetcher_base + PRE_STATUS) & PRE_STATUS_IRQ) {
-        writel(PRE_STATUS_IRQ, adma->prefetcher_base + PRE_STATUS);
+    if (READL(adma->prefetcher_base + PRE_STATUS) & PRE_STATUS_IRQ) {
+        WRITEL(PRE_STATUS_IRQ, adma->prefetcher_base + PRE_STATUS);
         ret = IRQ_WAKE_THREAD;
     }
 
@@ -879,7 +843,7 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
         adma->transfer_on_hardware = NULL;
 
         // check for error, reset core ?
-        status = readl(adma->msgdma_base + MSGDMA_STATUS);
+        status = READL(adma->msgdma_base + MSGDMA_STATUS);
         job->status = status;
         if (status & (MSGDMA_STATUS_STOP_EARLY| MSGDMA_STATUS_STOP_ERROR|MSGDMA_STATUS_STOPPED)) {
             crazy_dump_debug(adma);
@@ -949,7 +913,7 @@ int altera_sgdma_probe(struct minit_device_s* mdev) {
     adma->msgdma_base = mdev->ctrl_bar + ASIC_HS_DMA_BASE;
     adma->prefetcher_base = mdev->ctrl_bar + ASIC_HS_DMA_PREF_BASE;
     adma->pci_device = mdev->pci_device;
-    adma->max_transfer_size = 2048; /// @TODO get this from the hardware registers
+    adma->max_transfer_size = get_max_transfer_size(adma);
 
     mdev->dma_isr_quick = dma_isr_quick;
     mdev->dma_isr = dma_isr;
