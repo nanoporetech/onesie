@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2019 Oxford Nanopore Technologies Ltd.
  *
- * Author: Richard Crewe <richard.crewe@nanoporetech.com>
+ * Author: <info@nanoporetech.com>
  *
  * Hardware and memory interaction to do scatter-gather DMA
  *
@@ -25,32 +25,10 @@
 #include "ont_minit1c_reg.h"
 #include "dma.h"
 
-
-#define ONT_DEBUG
-//#define ONT_VERBOSE_DEBUG
-
-#ifdef DPRINTK
-    #error
-#endif
-#ifdef VPRINTK
-    #error
-#endif
-#ifdef ONT_DEBUG
-    #define STRINGIFY_(X) #X
-    #define STRINGIFY(X) STRINGIFY_(X)
-    #define DPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
-    #ifdef ONT_VERBOSE_DEBUG
-        #define VPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
-    #endif
-#endif
-#ifndef DPRINTK
-    #define DPRINTK(ARGS...) do {} while(0)
-#endif
-#ifndef VPRINTK
-    #define VPRINTK(ARGS...) do {} while(0)
-#endif
-
-
+/**
+ * @brief Dump a descriptor chain element
+ * @param desc pointer to the descriptor
+ */
 static void dump_descriptor(minit_dma_extdesc_t* desc)
 {
     u64 big_no;
@@ -98,7 +76,6 @@ static void dump_descriptor(minit_dma_extdesc_t* desc)
            desc->control & (1<<8) ? "GEN SOP" : ".",
            desc->control & 0x000000ff);
 }
-
 
 /**
  * Dump registers and descriptor chains and anything else useful to the

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2019 Oxford Nanopore Technologies Ltd.
  *
- * Author: Richard Crewe <richard.crewe@nanoporetech.com>
+ * Author: <info@nanoporetech.com>
  *
  * These are the IOCTL definition for interacting with the Oxford Nanopore 
  * Technologies MinIT-1C firmware and hardware.
@@ -187,10 +187,6 @@ struct minit_completed_transfers_s {
     struct minit_transfer_status_s*
                     completed_transfers;
     __u32           completed_transfers_size;
-
-    /**
-     * if this is returned with a number matching [completed_transfers_size]
-     * then there may be more transfers waiting, check again. */
     __u32           no_completed_transfers;
 };
 

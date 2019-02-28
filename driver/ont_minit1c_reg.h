@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2019 Oxford Nanopore Technologies Ltd.
  *
- * Author: Richard Crewe <richard.crewe@nanoporetech.com>
+ * Author: <info@nanoporetech.com>
  *
  * This file contains register definitions for the MinIT-1C firmware, the sort
  * of stuff that could be generated automatically by tools from the firmware

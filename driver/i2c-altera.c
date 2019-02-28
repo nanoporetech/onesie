@@ -1,6 +1,6 @@
 /*
- *  Copyright Intel Corporation (C) 2017.
- * Modified by Richard Crewe <richard.crewe@nanoporetech.com> 2019
+ * Copyright Intel Corporation (C) 2017.
+ * Modified by Oxford Nanopore Technologies Ltd. <info@nanoporetech.com>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,

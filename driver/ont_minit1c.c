@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2019 Oxford Nanopore Technologies Ltd.
  *
- * Author: Richard Crewe <richard.crewe@nanoporetech.com>
+ * Author: <info@nanoporetech.com>
  *
  * This file contains register definitions for the MinIT-1C firmware
  *
@@ -1034,7 +1034,7 @@ static void __exit ont_minit1c_exit(void)
 module_init(ont_minit1c_init);
 module_exit(ont_minit1c_exit);
 
-MODULE_AUTHOR("Richard Crewe <richard.crewe@nanoporetech.com>");
+MODULE_AUTHOR("Oxford Nanopore Technologies Ltd <info@nanoporetech.com>");
 MODULE_DESCRIPTION("ONT MinIT-1C PCIe Driver");
 MODULE_VERSION(ONT_DRIVER_VERSION);
 

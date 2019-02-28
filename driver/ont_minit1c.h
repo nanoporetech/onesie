@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2019 Oxford Nanopore Technologies Ltd.
  *
- * Author: Richard Crewe <richard.crewe@nanoporetech.com>
+ * Author: <info@nanoporetech.com>
  *
  */
 
