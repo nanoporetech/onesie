@@ -21,7 +21,6 @@
 #ifndef ONT_MINIT_IOCTL_H
 #define ONT_MINIT_IOCTL_H
 
-// Hide the __user pointer modifier when not compiled in the kernel
 #ifndef __KERNEL__
 #define POINTER_TO_U64(PTR) ((__u64)((void*)(PTR)))
 #endif
@@ -49,6 +48,7 @@ struct minit_register_s {
     __u8 bar;
     __u64 value;
 } __attribute__(( packed ));
+#define MINIT_REGISTER_SIZE 16
 
 #define MINIT_IOCTL_REG_ACCESS _IOWR('b', 64, struct minit_register_s)
 
@@ -77,7 +77,9 @@ struct minit_shift_reg_s {
     __u32   clock_hz;
     __u8    start;
     __u8    enable;
+    __u16   padding; // must be zero
 } __attribute__(( packed ));
+#define MINIT_SHIFT_REG_SIZE 24
 
 #define MINIT_IOCTL_SHIFT_REG _IOWR('b', 65, struct minit_shift_reg_s)
 
@@ -95,8 +97,9 @@ struct minit_shift_reg_s {
 struct  minit_hs_receiver_s {
    __u16    registers[MINIT_IOCTL_HS_RECEIVER_REG_SIZE];
    __u8     write;
-   __u8     padding[5]; // pad to multiple of 64 bytes
+   __u8     padding[3]; // pad to multiple of 64 bytes (MUST BE ZERO)
 } __attribute__(( packed ));
+#define MINIT_HS_RECEIVER_SIZE 24
 
 #define MINIT_IOCTL_HS_RECIEVER _IOWR('b', 66, struct minit_hs_receiver_s)
 
@@ -113,6 +116,7 @@ struct minit_eeprom_transfer_s {
     __u32           start;
     __u32           length;
 } __attribute__(( packed ));
+#define MINIT_EEPROM_TRANSFER_SIZE 16
 
 /**
  * For these defines the return values may indicate
@@ -153,6 +157,8 @@ struct minit_data_transfer_s {
     __u32           signal_number;
     __u32           pid;
 } __attribute__(( packed ));
+#define MINIT_DATA_TRANSFER_SIZE 24
+
 #define MINIT_IOCTL_SUBMIT_TRANSFER  _IOWR('b', 69, struct minit_data_transfer_s)
 
 /**
@@ -168,6 +174,7 @@ struct minit_transfer_status_s {
     __u32           transfer_id;
     __u32           status;// 0 = OK
 } __attribute__(( packed ));
+#define MINIT_TRANSFER_STATUS_SIZE 8
 
 /**
  * @todo: Add a pid field to we don't steal another processes completed transfers
@@ -189,6 +196,7 @@ struct minit_completed_transfers_s {
     __u32           completed_transfers_size;
     __u32           no_completed_transfers;
 } __attribute__(( packed ));
+#define MINIT_COMPLETED_TRANSFERS_SIZE 16
 
 /**
  * After receiving a signal from the driver, the user-space code uses this

@@ -29,6 +29,7 @@
 #include <linux/i2c.h>
 #include <linux/mutex.h>
 #include <linux/delay.h>
+#include <linux/bug.h>
 
 #include "ont_minit1c.h"
 #include "ont_minit1c_reg.h"
@@ -596,6 +597,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
     switch(cmd) {
     case MINIT_IOCTL_REG_ACCESS: {
             struct minit_register_s reg_access = {};
+            BUILD_BUG_ON(sizeof(struct minit_register_s) != MINIT_REGISTER_SIZE);
             VPRINTK("MINIT_IOCTL_REG_ACCESS\n");
             rc = copy_from_user(&reg_access, (void __user*)arg, sizeof(struct minit_register_s) );
             if (rc) {
@@ -613,11 +615,16 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
     case MINIT_IOCTL_SHIFT_REG: {
             struct minit_shift_reg_s shift_reg_access = {};
             char shift_reg[ASIC_SHIFT_REG_SIZE];
+            BUILD_BUG_ON(sizeof(struct minit_shift_reg_s) != MINIT_SHIFT_REG_SIZE);
             VPRINTK("MINIT_IOCTL_SHIFT_REG\n");
             rc = copy_from_user(&shift_reg_access, (void __user*)arg, sizeof(struct minit_shift_reg_s));
             if (rc) {
                 DPRINTK("copy_from_user failed\n");
                 return rc;
+            }
+            if (shift_reg_access.padding) {
+                dev_err(&minit_dev->pci_device->dev, "Padding in IOCTL not zero");
+                return -EINVAL;
             }
             if (shift_reg_access.to_device) {
                 rc = copy_from_user(shift_reg, (void __user*)shift_reg_access.to_device, ASIC_SHIFT_REG_SIZE);
@@ -651,11 +658,20 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
         break;
     case MINIT_IOCTL_HS_RECIEVER: {
             struct minit_hs_receiver_s minit_hs_reg = {};
+            BUILD_BUG_ON(sizeof(struct minit_hs_receiver_s) != MINIT_HS_RECEIVER_SIZE);
             VPRINTK("MINIT_IOCTL_HS_RECIEVER\n");
             rc = copy_from_user(&minit_hs_reg, (void __user*)arg, sizeof(minit_hs_reg));
             if (rc) {
                 DPRINTK("copy_from_user failed\n");
                 return rc;
+            }
+            // check padding is zero
+            if (minit_hs_reg.padding[0] ||
+                minit_hs_reg.padding[1] ||
+                minit_hs_reg.padding[2] )
+            {
+                dev_err(&minit_dev->pci_device->dev, "Padding in IOCTL not zero");
+                return -EINVAL;
             }
             minit_hs_reg_access(minit_dev, &minit_hs_reg);
 
@@ -665,6 +681,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
     case MINIT_IOCTL_EEPROM_READ: {
             struct minit_eeprom_transfer_s transfer;
             u8 k_buffer[EEPROM_SIZE] = {0};
+            BUILD_BUG_ON(sizeof(struct minit_eeprom_transfer_s) != MINIT_EEPROM_TRANSFER_SIZE);
             VPRINTK("MINIT_IOCTL_EEPROM_READ\n");
             rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
             if (rc) {
@@ -688,6 +705,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
     case MINIT_IOCTL_EEPROM_WRITE: {
         struct minit_eeprom_transfer_s transfer;
         u8 k_buffer[EEPROM_SIZE] = {0};
+        BUILD_BUG_ON(sizeof(struct minit_eeprom_transfer_s) != MINIT_EEPROM_TRANSFER_SIZE);
         VPRINTK("MINIT_IOCTL_EEPROM_WRITE\n");
         rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
         if (rc) {
@@ -713,6 +731,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
     }
     case MINIT_IOCTL_SUBMIT_TRANSFER: {
         struct minit_data_transfer_s transfer;
+        BUILD_BUG_ON(sizeof(struct minit_data_transfer_s) != MINIT_DATA_TRANSFER_SIZE);
         VPRINTK("MINIT_IOCTL_SUBMIT_TRANSFER\n");
         rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
         if (rc) {
@@ -726,6 +745,8 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
     case MINIT_IOCTL_WHATS_COMPLETED: {
         struct minit_completed_transfers_s completed;
         struct minit_transfer_status_s* stuff_done;
+        BUILD_BUG_ON(sizeof(struct minit_transfer_status_s) != MINIT_TRANSFER_STATUS_SIZE);
+        BUILD_BUG_ON(sizeof(struct minit_completed_transfers_s) != MINIT_COMPLETED_TRANSFERS_SIZE);
         VPRINTK("MINIT_IOCTL_WHATS_COMPLETED\n");
         rc = copy_from_user(&completed, (void __user*)arg, sizeof(completed));
         if (rc) {
