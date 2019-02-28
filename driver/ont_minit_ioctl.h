@@ -23,7 +23,7 @@
 
 // Hide the __user pointer modifier when not compiled in the kernel
 #ifndef __KERNEL__
-#define __user
+#define POINTER_TO_U64(PTR) ((__u64)((void*)(PTR)))
 #endif
 
 #ifdef __cplusplus
@@ -72,12 +72,12 @@ struct minit_register_s {
  * enable   to-driver   Sets enable-bit it non-zero
  */
 struct minit_shift_reg_s {
-    void __user *to_device;
-    void __user *from_device;
+    __u64   to_device;
+    __u64   from_device;
     __u32   clock_hz;
     __u8    start;
     __u8    enable;
-};
+} __attribute__(( packed ));
 
 #define MINIT_IOCTL_SHIFT_REG _IOWR('b', 65, struct minit_shift_reg_s)
 
@@ -95,7 +95,8 @@ struct minit_shift_reg_s {
 struct  minit_hs_receiver_s {
    __u16    registers[MINIT_IOCTL_HS_RECEIVER_REG_SIZE];
    __u8     write;
-};
+   __u8     padding[5]; // pad to multiple of 64 bytes
+} __attribute__(( packed ));
 
 #define MINIT_IOCTL_HS_RECIEVER _IOWR('b', 66, struct minit_hs_receiver_s)
 
@@ -108,10 +109,10 @@ struct  minit_hs_receiver_s {
  * length   to_triver   Number of bytes to read/write
  */
 struct minit_eeprom_transfer_s {
-    char __user*    data;
+    __u64           data;
     __u32           start;
     __u32           length;
-};
+} __attribute__(( packed ));
 
 /**
  * For these defines the return values may indicate
@@ -146,12 +147,12 @@ struct minit_eeprom_transfer_s {
  *                         coalesced.
  */
 struct minit_data_transfer_s {
-    char __user*    buffer;
+    __u64           buffer;
     __u32           buffer_size;
     __u32           transfer_id;
-    int             signal_number;
-    int             pid;
-};
+    __u32           signal_number;
+    __u32           pid;
+} __attribute__(( packed ));
 #define MINIT_IOCTL_SUBMIT_TRANSFER  _IOWR('b', 69, struct minit_data_transfer_s)
 
 /**
@@ -166,7 +167,7 @@ struct minit_data_transfer_s {
 struct minit_transfer_status_s {
     __u32           transfer_id;
     __u32           status;// 0 = OK
-};
+} __attribute__(( packed ));
 
 /**
  * @todo: Add a pid field to we don't steal another processes completed transfers
@@ -184,11 +185,10 @@ struct minit_transfer_status_s {
  *           call to this IOCTL should be made to fetch them.
  */
 struct minit_completed_transfers_s {
-    struct minit_transfer_status_s*
-                    completed_transfers;
+    __u64           completed_transfers;
     __u32           completed_transfers_size;
     __u32           no_completed_transfers;
-};
+} __attribute__(( packed ));
 
 /**
  * After receiving a signal from the driver, the user-space code uses this

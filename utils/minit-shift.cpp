@@ -30,8 +30,8 @@ void shift_ioctl(
     }
 
     struct minit_shift_reg_s shift_ioctl{
-        nullptr,
-        data.data(),
+        POINTER_TO_U64(nullptr),
+        POINTER_TO_U64(data.data()),
         frequency,
         start,
         enable

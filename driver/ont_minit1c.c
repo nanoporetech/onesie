@@ -620,7 +620,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
                 return rc;
             }
             if (shift_reg_access.to_device) {
-                rc = copy_from_user(shift_reg, shift_reg_access.to_device, ASIC_SHIFT_REG_SIZE);
+                rc = copy_from_user(shift_reg, (void __user*)shift_reg_access.to_device, ASIC_SHIFT_REG_SIZE);
                 if (rc) {
                     DPRINTK("copy_from_user failed\n");
                     return rc;
@@ -640,7 +640,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
                 return rc;
             }
             if (shift_reg_access.from_device) {
-                rc = copy_to_user(shift_reg_access.from_device, shift_reg, ASIC_SHIFT_REG_SIZE);
+                rc = copy_to_user((void __user*)shift_reg_access.from_device, shift_reg, ASIC_SHIFT_REG_SIZE);
                 if (rc) {
                     DPRINTK("copy_to_user failed\n");
                     return rc;
@@ -678,7 +678,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             }
             // transfer.length is assumed to have been checked for a safe size
             // in read_eeprom
-            rc = copy_to_user(transfer.data, k_buffer, transfer.length);
+            rc = copy_to_user((void __user*)transfer.data, k_buffer, transfer.length);
             if (rc) {
                 DPRINTK("failed to copy eeprom back into userspace\n");
                 return rc;
@@ -699,7 +699,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
                     transfer.length,
                     EEPROM_SIZE);
         }
-        rc = copy_from_user(k_buffer, transfer.data, transfer.length);
+        rc = copy_from_user(k_buffer, (void __user*)transfer.data, transfer.length);
         if (rc) {
             DPRINTK("copy_from_user failed to get data from user-space\n");
             return rc;

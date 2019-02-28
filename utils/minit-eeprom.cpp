@@ -18,7 +18,11 @@ void read_eeprom(int fd, std::ostream& out, unsigned int start, unsigned int len
 {
     // prepare and get driver to do transfer
     std::array< char, 256 > buffer;
-    struct minit_eeprom_transfer_s eeprom_transaction{ buffer.data(),start,length};
+    struct minit_eeprom_transfer_s eeprom_transaction{
+        POINTER_TO_U64(buffer.data()),
+        start,
+        length
+    };
     const auto rc = ioctl(fd, MINIT_IOCTL_EEPROM_READ, &eeprom_transaction);
     if (rc < 0) {
         throw std::runtime_error(strerror(errno));
@@ -36,7 +40,11 @@ void write_eeprom(int fd, std::istream& in, unsigned int start, unsigned int len
     in.read(buffer.data(), std::min(length, (unsigned int)buffer.size()));
 
     // write to driver
-    struct minit_eeprom_transfer_s eeprom_transaction{ buffer.data(),start,length};
+    struct minit_eeprom_transfer_s eeprom_transaction{
+        POINTER_TO_U64(buffer.data()),
+        start,
+        length
+    };
     const auto rc = ioctl(fd, MINIT_IOCTL_EEPROM_WRITE, &eeprom_transaction);
     if (rc < 0) {
         throw std::runtime_error(strerror(errno));

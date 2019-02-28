@@ -508,7 +508,7 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minit_data_transfer_s
         DPRINTK("Failed to allocate memory for transfer_job\n");
         return -ENOMEM;
     }
-    job->buffer = transfer->buffer;
+    job->buffer = (char*)transfer->buffer;
     job->buffer_size = transfer->buffer_size;
     job->transfer_id = transfer->transfer_id;
     job->signal_number = transfer->signal_number;
