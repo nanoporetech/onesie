@@ -52,6 +52,8 @@ struct minit_register_s {
 
 #define MINIT_IOCTL_REG_ACCESS _IOWR('b', 64, struct minit_register_s)
 
+
+#define MINIT_IOCTL_SHIFT_REG_BUFFER_SIZE 282
 /**
  * @brief read/write data to the ASICs shift-register for sending commands and
  * reading the current ASIC configuration and OTP bits, etc.
@@ -67,7 +69,7 @@ struct minit_register_s {
  *                      limitations the actual clock speed may differ from that
  *                      requested
  * start    to-driver   Sets start-bit if non-zero
- * enable   to-driver   Sets enable-bin it non-zero
+ * enable   to-driver   Sets enable-bit it non-zero
  */
 struct minit_shift_reg_s {
     void __user *to_device;
@@ -99,6 +101,11 @@ struct  minit_hs_receiver_s {
 
 /**
  * @brief Transfer data to/from the EEPROM
+ * data     to-driver   Pointer to a buffer containing the data to be written to
+ *                      the EEPROM or to a buffer to be filled with data read
+ *                      from the EEPROM
+ * start    to_driver   Where in the EEPROM to start the read/write
+ * length   to_triver   Number of bytes to read/write
  */
 struct minit_eeprom_transfer_s {
     char __user*    data;
@@ -118,11 +125,25 @@ struct minit_eeprom_transfer_s {
 #define MINIT_IOCTL_EEPROM_WRITE _IOWR('b', 68, struct minit_eeprom_transfer_s)
 
 /**
- * @brief The minit_data_transfer_s struct
+ * @brief DMA data into memory, optionally with a signal when complete
+ *
+ * @todo need to automatically associate these transfers with file handles, then
+ * when the user closes the file cancel any jobs assocciated with the
+ * file-handle.
+ *
  * Use to submit transfers to the driver. When these are done, the driver will
  * send the process that submitted the transfer the signal [signal_number]. The
  * user-space process should then send a [MINIT_IOCTL_WHATS_COMPLETED] ioctl
  * to get a list of transfers that are done.
+ *
+ * buffer        to-driver Pointer to a buffer that will contain the data read
+ * buffer_size   to_driver The size of the abave buffer
+ * transfer_id   to_driver Used to identify the transfer when completed
+ * signal_number to_driver This signal number will be sent to signal that
+ *                         transfers have completed.
+ * pid           to_driver A signal will be sent to this process to indicate
+ *                         that the transfer has completed. Signals may be
+ *                         coalesced.
  */
 struct minit_data_transfer_s {
     char __user*    buffer;
@@ -134,7 +155,13 @@ struct minit_data_transfer_s {
 #define MINIT_IOCTL_SUBMIT_TRANSFER  _IOWR('b', 69, struct minit_data_transfer_s)
 
 /**
- * @brief The minit_transfer_status struct
+ * @brief information about a completed transfer
+ *
+ * This is used to for the driver to pass information about completed transfers
+ * back to the client/user-space
+ *
+ * transfer_id   from_driver matches up with transfer_id in minit_data_transfer_s
+ * status        from_driver Non-zero indicates an error, zero success
  */
 struct minit_transfer_status_s {
     __u32           transfer_id;
@@ -142,11 +169,19 @@ struct minit_transfer_status_s {
 };
 
 /**
+ * @todo: Add a pid field to we don't steal another processes completed transfers
  * @brief For fetching information about completed transfers.
  *
- * [completed_transfers] should point to a buffer with space for
- * [completed_transfers_size] elements. This will be filled in by the driver
- * with the status of the transfers.
+ * completed_transfers      to_driver
+ *           Pointer to a buffer for accepting status information about
+ *           completed transfers.
+ * completed_transfers_size to_driver
+ *           The size in number of elements of the completed_transfers buffer.
+ * no_completed_transfers   from_driver
+ *           How many entries have been written to the completed_transfers
+ *           buffer. If this number is the same as completed_transfers_size
+ *           then the driver may have more completed transfers and another
+ *           call to this IOCTL should be made to fetch them.
  */
 struct minit_completed_transfers_s {
     struct minit_transfer_status_s*
