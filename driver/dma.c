@@ -32,6 +32,11 @@
 static void dump_descriptor(minit_dma_extdesc_t* desc)
 {
     u64 big_no;
+    if (!desc) {
+        printk(KERN_ERR"NULL!\n");
+        return;
+    }
+
     printk(KERN_ERR"Descriptor at virt %p\n",desc);
     big_no = desc->read_hi_phys;
     big_no <<= 32;
@@ -75,6 +80,35 @@ static void dump_descriptor(minit_dma_extdesc_t* desc)
            desc->control & (1<<9) ? "GEN EOP" : ".",
            desc->control & (1<<8) ? "GEN SOP" : ".",
            desc->control & 0x000000ff);
+    printk(KERN_ERR"driver_ref (job) %p\n",desc->driver_ref);
+    printk(KERN_ERR"next desc virt %p\n",desc->next_desc_virt);
+}
+
+static void dump_job(struct transfer_job_s* job)
+{
+    minit_dma_extdesc_t* desc;
+
+    if (!job) {
+        printk(KERN_ERR"NULL!\n");
+        return;
+    }
+
+    printk(KERN_ERR"job structure at %p\n",job);
+    printk(KERN_ERR" buffer %p\n",job->buffer);
+    printk(KERN_ERR" buffer_size 0x%08x (%d)\n",job->buffer_size,job->buffer_size);
+    printk(KERN_ERR" transfer_id %d\n",job->transfer_id);
+    printk(KERN_ERR" signal_number %d\n",job->signal_number);
+    printk(KERN_ERR" pid %d\n",job->pid);
+    printk(KERN_ERR" scatter-table\n"); // todo
+    printk(KERN_ERR" status %d\n",job->status);
+    printk(KERN_ERR" file %p\n",job->file);
+    printk(KERN_ERR" descriptor physical address 0x%016llx\n", job->descriptor_phys);
+    printk(KERN_ERR" descriptors:\n");
+    desc = job->descriptor;
+    while (desc) {
+        dump_descriptor(desc);
+        desc = desc->next_desc_virt;
+    }
 }
 
 /**
@@ -83,7 +117,7 @@ static void dump_descriptor(minit_dma_extdesc_t* desc)
  *
  * @param adma driver structure
  */
-static void crazy_dump_debug(struct altr_dma_dev* adma) {
+static void dump_dma_registers(struct altr_dma_dev* adma) {
     u32 reg;
     u64 hi;
     minit_dma_extdesc_t* desc;
@@ -100,6 +134,11 @@ static void crazy_dump_debug(struct altr_dma_dev* adma) {
         "unaligned",
         "reserved!"
     };
+    if (!adma) {
+        printk(KERN_ERR"struct altr_dma_dev in NULL!\n");
+        return;
+    }
+
     /* dump core */
     printk(KERN_ERR"mSGDMA core\n");
     reg = readl(adma->msgdma_base + MSGDMA_STATUS);
@@ -148,7 +187,7 @@ static void crazy_dump_debug(struct altr_dma_dev* adma) {
            reg & (1 << 0) ? "yes" : "no",
            reg & (1 << 1) ? "yes" : "no",
            reg & (1 << 2) ? "yes" : "no");
-    printk(KERN_ERR" channel width %d, data fifo depth %d data width %d\n",
+    printk(KERN_ERR" channel width %d, data fifo depth %d, data width %d\n",
            ((reg & 0x00000038) >> 3) + 1,
            1 << (((reg & 0x000003c0) >> 6) + 4),
            1 << (((reg & 0x00001c00) >> 10) + 3) );
@@ -214,6 +253,43 @@ static void crazy_dump_debug(struct altr_dma_dev* adma) {
     }
 }
 
+/**
+ * @brief dump the altr_dma_dev structure and its children
+ */
+static void crazy_dump_debug(struct altr_dma_dev* adma)
+{
+    struct transfer_job_s* job;
+
+    if (!adma) {
+        printk(KERN_ERR"struct altr_dma_dev in NULL!\n");
+        return;
+    }
+
+    printk(KERN_ERR"msgdma base %p\n",adma->msgdma_base);
+    printk(KERN_ERR"prefetcher base %p\n",adma->prefetcher_base);
+    dump_dma_registers(adma);
+
+    printk(KERN_ERR"pci_device %p\n",adma->pci_device);
+    printk(KERN_ERR"max transfer size 0x%lx (%ld)\n",adma->max_transfer_size,adma->max_transfer_size);
+    printk(KERN_ERR"hardware lock %s\n", spin_is_locked(&adma->hardware_lock) ? "locked" : "unlocked" ); /// @todo
+    printk(KERN_ERR"transfers ready for hardware\n");
+    list_for_each_entry(job, &adma->transfers_ready_for_hardware, list) {
+        dump_job(job);
+    }
+    printk(KERN_ERR"transfers on hardware\n");
+    dump_job(adma->transfer_on_hardware);
+    printk(KERN_ERR"post hardware transfers\n");
+    list_for_each_entry(job, &adma->post_hardware, list) {
+        dump_job(job);
+    }
+    printk(KERN_ERR"done lock %s\n", spin_is_locked(&adma->hardware_lock) ? "locked" : "unlocked"); /// @todo
+    printk(KERN_ERR"done transfers\n");
+    list_for_each_entry(job, &adma->transfers_done, list) {
+        dump_job(job);
+    }
+    printk(KERN_ERR"descriptor pool %p\n",adma->descriptor_pool);
+    printk(KERN_ERR"finishing queue %p\n",adma->finishing_queue);
+}
 
 static inline struct transfer_job_s* pop_job(struct list_head* list, spinlock_t* lock)
 {
@@ -878,6 +954,9 @@ int altera_sgdma_probe(struct minit_device_s* mdev) {
     mdev->dma_isr_quick = dma_isr_quick;
     mdev->dma_isr = dma_isr;
     mdev->dma_dev = adma;
+    INIT_LIST_HEAD(&adma->transfers_ready_for_hardware);
+    INIT_LIST_HEAD(&adma->post_hardware);
+    INIT_LIST_HEAD(&adma->transfers_done);
 
     // allocate a bunch of descriptors in coherant memory
     ///@TODO replace number of descriptors (128) with some sort of global constant
@@ -892,7 +971,7 @@ int altera_sgdma_probe(struct minit_device_s* mdev) {
     INIT_WORK(&adma->finishing_work, post_transfer);
 
     crazy_dump_debug(adma);
-    return -1;
+    return 0;
 }
 
 void altera_sgdma_remove(struct minit_device_s* mdev) {
