@@ -170,6 +170,7 @@ public:
             throw std::runtime_error("already setup");
         }
         _instance = new transfer_manager(fd, size, max_queue_size);
+        return _instance;
     }
 
     void stream_data(
