@@ -578,7 +578,18 @@ static int minit_file_open(struct inode* inode, struct file *file)
  */
 static int minit_file_close(struct inode *inode, struct file *file)
 {
+    struct minit_device_s* minit_dev;
+
     VPRINTK("minit_file_close\n");
+    if (!file->private_data) {
+        DPRINTK("file->private_data null, can't clear-up!\n");
+        return 0;
+    }
+    minit_dev = (struct minit_device_s*)file;
+
+    // find all DMAs started by the user of this file and cancel them.
+    cancel_data_transfer_for_file(minit_dev->dma_dev, file);
+
     return 0;
 }
 

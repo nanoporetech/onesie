@@ -121,6 +121,7 @@ struct transfer_job_s {
     int pid;
     struct sg_table sgt;
     u32 status;
+    struct file* file;
 
     // DMA descriptor chain virtual and dma addreses
     minit_dma_extdesc_t* descriptor;

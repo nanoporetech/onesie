@@ -633,7 +633,7 @@ u32 get_completed_data_transfers(struct altr_dma_dev* adma, u32 max_elem, struct
     return i;
 }
 
-static struct transfer_job_s* find_job_to_cancel(struct altr_dma_dev* adma, u32 transfer_id)
+static struct transfer_job_s* find_job_by_id(struct altr_dma_dev* adma, u32 transfer_id)
 {
     struct transfer_job_s* job;
     unsigned long flags;
@@ -661,6 +661,35 @@ static struct transfer_job_s* find_job_to_cancel(struct altr_dma_dev* adma, u32 
     return NULL;
 }
 
+static struct transfer_job_s* find_job_by_file(struct altr_dma_dev* adma, struct file* file)
+{
+    struct transfer_job_s* job;
+    unsigned long flags;
+
+    spin_lock_irqsave(&adma->hardware_lock, flags);
+    list_for_each_entry(job, &adma->transfers_ready_for_hardware, list) {
+        if (job->file == file) {
+            list_del(&job->list);
+            return job;
+        }
+    }
+    if (adma->transfer_on_hardware->file == file) {
+        job = adma->transfer_on_hardware;
+        reset_dma_hardware(adma);
+        return job;
+    }
+    list_for_each_entry(job, &adma->post_hardware, list) {
+        if (job->file == file) {
+            list_del(&job->list);
+            return job;
+        }
+    }
+    spin_unlock_irqrestore(&adma->hardware_lock,flags);
+
+    return NULL;
+}
+
+
 /**
  * @brief cancel_data_transfer
  * @param adma
@@ -674,7 +703,7 @@ long cancel_data_transfer(struct altr_dma_dev* adma, u32 transfer_id)
     unsigned long flags;
     struct transfer_job_s* job;
 
-    job = find_job_to_cancel(adma, transfer_id);
+    job = find_job_by_id(adma, transfer_id);
     if (job) {
         // free descriptors and unmap dma
         free_descriptor_list(adma, job);
@@ -685,7 +714,7 @@ long cancel_data_transfer(struct altr_dma_dev* adma, u32 transfer_id)
 
     // may have already completed, but the userspace app still wants to cancel
     spin_lock_irqsave(&adma->done_lock, flags);
-    list_for_each_entry(job, &adma->transfers_ready_for_hardware, list) {
+    list_for_each_entry(job, &adma->transfers_done, list) {
         if (job->transfer_id == transfer_id) {
             list_del(&job->list);
             kfree(job);
@@ -698,6 +727,34 @@ long cancel_data_transfer(struct altr_dma_dev* adma, u32 transfer_id)
     // not found
     return -1;
 }
+
+void cancel_data_transfer_for_file(struct altr_dma_dev* adma, struct file* file)
+{
+    unsigned long flags;
+    struct transfer_job_s* job;
+    do {
+        job = find_job_by_file(adma, file);
+        if (job) {
+            // free descriptors and unmap dma
+            free_descriptor_list(adma, job);
+            pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
+            kfree(job);
+        }
+    } while (job);
+
+    do {
+        // may have already completed, but the userspace app still wants to cancel
+        spin_lock_irqsave(&adma->done_lock, flags);
+        list_for_each_entry(job, &adma->transfers_done, list) {
+            if (job->file == file) {
+                list_del(&job->list);
+                kfree(job);
+            }
+        }
+        spin_unlock_irqrestore(&adma->done_lock, flags);
+    } while (job);
+}
+
 
 /**
  * @brief interrupt handler, was it us?
