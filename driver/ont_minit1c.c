@@ -267,6 +267,7 @@ static long minit_shift_register_access(
     if (to_dev) {
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
+            VPRINTK("Shift to dev  : 0x%02x => 0x%03x\n",from_dev[i],i);
             writeb(to_dev[i], minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
         }
     }
@@ -291,7 +292,8 @@ static long minit_shift_register_access(
     if (from_dev) {
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
-            from_dev[i] = readb(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
+            from_dev[i] = readb(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
+            VPRINTK("Shift from dev: 0x%02x <= 0x%03x\n",from_dev[i],i);
         }
     }
 

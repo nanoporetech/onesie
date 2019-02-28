@@ -59,10 +59,10 @@
 /* ASIC shift register base, buffers and control register */
 
 #define ASIC_SHIFT_BASE         0x04000000
-#define ASIC_SHIFT_REG_SIZE     0x11a
+#define ASIC_SHIFT_REG_SIZE     0x11b
 #define ASIC_SHIFT_OUTPUT_BUF   0
-#define ASIC_SHIFT_INPUT_BUF    0x180
-#define ASIC_SHIFT_CTRL         0x300
+#define ASIC_SHIFT_INPUT_BUF    0x300
+#define ASIC_SHIFT_CTRL         0x600
 
 #define ASIC_SHIFT_CTRL_EN      (1 << 0)
 #define ASIC_SHIFT_CTRL_ST      (1 << 1)
