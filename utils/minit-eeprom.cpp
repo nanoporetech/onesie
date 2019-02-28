@@ -86,7 +86,7 @@ int main(int argc, char* argv[]) {
             ++index;
             std::string field(argv[index]);
             try {
-                start = (unsigned int)std::stoul(field,0);
+                start = (unsigned int)std::stoul(field,0,0);
             } catch(std::invalid_argument& e) {
                 std::cerr << "couldn't convert '" << field << "'to a number" << std::endl;
                 exit(1);
@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
             ++index;
             std::string field(argv[index]);
             try {
-                length = (unsigned int)std::stoul(field,0);
+                length = (unsigned int)std::stoul(field,0,0);
             } catch(std::invalid_argument& e) {
                 std::cerr << "couldn't convert '" << field << "'to a number" << std::endl;
                 exit(1);

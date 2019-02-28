@@ -28,40 +28,11 @@
 #include <linux/scatterlist.h>
 #include <linux/i2c.h>
 #include <linux/mutex.h>
+#include <linux/delay.h>
 
 #include "ont_minit1c.h"
 #include "ont_minit1c_reg.h"
 #include "ont_minit_ioctl.h"
-
-#define ONT_DEBUG
-#define ONT_VERBOSE_DEBUG
-
-#ifdef DPRINTK
-    #error
-#endif
-#ifdef VPRINTK
-    #error
-#endif
-#ifdef ONT_DEBUG
-    #define STRINGIFY_(X) #X
-    #define STRINGIFY(X) STRINGIFY_(X)
-    #define DPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
-    #ifdef ONT_VERBOSE_DEBUG
-        #define WRITEL(VAL,ADDR) do{u32 val=(VAL); void* addr=(ADDR); printk(KERN_ERR"minit 0x%08x => %p\n",val,addr);writel(val,addr); } while(0)
-        static inline u32 myreadl(void* addr) {u32 r=readl(addr);printk(KERN_ERR"minit 0x%08x <= %p\n",r,addr);return r;}
-        #define READL(ADDR) myreadl(ADDR)
-
-        #define VPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
-    #endif
-#endif
-#ifndef DPRINTK
-    #define DPRINTK(ARGS...) do {} while(0)
-#endif
-#ifndef VPRINTK
-    #define VPRINTK(ARGS...) do {} while(0)
-    #define READL(ADDR) readl(ADDR)
-    #define WRITEL(VAL,ADDR) writel(VAL,ADDR)
-#endif
 
 /*
  * PROTOTYPES
@@ -295,6 +266,7 @@ static long minit_shift_register_access(
     if (to_dev) {
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
+            VPRINTK("Shift to dev  : 0x%02x => 0x%03x\n",from_dev[i],i);
             writeb(to_dev[i], minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
         }
     }
@@ -319,7 +291,8 @@ static long minit_shift_register_access(
     if (from_dev) {
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
-            from_dev[i] = readb(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
+            from_dev[i] = readb(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
+            VPRINTK("Shift from dev: 0x%02x <= 0x%03x\n",from_dev[i],i);
         }
     }
 
@@ -526,6 +499,7 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
  */
 static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
 {
+    int retry_count;
     u32 old_mode;
     int rc=0;
     const u8 eeprom_page_size = 8;
@@ -550,14 +524,24 @@ static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32
     while (length > 0 && rc >= 0) {
         u32 bytes_left_on_page = eeprom_page_size - (start % eeprom_page_size);
         u8 this_write_length = (u8)min(bytes_left_on_page, length);
-        rc = write_eeprom_page(adapter, buffer, (u8)start, (u8)this_write_length);
+        retry_count = 10;
+        do {
+            rc = write_eeprom_page(adapter, buffer, (u8)start, (u8)this_write_length);
+            // the eeprom will not acknowledge further comms until it's finished
+            // it's last write, so errors are likely, retry in a few ms
+            if (rc) {
+                msleep(5);
+            }
+        } while (--retry_count && rc);
         length -= this_write_length;
         start += this_write_length;
         buffer += this_write_length;
     }
-    // after the last write, wait for the write to complete, this should be implicit
-    // when processing a stream of writes.
-    if (rc >= 0) {
+    // after the last write, wait for the write to complete
+    retry_count = 10;
+    rc = write_done(adapter);
+    while (--retry_count && rc) {
+        msleep(5);
         rc = write_done(adapter);
     }
 

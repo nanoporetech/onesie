@@ -10,6 +10,39 @@
 #ifndef ONT_MINIT1C_H
 #define ONT_MINIT1C_H
 
+#define ONT_DEBUG
+//#define ONT_VERBOSE_DEBUG
+
+// debug macros
+#ifdef DPRINTK
+    #error
+#endif
+#ifdef VPRINTK
+    #error
+#endif
+#ifdef ONT_DEBUG
+    #define STRINGIFY_(X) #X
+    #define STRINGIFY(X) STRINGIFY_(X)
+    #define DPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
+
+    // optionally dump out the majority of register accesses
+    #ifdef ONT_VERBOSE_DEBUG
+        #define WRITEL(VAL,ADDR) do{u32 val=(VAL); void* addr=(ADDR); printk(KERN_ERR"minit 0x%08x => %p\n",val,addr);writel(val,addr); } while(0)
+        static inline u32 myreadl(void* addr) {u32 r=readl(addr);printk(KERN_ERR"minit 0x%08x <= %p\n",r,addr);return r;}
+        #define READL(ADDR) myreadl(ADDR)
+
+        #define VPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
+    #endif
+#endif
+#ifndef DPRINTK
+    #define DPRINTK(ARGS...) do {} while(0)
+#endif
+#ifndef VPRINTK
+    #define VPRINTK(ARGS...) do {} while(0)
+    #define READL(ADDR) readl(ADDR)
+    #define WRITEL(VAL,ADDR) writel(VAL,ADDR)
+#endif
+
 #define ONT_DRIVER_NAME     "ont-minit1c"
 
 /* version is major.minor.patch */

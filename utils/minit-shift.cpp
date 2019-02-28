@@ -21,7 +21,7 @@ void shift_ioctl(
         std::array<std::uint8_t, asic_shift_reg_size>& data,
         const bool start = 1,
         const bool enable = 1,
-        const unsigned int speed = 50000)
+        const unsigned int frequency = 50000)
 {
     // try and open file
     int fd = open(device.c_str(), O_RDWR);
@@ -32,7 +32,7 @@ void shift_ioctl(
     struct minit_shift_reg_s shift_ioctl{
         nullptr,
         data.data(),
-        speed,
+        frequency,
         start,
         enable
     };
@@ -45,13 +45,19 @@ void shift_ioctl(
 void usage()
 {
     std::cerr
-        << "usage minit-shift [-x] <device>\n"
-        << " -x, --hex        Output will be in hexadecimal csv\n";
+        << "usage minit-shift [-x] [-e] [-s] [-f frequency ] <device>\n"
+        << " -x, --hex        Output will be in hexadecimal csv\n"
+        << " -e, --enable     Set the mod-enable bit\n"
+        << " -s, --start      Set the start-bit\n"
+        << " -f, --frequency  Set the interface clock-frequency in Hz (default 492,125.9 MHz)\n";
     exit(1);
 }
 
 int main(int argc, char* argv[]) {
     bool hex = false;
+    bool enable = false;
+    bool start = false;
+    std::uint32_t frequency = 492125; // as slow as it'll go
     std::string device;
 
     // parse options
@@ -62,6 +68,28 @@ int main(int argc, char* argv[]) {
         std::string arg(argv[index]);
         if (arg == "-x" || arg == "--hex") {
             hex = true;
+            continue;
+        }
+        if (arg == "-e" || arg == "--enable") {
+            enable = true;
+            continue;
+        }
+        if (arg == "-s" || arg == "--start") {
+            start = true;
+            continue;
+        }
+        if (arg == "-f" || arg == "--frequency") {
+            ++index;
+            std::string field(argv[index]);
+            try {
+                frequency = (unsigned int)std::stoul(field,0,0);
+            } catch(std::invalid_argument& e) {
+                std::cerr << "couldn't convert '" << field << "'to a number" << std::endl;
+                exit(1);
+            } catch(std::out_of_range& e) {
+                std::cerr << "'" << field << "'is too big or a negative number" << std::endl;
+                exit(1);
+            }
             continue;
         }
 
@@ -92,7 +120,7 @@ int main(int argc, char* argv[]) {
     std::array<std::uint8_t, asic_shift_reg_size> data{0};
 
     try {
-        shift_ioctl(device, data);
+        shift_ioctl(device, data, start, enable, frequency);
     } catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
         exit(1);
