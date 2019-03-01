@@ -132,14 +132,13 @@ struct minit_eeprom_transfer_s {
 /**
  * @brief DMA data into memory, optionally with a signal when complete
  *
- * @todo need to automatically associate these transfers with file handles, then
- * when the user closes the file cancel any jobs assocciated with the
- * file-handle.
- *
  * Use to submit transfers to the driver. When these are done, the driver will
  * send the process that submitted the transfer the signal [signal_number]. The
  * user-space process should then send a [MINIT_IOCTL_WHATS_COMPLETED] ioctl
  * to get a list of transfers that are done.
+ *
+ * Signals will cause some system-calls to return early so decide if you want
+ * use signals or just poll. with the MINIT_IOCTL_WHATS_COMPLETED ioctl.
  *
  * buffer        to-driver Pointer to a buffer that will contain the data read
  * buffer_size   to_driver The size of the abave buffer
@@ -148,7 +147,8 @@ struct minit_eeprom_transfer_s {
  *                         transfers have completed.
  * pid           to_driver A signal will be sent to this process to indicate
  *                         that the transfer has completed. Signals may be
- *                         coalesced.
+ *                         coalesced by the OS. If this value is 0 no signal
+ *                         will be sent
  */
 struct minit_data_transfer_s {
     __u64           buffer;

@@ -347,8 +347,16 @@ static int dma_busy(struct altr_dma_dev* adma)
     return READL(adma->msgdma_base + MSGDMA_CONTROL) & MSGDMA_STATUS_BUSY;
 }
 
+/**
+ * @brief reset dma hardware. Call holding hardware_lock
+ * @param adma
+ */
 static void reset_dma_hardware(struct altr_dma_dev* adma)
 {
+    /// @todo should not wait forever for resets to clear, timout with some
+    /// sort of error and mark the hardware as broken so user-space apps can
+    /// save their data.
+
     // reset prefetcher and wait for hardware to clear reset
     WRITEL(PRE_CTRL_RESET, adma->prefetcher_base + PRE_CONTROL);
     while(READL(adma->prefetcher_base + PRE_CONTROL) & PRE_CTRL_RESET)
@@ -361,6 +369,10 @@ static void reset_dma_hardware(struct altr_dma_dev* adma)
 
 }
 
+/**
+ * @brief start the next transfer ready for hardware if idle. Call holding hardware_lock
+ *
+ */
 static void start_transfer_unlocked(struct altr_dma_dev* adma)
 {
     struct transfer_job_s* job;
@@ -667,6 +679,10 @@ static struct transfer_job_s* find_job_by_id(struct altr_dma_dev* adma, u32 tran
     {
         job = adma->transfer_on_hardware;
         reset_dma_hardware(adma);
+        adma->transfer_on_hardware = NULL; // it's not on hardware now!
+        // restart the hardware whilst we have the lock
+        start_transfer_unlocked(adma);
+
         spin_unlock_irqrestore(&adma->hardware_lock, flags);
         return job;
     }
@@ -706,6 +722,12 @@ static struct transfer_job_s* find_job_by_file(struct altr_dma_dev* adma, struct
         dump_job(job);
         reset_dma_hardware(adma);
         adma->transfer_on_hardware = NULL; // it's not on hardware now!
+
+        // the above search should have removed any queued jobs and we've just
+        // ended the active job, restart the hardware knowing that we're not
+        // going to start a job that we're going to want to immediately destroy
+        start_transfer_unlocked(adma);
+
         spin_unlock_irqrestore(&adma->hardware_lock, flags);
         return job;
     }
