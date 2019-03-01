@@ -84,6 +84,10 @@ static void dump_descriptor(minit_dma_extdesc_t* desc)
     printk(KERN_ERR"next desc virt %p\n",desc->next_desc_virt);
 }
 
+/**
+ * @brief Dump a job and its DMA descriptors to kernel log
+ * @param job
+ */
 static void dump_job(struct transfer_job_s* job)
 {
     minit_dma_extdesc_t* desc;
@@ -291,11 +295,22 @@ static void crazy_dump_debug(struct altr_dma_dev* adma)
     printk(KERN_ERR"finishing queue %p\n",adma->finishing_queue);
 }
 
-static unsigned long get_max_transfer_size(struct altr_dma_dev* adma)
+/**
+ * @brief extract the maximum transfer size from the hardware config registers
+ * @param adma
+ * @return maximum transfer-size in bytes
+ */
+static unsigned int get_max_transfer_size(struct altr_dma_dev* adma)
 {
     return 1 << (((READL(adma->msgdma_base + MSGDMA_CONFIG_1) & 0xf8000000) >> 27) + 10);
 }
 
+/**
+ * @brief Pop a job from the end of a list using the lock provided
+ * @param list List of jobs
+ * @param lock This will be taken with irqsave whilst interacting with the list
+ * @return The job on the end of the list or null if the list was empty
+ */
 static inline struct transfer_job_s* pop_job(struct list_head* list, spinlock_t* lock)
 {
     unsigned long flags;
@@ -309,6 +324,12 @@ static inline struct transfer_job_s* pop_job(struct list_head* list, spinlock_t*
     return job;
 }
 
+/**
+ * @brief push_job Push a job onto the start of a list using the lock provided
+ * @param list List of jobs
+ * @param lock This will be taken with irqsave whilst interacting with the list
+ * @param job Job to push onto the list
+ */
 static inline void push_job(struct list_head* list, spinlock_t* lock, struct transfer_job_s* job)
 {
     unsigned long flags;
@@ -317,6 +338,13 @@ static inline void push_job(struct list_head* list, spinlock_t* lock, struct tra
     spin_unlock_irqrestore(lock, flags);
 }
 
+/**
+ * @brief write a 64/32-bit dma_addr_t into a 64-bit DMA address
+ * split into two 32-bit high and low fields
+ * @param hi pointer to upper 32-bit field
+ * @param lo pointer to lower 32-bit field
+ * @param desc_phys dma address
+ */
 static inline void descriptor_set_phys(u32* hi, u32* lo, dma_addr_t desc_phys)
 {
 #ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
@@ -328,6 +356,12 @@ static inline void descriptor_set_phys(u32* hi, u32* lo, dma_addr_t desc_phys)
 #endif
 }
 
+/**
+ * @brief read two 32-bit high and low fields into a 32/64 bit dma_addr_t
+ * @param hi pointer to upper 32-bit field
+ * @param lo pointer to lower 32-bit field
+ * @return 32 or 64-bit dma address
+ */
 static inline dma_addr_t descriptor_get_phys(u32* hi, u32* lo)
 {
     dma_addr_t ret;
@@ -342,6 +376,11 @@ static inline dma_addr_t descriptor_get_phys(u32* hi, u32* lo)
     return ret;
 }
 
+/**
+ * @brief is DMA hardware busy
+ * @param adma
+ * @return 0 = idle
+ */
 static int dma_busy(struct altr_dma_dev* adma)
 {
     return READL(adma->msgdma_base + MSGDMA_CONTROL) & MSGDMA_STATUS_BUSY;
@@ -371,7 +410,6 @@ static void reset_dma_hardware(struct altr_dma_dev* adma)
 
 /**
  * @brief start the next transfer ready for hardware if idle. Call holding hardware_lock
- *
  */
 static void start_transfer_unlocked(struct altr_dma_dev* adma)
 {
@@ -402,7 +440,14 @@ static void start_transfer_unlocked(struct altr_dma_dev* adma)
     WRITEL(ALTERA_DMA_PRE_START, adma->prefetcher_base + PRE_CONTROL);
 }
 
-static long submit_transfer_to_hw_or_queue(struct altr_dma_dev* adma, struct transfer_job_s* job)
+/**
+ * @brief put a job on hardware or queue it
+ * @param adma
+ * @param job Has buffer converted to scatterlist, mapped and descriptors created
+ *
+ * will briefly touch the transfers_ready_for_hardware queue, even if empty
+ */
+static void submit_transfer_to_hw_or_queue(struct altr_dma_dev* adma, struct transfer_job_s* job)
 {
     unsigned long flags;
 
@@ -416,9 +461,13 @@ static long submit_transfer_to_hw_or_queue(struct altr_dma_dev* adma, struct tra
 
     // unlock something
     spin_unlock_irqrestore(&adma->hardware_lock, flags);
-    return 0;
 }
 
+/**
+ * @brief walk descriptor list freeing entries and returning resources to descritor pool
+ * @param adma
+ * @param job
+ */
 static void free_descriptor_list(struct altr_dma_dev* adma, struct transfer_job_s* job)
 {
     minit_dma_extdesc_t* desc = job->descriptor;
@@ -435,6 +484,17 @@ static void free_descriptor_list(struct altr_dma_dev* adma, struct transfer_job_
     job->descriptor_phys = 0;
 }
 
+/**
+ * @brief convert a mapped scatterlist to a dma-descriptors list
+ * @param adma
+ * @param job
+ * @param nents the number of transfers in the scatter-list as returned by
+ * pci_map_sg or dma_map_sg
+ * @return error code or 0 on success
+ *
+ * This will honour the adma->max_transfer_size, splitting transfers into
+ * multiple jobs if they're too big.
+ */
 static long create_descriptor_list(struct altr_dma_dev* adma, struct transfer_job_s* job, int nents)
 {
     struct scatterlist* sg_elem;
@@ -497,10 +557,7 @@ static long create_descriptor_list(struct altr_dma_dev* adma, struct transfer_jo
     prev_desc->control = ALTERA_DMA_DESC_CONTROL_END;
 
     // should be ready for hardware
-    rc = submit_transfer_to_hw_or_queue(adma, job);
-    if (rc) {
-        goto err_free_descriptors;
-    }
+    submit_transfer_to_hw_or_queue(adma, job);
     return 0;
 
 err_free_descriptors:
@@ -661,6 +718,15 @@ u32 get_completed_data_transfers(struct altr_dma_dev* adma, u32 max_elem, struct
     return i;
 }
 
+/**
+ * @brief returns the first job it finds with an id matching the perameter
+ * @param adma
+ * @param transfer_id
+ * @return matching job or null
+ *
+ * searches through the various places that jobs can reside based on the order
+ * that a job can move through them.
+ */
 static struct transfer_job_s* find_job_by_id(struct altr_dma_dev* adma, u32 transfer_id)
 {
     struct transfer_job_s* job;
@@ -698,6 +764,13 @@ static struct transfer_job_s* find_job_by_id(struct altr_dma_dev* adma, u32 tran
     return NULL;
 }
 
+/**
+ * @brief returns the first job it finds with a file reference matching the perameter
+ * @return matching job or null
+ *
+ * searches through the various places that jobs can reside based on the order
+ * that a job can move through them.
+ */
 static struct transfer_job_s* find_job_by_file(struct altr_dma_dev* adma, struct file* file)
 {
     struct transfer_job_s* job;
@@ -748,10 +821,10 @@ static struct transfer_job_s* find_job_by_file(struct altr_dma_dev* adma, struct
 
 
 /**
- * @brief cancel_data_transfer
+ * @brief cancel data transfer with matching transfer_id
  * @param adma
  * @param transfer_id
- * @return
+ * @return 0 if found or -EINVAL if not found
  *
  * proceed through the queues looking for the transfer
  */
@@ -782,10 +855,13 @@ long cancel_data_transfer(struct altr_dma_dev* adma, u32 transfer_id)
     spin_unlock_irqrestore(&adma->done_lock, flags);
 
     // not found
-    return -1;
+    return -EINVAL;
 }
 
-void cancel_data_transfer_for_file(struct altr_dma_dev* adma, struct file* file)
+/**
+ * @brief cancel all the data transfers referencing a file
+ */
+void cancel_data_transfers_for_file(struct altr_dma_dev* adma, struct file* file)
 {
     unsigned long flags;
     struct transfer_job_s* job;
@@ -885,6 +961,14 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
     return IRQ_HANDLED;
 }
 
+/**
+ * @brief send a signal to a user-space process
+ * @param signal_number
+ * @param pid
+ *
+ * @todo check to see if adding the ability to send any signal to any process
+ * constitutes a security problem.
+ */
 static void send_signal(const int signal_number, const int pid)
 {
     if (signal_number) {
@@ -945,8 +1029,12 @@ int altera_sgdma_probe(struct minit_device_s* mdev) {
     INIT_LIST_HEAD(&adma->transfers_done);
 
     // allocate a bunch of descriptors in coherant memory
-    ///@TODO replace number of descriptors (128) with some sort of global constant
-    adma->descriptor_pool = dmam_pool_create("MinION DMA", &mdev->pci_device->dev, sizeof(minit_dma_extdesc_t) * 128, 4, 0);
+    adma->descriptor_pool = dmam_pool_create(
+                "MinION DMA",
+                &mdev->pci_device->dev,
+                sizeof(minit_dma_extdesc_t) * INITIAL_DESCRIPTOR_POOL_SIZE,
+                4, // alignment
+                0);// boundary
     if (!adma->descriptor_pool) {
         DPRINTK("Unable to allocate a pool of memory for dma descriptors\n");
         return -ENOMEM;
@@ -965,9 +1053,10 @@ void altera_sgdma_remove(struct minit_device_s* mdev) {
     if (!adma) {
         return;
     }
+    destroy_workqueue(adma->finishing_queue);
 
-    kfree(adma);
     mdev->dma_isr_quick = NULL;
     mdev->dma_isr = NULL;
     mdev->dma_dev = NULL;
+    kfree(adma);
 }

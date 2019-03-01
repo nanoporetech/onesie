@@ -552,11 +552,9 @@ static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32
     return (rc < 0) ? rc : 0;
 }
 
-
 /*
  * File OPs
  */
-
 static int minit_file_open(struct inode* inode, struct file *file)
 {
     struct minit_device_s* minit_dev;
@@ -588,7 +586,7 @@ static int minit_file_close(struct inode *inode, struct file *file)
     }
 
     // find all DMAs started by the user of this file and cancel them.
-    cancel_data_transfer_for_file(minit_dev->dma_dev, file);
+    cancel_data_transfers_for_file(minit_dev->dma_dev, file);
 
     return 0;
 }
