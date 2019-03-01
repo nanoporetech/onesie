@@ -308,13 +308,13 @@ int main(int argc, char* argv[]) {
         usage();
     }
 
-    // open device file
-    int fd = open(device.c_str(), O_RDWR);
-    if (fd <= 0) {
-        throw std::runtime_error("Failed to open device node");
-    }
-
     try {
+        // open device file
+        int fd = open(device.c_str(), O_RDWR);
+        if (fd <= 0) {
+            throw std::runtime_error("Failed to open device node");
+        }
+
         auto* manager = transfer_manager::setup(fd, size, max_queue_size);
         manager->stream_data(std::cout, no_transfers, stream);
     } catch (std::runtime_error& e) {
