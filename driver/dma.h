@@ -79,10 +79,6 @@
 #define MSGDMA_VERSION_SHIFT        0
 
 
-/// @TODO: correct controls for DMA with an interrupt on the last transfer or
-/// an error
-#define ALTERA_DMA_DESC_CONTROL_NOT_END 0x0
-#define ALTERA_DMA_DESC_CONTROL_END     0x0
 
 struct transfer_job_s;
 
@@ -111,6 +107,32 @@ struct __attribute__((__packed__, aligned(4) )) minit_dma_extdesc_s {
 };
 
 typedef struct __attribute__((__packed__, aligned(4) )) minit_dma_extdesc_s minit_dma_extdesc_t;
+
+#define ALTERA_DMA_DESC_CONTROL_TX_CHAN_SHIFT       0
+#define ALTERA_DMA_DESC_CONTROL_TX_CHAN_MASK        0x000000ff
+#define ALTERA_DMA_DESC_CONTROL_SOP                 (1 <<  8)
+#define ALTERA_DMA_DESC_CONTROL_EOP                 (1 <<  9)
+#define ALTERA_DMA_DESC_CONTROL_PARK_RD             (1 << 10)
+#define ALTERA_DMA_DESC_CONTROL_PARK_WT             (1 << 11)
+#define ALTERA_DMA_DESC_CONTROL_END_ON_EOP          (1 << 12)
+#define ALTERA_DMA_DESC_CONTROL_TX_IRQ              (1 << 14)
+#define ALTERA_DMA_DESC_CONTROL_EARLY_IRQ           (1 << 15)
+#define ALTERA_DMA_DESC_CONTROL_ERROR_IRQ_SHIFT     16
+#define ALTERA_DMA_DESC_CONTROL_ERROR_IRQ_MASK      0x00ff0000
+#define ALTERA_DMA_DESC_CONTROL_EARLY               (1 << 24)
+#define ALTERA_DMA_DESC_CONTROL_HW_OWNED            (1 << 30)
+#define ALTERA_DMA_DESC_CONTROL_GO                  (1 << 31)
+
+#define ALTERA_DMA_DESC_CONTROL_NOT_END (ALTERA_DMA_DESC_CONTROL_END_ON_EOP |\
+                                         ALTERA_DMA_DESC_CONTROL_EARLY |\
+                                         ALTERA_DMA_DESC_CONTROL_HW_OWNED |\
+                                         ALTERA_DMA_DESC_CONTROL_GO)
+
+#define ALTERA_DMA_DESC_CONTROL_END     (ALTERA_DMA_DESC_CONTROL_END_ON_EOP |\
+                                         ALTERA_DMA_DESC_CONTROL_EARLY_IRQ |\
+                                         ALTERA_DMA_DESC_CONTROL_TX_IRQ |\
+                                         ALTERA_DMA_DESC_CONTROL_HW_OWNED |\
+                                         ALTERA_DMA_DESC_CONTROL_GO)
 
 struct transfer_job_s {
     struct list_head list;

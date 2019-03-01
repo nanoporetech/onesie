@@ -383,7 +383,7 @@ static void start_transfer_unlocked(struct altr_dma_dev* adma)
         adma->transfer_on_hardware ||
         list_empty(&adma->transfers_ready_for_hardware))
     {
-        VPRINTK("start_transfer_unlocked we already seem busy\n");
+        VPRINTK("start_transfer_unlocked we already seem busy or nothing to do\n");
         return;
     }
 

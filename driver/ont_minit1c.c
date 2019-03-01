@@ -222,7 +222,7 @@ static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_regi
             VPRINTK("read-16 0x%04x <- %p\n", (u16)reg_access->value, address);
             break;
         case 4:
-            reg_access->value = (u64)READL(address);
+            reg_access->value = (u64)readl(address);
             VPRINTK("read-32 0x%08x <- %p\n", (u32)reg_access->value, address);
             break;
         case 8:
