@@ -274,8 +274,8 @@ static long minit_shift_register_access(
     wmb();
 
     clockdiv = ((PCIe_LANE_CLOCK/clk) - 1) / 2;
-    if (clockdiv > ASIC_SHIFT_CTRL_DIV_MASK) {
-        clockdiv = ASIC_SHIFT_CTRL_DIV_MASK;
+    if (clockdiv > ASIC_SHIFT_CTRL_DIV_MAX) {
+        clockdiv = ASIC_SHIFT_CTRL_DIV_MAX;
     }
     actual_clock = PCIe_LANE_CLOCK / ((2*clockdiv) + 1);
     if (actual_clock != clk) {

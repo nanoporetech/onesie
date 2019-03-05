@@ -67,6 +67,7 @@
 #define ASIC_SHIFT_CTRL_EN      (1 << 0)
 #define ASIC_SHIFT_CTRL_ST      (1 << 1)
 #define ASIC_SHIFT_CTRL_DIV_MASK  0x3f
+#define ASIC_SHIFT_CTRL_DIV_MAX   0x3e
 #define ASIC_SHIFT_CTRL_DIV_SHIFT 2
 
 /* BASE ADDRESSES BAR-2*/
