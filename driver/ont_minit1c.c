@@ -267,7 +267,7 @@ static long minit_shift_register_access(
     if (to_dev) {
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
-            VPRINTK("Shift to dev  : 0x%02x => 0x%03x\n",from_dev[i],i);
+            VPRINTK("Shift to dev  : 0x%02x => %p\n",from_dev[i],minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
             writeb(to_dev[i], minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
         }
     }
@@ -286,14 +286,15 @@ static long minit_shift_register_access(
     control = (clockdiv << ASIC_SHIFT_CTRL_DIV_SHIFT) |
               (start ? ASIC_SHIFT_CTRL_ST : 0) |
               (enable ? ASIC_SHIFT_CTRL_EN :0);
-    WRITEL(control, minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
+    VPRINTK("shift reg control 0x%02x => %p\n", control, minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
+    writeb(control, minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
     wmb();
 
     if (from_dev) {
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
             from_dev[i] = readb(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
-            VPRINTK("Shift from dev: 0x%02x <= 0x%03x\n",from_dev[i],i);
+            VPRINTK("Shift from dev: 0x%02x <= %p\n",from_dev[i],minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
         }
     }
 
