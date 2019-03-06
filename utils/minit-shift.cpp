@@ -21,7 +21,7 @@ void shift_ioctl(
         std::array<std::uint8_t, asic_shift_reg_size>& data,
         const bool start = 1,
         const bool enable = 1,
-        const unsigned int frequency = 50000)
+        const unsigned int frequency = 1000000)
 {
     // try and open file
     int fd = open(device.c_str(), O_RDWR);
@@ -49,7 +49,7 @@ void usage()
         << " -x, --hex        Output will be in hexadecimal csv\n"
         << " -e, --enable     Set the mod-enable bit\n"
         << " -s, --start      Set the start-bit\n"
-        << " -f, --frequency  Set the interface clock-frequency in Hz (default 492,125.9 MHz)\n";
+        << " -f, --frequency  Set the interface clock-frequency in Hz (default approx 1 MHz)\n";
     exit(1);
 }
 
@@ -57,7 +57,7 @@ int main(int argc, char* argv[]) {
     bool hex = false;
     bool enable = false;
     bool start = false;
-    std::uint32_t frequency = 492125; // as slow as it'll go
+    std::uint32_t frequency = 1000000;
     std::string device;
 
     // parse options
