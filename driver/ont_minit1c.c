@@ -43,13 +43,8 @@ static void __exit pci_remove(struct pci_dev *dev);
 static int minit_file_open(struct inode* inode, struct file *file);
 static int minit_file_close(struct inode *inode, struct file *file);
 static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
-
-enum link_mode_e {
-    link_mode_data,
-    link_mode_i2c
-};
-
-
+static int switch_link_mode(struct minit_device_s* , const enum link_mode_e , struct historical_link_mode* );
+static void free_link(struct minit_device_s* , const struct historical_link_mode* );
 /*
  * STRUCTURES
  */
@@ -258,11 +253,19 @@ static long minit_shift_register_access(
         const u8 enable,
         const u32 clk)
 {
+    struct historical_link_mode old_link_mode;
+    long rc;
     u32 clockdiv;
     u32 actual_clock;
     u32 control;
     VPRINTK("minit_shift_register_access to_dev %p, from_dev %p, start %d, enable %d, clk %d\n",
             to_dev, from_dev, start, enable, clk);
+
+    rc = switch_link_mode(minit_dev, link_mode_data, &old_link_mode);
+    if (rc < 0) {
+        return rc;
+    }
+
     // write to data into shift register
     if (to_dev) {
         int i;
@@ -298,12 +301,16 @@ static long minit_shift_register_access(
         }
     }
 
+    free_link(minit_dev, &old_link_mode);
+
     return 0;
 }
 
 static void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_hs_receiver_s* minit_hs_reg)
 {
     unsigned int i;
+
+
     DPRINTK("minit_hs_reg_access\n");
     if (minit_hs_reg->write) {
         for (i = 0; i < NUM_HS_REGISTERS;++i) {
@@ -320,18 +327,39 @@ static void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_h
     }
 }
 
-static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e mode, u32* old_mode)
+
+/*
+ * want to lock-out other modes until done, but allow re-entrance for things running the same mode
+ */
+static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e mode, struct historical_link_mode* old_mode)
 {
+    int rc = 0;
     u32 asic_ctrl;
     // check the link wires are not being used
     VPRINTK("switch_link_mode %s\n", mode == link_mode_i2c ? "i2c" : "data");
+
+    // can't switch to idle, use free_link()
+    if (unlikely(mode == link_idle)) {
+        BUG();
+        return -EINVAL;
+    }
+
     if (mutex_trylock(&mdev->link_mtx) == 0) {
         return -EBUSY;
     }
 
-    // read and modify the asic-control register to set either I2C or SPI mode
+    // if not idle then exit, busy
+    if (mdev->link_mode != link_idle) {
+        rc = -EBUSY;
+        goto out;
+    }
+
     asic_ctrl = READL(mdev->ctrl_bar + ASIC_CTRL_BASE) ;
-    *old_mode = asic_ctrl;
+    old_mode->reg = asic_ctrl;
+    old_mode->mode = mdev->link_mode;
+    mdev->link_mode = mode;
+
+    // read and modify the asic-control register to set either I2C or SPI mode
     switch(mode & ASIC_CTRL_MASK) {
     case link_mode_i2c:
         asic_ctrl |= ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET ;
@@ -342,13 +370,21 @@ static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e 
     }
     WRITEL(asic_ctrl, mdev->ctrl_bar + ASIC_CTRL_BASE);
 
+out:
+    mutex_unlock(&mdev->link_mtx);
     return 0;
 }
 
-static void free_link(struct minit_device_s* mdev, const enum link_mode_e mode)
+static void free_link(struct minit_device_s* mdev, const struct historical_link_mode* old_mode)
 {
     VPRINTK("free_link\n");
-    WRITEL(mode, mdev->ctrl_bar + ASIC_CTRL_BASE);
+    if (unlikely(!old_mode)) {
+        printk(KERN_ERR"call to free_link with null mode");
+        return;
+    }
+    mutex_lock(&mdev->link_mtx);
+    mdev->link_mode = old_mode->mode;
+    WRITEL(old_mode->reg, mdev->ctrl_bar + ASIC_CTRL_BASE);
     mutex_unlock(&mdev->link_mtx);
 }
 
@@ -451,7 +487,7 @@ static int write_done(struct i2c_adapter* adapter)
  */
 static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
 {
-    u32 old_mode;
+    struct historical_link_mode old_mode;
     int rc=0;
     const u8 eeprom_page_size = 8;
 
@@ -483,7 +519,7 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
     }
 
     // switch link out of i2c mode
-    free_link(mdev, old_mode);
+    free_link(mdev, &old_mode);
 
     return (rc < 0) ? rc : 0;
 }
@@ -502,7 +538,7 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
 static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
 {
     int retry_count;
-    u32 old_mode;
+    struct historical_link_mode old_mode;
     int rc=0;
     const u8 eeprom_page_size = 8;
     struct i2c_adapter* adapter = mdev->i2c_adapter;
@@ -548,7 +584,7 @@ static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32
     }
 
     // switch link out of i2c mode
-    free_link(mdev, old_mode);
+    free_link(mdev, &old_mode);
 
     return (rc < 0) ? rc : 0;
 }
@@ -804,6 +840,7 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
         dev_err(&dev->dev, "Unable to allocate memory for managing device\n");
         goto err;
     }
+    minit_dev->link_mode = link_idle;
     mutex_init(&minit_dev->link_mtx);
     minit_dev->pci_device = dev;
     minit_dev->minor_dev_no = minit_minor++;
@@ -904,6 +941,9 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 
     // enable interrupts
     WRITEL(PCI_ISR_I2C /*| PCI_ISR_DMA*/, minit_dev->pci_bar + PCI_ENB);
+
+    // enable clock in ASIC control
+    writeb(ASIC_CTRL_CLK_128, minit_dev->ctrl_bar + ASIC_CTRL_BASE);
 
     DPRINTK("probe finished successfully\n");
 err:

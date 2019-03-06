@@ -69,6 +69,17 @@ struct altr_i2c_dev;
 struct altr_dma_dev;
 struct i2c_client;
 
+enum link_mode_e {
+    link_idle,
+    link_mode_data,
+    link_mode_i2c
+};
+
+struct historical_link_mode {
+    enum link_mode_e mode;
+    u32 reg;
+};
+
 struct minit_device_s {
     struct pci_dev* pci_device;
 
@@ -88,6 +99,7 @@ struct minit_device_s {
     // protects against simultanous use of the link to the ASIC shared by the
     // acquisition hardware and I2C/EEPROM
     struct mutex link_mtx;
+    enum link_mode_e link_mode;
 
     // bar virtual addresses
     void __iomem* ctrl_bar;
