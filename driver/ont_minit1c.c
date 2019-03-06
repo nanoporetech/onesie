@@ -258,6 +258,7 @@ static long minit_shift_register_access(
     u32 clockdiv;
     u32 actual_clock;
     u32 control;
+    unsigned int delay_ms = 1+((1000 * ASIC_SHIFT_REG_SIZE) / clk);
     VPRINTK("minit_shift_register_access to_dev %p, from_dev %p, start %d, enable %d, clk %d\n",
             to_dev, from_dev, start, enable, clk);
 
@@ -295,6 +296,10 @@ static long minit_shift_register_access(
 
     if (from_dev) {
         int i;
+        // wait for the data to move
+        VPRINTK("sleeping for %d ms\n",delay_ms);
+        msleep(delay_ms);
+
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
             from_dev[i] = readb(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
             VPRINTK("Shift from dev: 0x%02x <= %p\n",from_dev[i],minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
