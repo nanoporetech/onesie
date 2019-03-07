@@ -77,7 +77,7 @@ enum link_mode_e {
 
 struct historical_link_mode {
     enum link_mode_e mode;
-    u32 reg;
+    u8 reg;
 };
 
 struct minit_device_s {

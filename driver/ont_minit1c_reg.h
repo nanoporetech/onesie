@@ -36,7 +36,7 @@
 
 /* ASIC Control Bits and masks */
 #define ASIC_CTRL_RESET     (1 << 0)
-#define ASIC_CTRL_ENABLE    (1 << 1)
+#define ASIC_CTRL_ALG_POWER (1 << 1)
 #define ASIC_CTRL_CLK_MASK  (3 << 2)
 #define ASIC_CTRL_CLK_128   (1 << 2)
 #define ASIC_CTRL_CLK_64    (2 << 2)

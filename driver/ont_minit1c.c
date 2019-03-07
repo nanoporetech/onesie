@@ -339,7 +339,7 @@ static void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_h
 static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e mode, struct historical_link_mode* old_mode)
 {
     int rc = 0;
-    u32 asic_ctrl;
+    u8 asic_ctrl;
     // check the link wires are not being used
     VPRINTK("switch_link_mode %s\n", mode == link_mode_i2c ? "i2c" : "data");
 
@@ -359,7 +359,7 @@ static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e 
         goto out;
     }
 
-    asic_ctrl = READL(mdev->ctrl_bar + ASIC_CTRL_BASE) ;
+    asic_ctrl = readb(mdev->ctrl_bar + ASIC_CTRL_BASE) ;
     old_mode->reg = asic_ctrl;
     old_mode->mode = mdev->link_mode;
     mdev->link_mode = mode;
@@ -371,9 +371,10 @@ static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e 
         break;
     case link_mode_data:
         asic_ctrl &= ~(ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET );
+        asic_ctrl |= ASIC_CTRL_ALG_POWER;
         break;
     }
-    WRITEL(asic_ctrl, mdev->ctrl_bar + ASIC_CTRL_BASE);
+    writeb(asic_ctrl, mdev->ctrl_bar + ASIC_CTRL_BASE);
 
 out:
     mutex_unlock(&mdev->link_mtx);
@@ -389,7 +390,7 @@ static void free_link(struct minit_device_s* mdev, const struct historical_link_
     }
     mutex_lock(&mdev->link_mtx);
     mdev->link_mode = old_mode->mode;
-    WRITEL(old_mode->reg, mdev->ctrl_bar + ASIC_CTRL_BASE);
+    writeb(old_mode->reg, mdev->ctrl_bar + ASIC_CTRL_BASE);
     mutex_unlock(&mdev->link_mtx);
 }
 
