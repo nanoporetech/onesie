@@ -277,7 +277,11 @@ static long minit_shift_register_access(
     }
     wmb();
 
-    clockdiv = ((PCIe_LANE_CLOCK/clk) - 1) / 2;
+    if (clk > PCIe_LANE_CLOCK) {
+        clockdiv = 0;
+    } else {
+        clockdiv = ((PCIe_LANE_CLOCK/clk) - 1) / 2;
+    }
     if (clockdiv > ASIC_SHIFT_CTRL_DIV_MAX) {
         clockdiv = ASIC_SHIFT_CTRL_DIV_MAX;
     }
