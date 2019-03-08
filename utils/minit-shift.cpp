@@ -18,10 +18,12 @@ const std::size_t asic_shift_reg_size(0x11a);
 
 void shift_ioctl(
         const std::string& device,
-        std::array<std::uint8_t, asic_shift_reg_size>& data,
-        const bool start = 1,
-        const bool enable = 1,
-        const unsigned int frequency = 50000)
+        std::array<std::uint8_t, asic_shift_reg_size>& input_data,
+        std::array<std::uint8_t, asic_shift_reg_size>& output_data,
+        const bool start = true,
+        const bool enable = true,
+        const unsigned int frequency = 1000000,
+        const bool write = false )
 {
     // try and open file
     int fd = open(device.c_str(), O_RDWR);
@@ -30,8 +32,8 @@ void shift_ioctl(
     }
 
     struct minit_shift_reg_s shift_ioctl{
-        POINTER_TO_U64(nullptr),
-        POINTER_TO_U64(data.data()),
+        POINTER_TO_U64(write ? output_data.data() : nullptr),
+        POINTER_TO_U64(input_data.data()),
         frequency,
         start,
         enable
@@ -49,15 +51,31 @@ void usage()
         << " -x, --hex        Output will be in hexadecimal csv\n"
         << " -e, --enable     Set the mod-enable bit\n"
         << " -s, --start      Set the start-bit\n"
-        << " -f, --frequency  Set the interface clock-frequency in Hz (default 492,125.9 MHz)\n";
+        << " -f, --frequency  Set the interface clock-frequency in Hz (default approx 1 MHz)\n"
+        << " -w, --write      Write comma sepparated bytes from standard-input\n";
     exit(1);
+}
+
+std::array<std::uint8_t,asic_shift_reg_size> read_data(std::istream& in)
+{
+    std::array<std::uint8_t,asic_shift_reg_size> out{0};
+    char buffer[256];
+    for (auto& byte : out ) {
+        if (in.eof()) {
+            break;
+        }
+        in.getline(buffer, 256, ',');
+        byte = std::uint8_t(std::strtoul(buffer, 0, 0));
+    }
+    return std::move(out);
 }
 
 int main(int argc, char* argv[]) {
     bool hex = false;
     bool enable = false;
+    bool write = false;
     bool start = false;
-    std::uint32_t frequency = 492125; // as slow as it'll go
+    std::uint32_t frequency = 1000000;
     std::string device;
 
     // parse options
@@ -76,6 +94,10 @@ int main(int argc, char* argv[]) {
         }
         if (arg == "-s" || arg == "--start") {
             start = true;
+            continue;
+        }
+        if (arg == "-w" || arg == "--write") {
+            write = true;
             continue;
         }
         if (arg == "-f" || arg == "--frequency") {
@@ -117,18 +139,23 @@ int main(int argc, char* argv[]) {
         usage();
     }
 
-    std::array<std::uint8_t, asic_shift_reg_size> data{0};
+    std::array<std::uint8_t, asic_shift_reg_size> input_data{0};
+    std::array<std::uint8_t, asic_shift_reg_size> output_data{0};
 
     try {
-        shift_ioctl(device, data, start, enable, frequency);
+        if (write) {
+            output_data = read_data(std::cin);
+        }
+
+        shift_ioctl(device, input_data, output_data, start, enable, frequency, write);
     } catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
         exit(1);
     }
 
     if (hex) {
-        for (unsigned int i(0); i < data.size() ; ++i) {
-            const std::uint8_t byte = data[i] ;
+        for (unsigned int i(0); i < input_data.size() ; ++i) {
+            const std::uint8_t byte = input_data[i] ;
             if (i != 0) {
                 printf(", ");
             }
@@ -136,7 +163,7 @@ int main(int argc, char* argv[]) {
         }
         std::cout << std::endl;
     } else {
-        std::cout.write(reinterpret_cast<char*>(data.data()), data.size());
+        std::cout.write(reinterpret_cast<char*>(input_data.data()), input_data.size());
         // todo
     }
     return -1;

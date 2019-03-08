@@ -11,6 +11,7 @@
 #include <iostream>
 #include <iomanip>
 #include <string>
+#include <stdexcept>
 
 using namespace std;
 
@@ -35,7 +36,7 @@ int reg_access_ioctl(
     int fd = open(filename, O_RDWR);
     if (fd < 0) {
         std::cerr << exe_name << " : Failed to open device node '" << filename << "'" << std::endl;
-        return fd;
+        throw std::runtime_error("Failed to open device-node");
     }
 
     // perform ioctl
@@ -155,12 +156,13 @@ int main(int argc, char* argv[])
                 value = std::stol(option5,NULL, 0);
             }
         }
+        return reg_access_ioctl(device_filename, bar, offset, value, size, read, read_all);
     } catch (bad_parameters e) {
         help();
         return -1;
     } catch (...) {
+        help();
         return -1;
     }
 
-    return reg_access_ioctl(device_filename, bar, offset, value, size, read, read_all);
 }

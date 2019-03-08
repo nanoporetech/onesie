@@ -36,7 +36,7 @@
 
 /* ASIC Control Bits and masks */
 #define ASIC_CTRL_RESET     (1 << 0)
-#define ASIC_CTRL_ENABLE    (1 << 1)
+#define ASIC_CTRL_ALG_POWER (1 << 1)
 #define ASIC_CTRL_CLK_MASK  (3 << 2)
 #define ASIC_CTRL_CLK_128   (1 << 2)
 #define ASIC_CTRL_CLK_64    (2 << 2)
@@ -61,12 +61,13 @@
 #define ASIC_SHIFT_BASE         0x04000000
 #define ASIC_SHIFT_REG_SIZE     0x11b
 #define ASIC_SHIFT_OUTPUT_BUF   0
-#define ASIC_SHIFT_INPUT_BUF    0x300
-#define ASIC_SHIFT_CTRL         0x600
+#define ASIC_SHIFT_INPUT_BUF    0x180
+#define ASIC_SHIFT_CTRL         0x300
 
 #define ASIC_SHIFT_CTRL_EN      (1 << 0)
 #define ASIC_SHIFT_CTRL_ST      (1 << 1)
 #define ASIC_SHIFT_CTRL_DIV_MASK  0x3f
+#define ASIC_SHIFT_CTRL_DIV_MAX   0x3e
 #define ASIC_SHIFT_CTRL_DIV_SHIFT 2
 
 /* BASE ADDRESSES BAR-2*/
