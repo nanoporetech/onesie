@@ -14,7 +14,7 @@
 #include <array>
 #include <stdexcept>
 
-const std::size_t asic_shift_reg_size(0x11a);
+const std::size_t asic_shift_reg_size(0x11b);
 
 void shift_ioctl(
         const std::string& device,
