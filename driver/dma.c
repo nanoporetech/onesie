@@ -334,7 +334,7 @@ static inline void push_job(struct list_head* list, spinlock_t* lock, struct tra
 {
     unsigned long flags;
     spin_lock_irqsave(lock, flags);
-    list_add_tail(list, &job->list);
+    list_add_tail(&job->list, list);
     spin_unlock_irqrestore(lock, flags);
 }
 
@@ -960,7 +960,7 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
             reset_dma_hardware(adma);
         }
 
-        list_add_tail(&adma->post_hardware, &job->list);
+        list_add_tail( &job->list, &adma->post_hardware);
 
         // next waiting transfer
         start_transfer_unlocked(adma);
