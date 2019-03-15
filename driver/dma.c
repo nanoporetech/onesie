@@ -48,10 +48,10 @@ static void dump_descriptor(minit_dma_extdesc_t* desc)
     printk(KERN_ERR"write physical address 0x%016llx\n", big_no);
 
     printk(KERN_ERR"LENGTH 0x%08x (%d)\n", desc->length, desc->length);
-    printk(KERN_ERR"BYTES TRANSFERRED 0x%08x (%d)\n", desc->length, desc->length);
+    printk(KERN_ERR"BYTES TRANSFERRED 0x%08x (%d)\n", desc->bytes_transferred, desc->bytes_transferred);
 
     printk(KERN_ERR"STATUS 0x%08x\n", desc->status);
-    printk(KERN_ERR" %s %02x\n",
+    printk(KERN_ERR" %s Error code %02x\n",
            (desc->status & (1<<8)) ? "EARLY-TERM" :".",
            (desc->status & 0xff));
 
@@ -184,7 +184,7 @@ static void dump_dma_registers(struct altr_dma_dev* adma) {
     printk(KERN_ERR" Write sequence no = %d, Read sequence no = %d\n",
            (reg & MSGDMA_WRITE_SEQ_MASK) >> MSGDMA_WRITE_SEQ_SHIFT,
            (reg & MSGDMA_READ_SEQ_MASK) >> MSGDMA_READ_SEQ_SHIFT);
-
+    if (0) {
     reg = readl(adma->msgdma_base + MSGDMA_CONFIG_1);
     printk(KERN_ERR"MSGDMA_CONFIG_1 = 0x%08x\n",reg);
     printk(KERN_ERR" burst en %s, burst wrapping support %s, channel enable %s\n",
@@ -219,7 +219,7 @@ static void dump_dma_registers(struct altr_dma_dev* adma) {
     printk(KERN_ERR" response port %s, transfer type %s acceses\n",
            response_port_strings[(reg & 0x000c0000) >> 19],
            transfer_type_strings[(reg & 0x00300000) >> 21]);
-
+    }
     printk(KERN_ERR"Descriptor Prefetcher core\n");
     reg = readl(adma->prefetcher_base + PRE_CONTROL);
     printk(KERN_ERR"PRE_CONTROL = 0x%08x\n",reg);
@@ -231,10 +231,10 @@ static void dump_dma_registers(struct altr_dma_dev* adma) {
            reg & (1 << 0) ? "RUN" : ".");
 
 
-    hi = reg = readl(adma->prefetcher_base + PRE_NEXT_DESC_LO);
+    reg = readl(adma->prefetcher_base + PRE_NEXT_DESC_LO);
     printk(KERN_ERR"PRE_NEXT_DESC_LO = 0x%08x\n",reg);
-    reg = readl(adma->prefetcher_base + PRE_NEXT_DESC_HI);
-    printk(KERN_ERR"PRE_NEXT_DESC_HI = 0x%08x\n",reg);
+    hi = readl(adma->prefetcher_base + PRE_NEXT_DESC_HI);
+    printk(KERN_ERR"PRE_NEXT_DESC_HI = 0x%08x\n",hi);
     printk(KERN_ERR" next descriptor address 0x%016llx\n", (hi << 32) + reg);
 
     reg = readl(adma->prefetcher_base + PRE_DESC_POLL_FREQ);
@@ -513,7 +513,7 @@ static long create_descriptor_list(struct altr_dma_dev* adma, struct transfer_jo
             minit_dma_extdesc_t* desc;
             dma_addr_t desc_phys;
             desc = dma_pool_alloc(adma->descriptor_pool, GFP_KERNEL, &desc_phys);
-            VPRINTK("allocated memory for desciptor at %p",desc);
+            VPRINTK("allocated memory for desciptor at %p (phys 0x%016llx)\n", desc, desc_phys);
             if (!desc) {
                 DPRINTK("error, couldn't allocate dma descriptor\n");
                 // oh poop!
@@ -700,12 +700,18 @@ err:
 u32 get_completed_data_transfers(struct altr_dma_dev* adma, u32 max_elem, struct minit_transfer_status_s* statuses)
 {
     u32 i;
+
+    VPRINTK("get_completed_data_transfers max %d transfers\n", max_elem);
+
     for (i = 0 ; i < max_elem ; ++i) {
         /// @todo need to only pop job if pid matches
         struct transfer_job_s* job = pop_job(&adma->transfers_done, &adma->done_lock);
         if (!job) {
             break;
         }
+
+        VPRINTK("finished job at %p id %d status %x", job, job->transfer_id, job->status);
+
         statuses[i].transfer_id = job->transfer_id;
         statuses[i].status = job->status;
 
@@ -713,6 +719,8 @@ u32 get_completed_data_transfers(struct altr_dma_dev* adma, u32 max_elem, struct
         // destroy the job object
         kfree(job);
     }
+
+    VPRINTK("found %d finished transfers\n", i);
 
     // 'i' should now be the number of jobs or max_elem
     return i;
@@ -933,6 +941,10 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
         return IRQ_NONE;
     }
 
+    VPRINTK("dma_isr\n");
+
+    dump_dma_registers(adma);
+
     spin_lock(&adma->hardware_lock);
     // is there a transfer complete
     while (!dma_busy(adma) && adma->transfer_on_hardware) {
@@ -998,7 +1010,10 @@ static void post_transfer(struct work_struct *work)
     struct altr_dma_dev* adma = (struct altr_dma_dev*)
             container_of(work, struct altr_dma_dev, finishing_work);
 
+    VPRINTK("post_transfer\n");
+
     while ((job = pop_job(&adma->post_hardware, &adma->hardware_lock)) != NULL) {
+        VPRINTK("post_transfer job %p\n",job);
         free_descriptor_list(adma,job);
         pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
 
