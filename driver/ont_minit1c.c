@@ -871,39 +871,66 @@ static irqreturn_t minit_isr_quick(int irq, void* _dev)
 {
     u32 isr;
     struct minit_device_s* minit_dev = _dev;
-    irqreturn_t ret = IRQ_NONE;
+    irqreturn_t ret_i2c = IRQ_NONE;
+    irqreturn_t ret_dma = IRQ_NONE;
 
     VPRINTK("minit_isr_quick\n");
     isr = READL(minit_dev->pci_bar + PCI_ISR);
+    if (!isr) {
+        return IRQ_NONE;
+    }
+    WRITEL(isr, minit_dev->pci_bar + PCI_ISR);
 
     // call the quick ISR for the two cores that can generate interrupts
     if (minit_dev->i2c_isr_quick ) {
-        ret |= minit_dev->i2c_isr_quick(irq, minit_dev->i2c_dev);
-        set_bit(0, &minit_dev->had_i2c_irq);
+        ret_i2c = minit_dev->i2c_isr_quick(irq, minit_dev->i2c_dev);
+        if (ret_i2c == IRQ_WAKE_THREAD) {
+            set_bit(0, &minit_dev->had_i2c_irq);
+        }
     }
 
     if (minit_dev->dma_isr_quick ) {
-        ret |= minit_dev->dma_isr_quick(irq, minit_dev->dma_dev);
-        set_bit(0, &minit_dev->had_dma_irq);
+        ret_dma = minit_dev->dma_isr_quick(irq, minit_dev->dma_dev);
+        if (ret_dma == IRQ_WAKE_THREAD) {
+            set_bit(0, &minit_dev->had_dma_irq);
+        }
     }
 
-    return (ret & IRQ_WAKE_THREAD ? IRQ_WAKE_THREAD : ret);
+    // either wake a bh thread, mark the irq as handled or not-us depending
+    // on what the above discovered.
+    if (ret_i2c == IRQ_WAKE_THREAD || ret_dma == IRQ_WAKE_THREAD) {
+        VPRINTK("minit_isr_quick wake\n");
+        return IRQ_WAKE_THREAD;
+    }
+    if (ret_i2c == IRQ_HANDLED || ret_dma == IRQ_HANDLED) {
+        VPRINTK("minit_isr_quick handled\n");
+        return IRQ_HANDLED;
+    }
+    VPRINTK("minit_isr_quick none\n");
+    return IRQ_NONE;
 }
 
 static irqreturn_t minit_isr(int irq, void* _dev)
 {
     struct minit_device_s* minit_dev = _dev;
-    irqreturn_t ret = IRQ_NONE;
+    irqreturn_t ret_i2c = IRQ_NONE;
+    irqreturn_t ret_dma = IRQ_NONE;
 
     VPRINTK("minit_isr (bh)\n");
     // should only get an IRQ from I2C core if it has a message
     if (minit_dev->i2c_isr && test_and_clear_bit(0,&minit_dev->had_i2c_irq)) {
-        ret |= minit_dev->i2c_isr(irq, minit_dev->i2c_dev);
+        ret_i2c = minit_dev->i2c_isr(irq, minit_dev->i2c_dev);
     }
     if (minit_dev->dma_isr && test_and_clear_bit(0,&minit_dev->had_dma_irq)) {
-        ret |= minit_dev->dma_isr(irq, minit_dev->dma_dev);
+        ret_dma = minit_dev->dma_isr(irq, minit_dev->dma_dev);
     }
-    return ret;
+
+    if (ret_i2c == IRQ_HANDLED || ret_dma == IRQ_HANDLED) {
+        VPRINTK("minit_isr handled\n");
+        return IRQ_HANDLED;
+    }
+    VPRINTK("minit_isr none\n");
+    return IRQ_NONE;
 }
 
 /**
