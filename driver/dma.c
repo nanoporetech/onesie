@@ -484,6 +484,26 @@ static void free_descriptor_list(struct altr_dma_dev* adma, struct transfer_job_
     job->descriptor_phys = 0;
 }
 
+static long terminal_descriptor(struct altr_dma_dev* adma, struct transfer_job_s* job, minit_dma_extdesc_t* prev)
+{
+    minit_dma_extdesc_t* desc;
+    dma_addr_t desc_phys;
+    desc = dma_pool_alloc(adma->descriptor_pool, GFP_KERNEL, &desc_phys);
+    if (!desc) {
+        DPRINTK("error, couldn't allocate dma descriptor\n");
+        // oh poop!
+        return -ENOMEM;
+    }
+    desc->control = 0;
+    prev->next_desc_virt = desc;
+    descriptor_set_phys(
+                &prev->next_desc_hi_phys,
+                &prev->next_desc_lo_phys,
+                desc_phys);
+    return 0;
+}
+
+
 /**
  * @brief convert a mapped scatterlist to a dma-descriptors list
  * @param adma
@@ -555,6 +575,10 @@ static long create_descriptor_list(struct altr_dma_dev* adma, struct transfer_jo
         }
     }
     prev_desc->control = ALTERA_DMA_DESC_CONTROL_END;
+    rc = terminal_descriptor(adma, job, prev_desc);
+    if (rc < 0) {
+        goto err_free_descriptors;
+    }
 
     // should be ready for hardware
     submit_transfer_to_hw_or_queue(adma, job);
