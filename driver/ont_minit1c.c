@@ -758,83 +758,95 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             }
             return 0;
         }
+        break;
     case MINIT_IOCTL_EEPROM_WRITE: {
-        struct minit_eeprom_transfer_s transfer;
-        u8 k_buffer[EEPROM_SIZE] = {0};
-        BUILD_BUG_ON(sizeof(struct minit_eeprom_transfer_s) != MINIT_EEPROM_TRANSFER_SIZE);
-        VPRINTK("MINIT_IOCTL_EEPROM_WRITE\n");
-        rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
-        if (rc) {
-            DPRINTK("copy_from_user failed\n");
-            return rc;
+            struct minit_eeprom_transfer_s transfer;
+            u8 k_buffer[EEPROM_SIZE] = {0};
+            BUILD_BUG_ON(sizeof(struct minit_eeprom_transfer_s) != MINIT_EEPROM_TRANSFER_SIZE);
+            VPRINTK("MINIT_IOCTL_EEPROM_WRITE\n");
+            rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
+            if (rc) {
+                DPRINTK("copy_from_user failed\n");
+                return rc;
+            }
+            if (transfer.length > EEPROM_SIZE) {
+                DPRINTK("EEPROM write size of %d exceeds maximum of %d",
+                        transfer.length,
+                        EEPROM_SIZE);
+            }
+            rc = copy_from_user(k_buffer, (void __user*)transfer.data, transfer.length);
+            if (rc) {
+                DPRINTK("copy_from_user failed to get data from user-space\n");
+                return rc;
+            }
+            rc = write_eeprom(minit_dev, k_buffer, transfer.start, transfer.length );
+            if (rc) {
+                DPRINTK("eeprom access failed\n");
+                return rc;
+            }
+            return 0;
         }
-        if (transfer.length > EEPROM_SIZE) {
-            DPRINTK("EEPROM write size of %d exceeds maximum of %d",
-                    transfer.length,
-                    EEPROM_SIZE);
-        }
-        rc = copy_from_user(k_buffer, (void __user*)transfer.data, transfer.length);
-        if (rc) {
-            DPRINTK("copy_from_user failed to get data from user-space\n");
-            return rc;
-        }
-        rc = write_eeprom(minit_dev, k_buffer, transfer.start, transfer.length );
-        if (rc) {
-            DPRINTK("eeprom access failed\n");
-            return rc;
-        }
-        return 0;
-    }
+        break;
     case MINIT_IOCTL_SUBMIT_TRANSFER: {
-        struct minit_data_transfer_s transfer;
-        BUILD_BUG_ON(sizeof(struct minit_data_transfer_s) != MINIT_DATA_TRANSFER_SIZE);
-        VPRINTK("MINIT_IOCTL_SUBMIT_TRANSFER\n");
-        rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
-        if (rc) {
-            DPRINTK("copy_from_user failed\n");
+            struct minit_data_transfer_s transfer;
+            BUILD_BUG_ON(sizeof(struct minit_data_transfer_s) != MINIT_DATA_TRANSFER_SIZE);
+            VPRINTK("MINIT_IOCTL_SUBMIT_TRANSFER\n");
+            rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
+            if (rc) {
+                DPRINTK("copy_from_user failed\n");
+                return rc;
+            }
+            // make a transfer object to represent the transfer when in the driver
+            rc = queue_data_transfer(minit_dev->dma_dev, &transfer, file);
             return rc;
         }
-        // make a transfer object to represent the transfer when in the driver
-        rc = queue_data_transfer(minit_dev->dma_dev, &transfer, file);
-        return rc;
-    }
+        break;
     case MINIT_IOCTL_WHATS_COMPLETED: {
-        struct minit_completed_transfers_s completed;
-        struct minit_transfer_status_s* stuff_done;
-        BUILD_BUG_ON(sizeof(struct minit_transfer_status_s) != MINIT_TRANSFER_STATUS_SIZE);
-        BUILD_BUG_ON(sizeof(struct minit_completed_transfers_s) != MINIT_COMPLETED_TRANSFERS_SIZE);
-        VPRINTK("MINIT_IOCTL_WHATS_COMPLETED\n");
-        rc = copy_from_user(&completed, (void __user*)arg, sizeof(completed));
-        if (rc) {
-            DPRINTK("copy_from_user failed\n");
-            return rc;
-        }
+            struct minit_completed_transfers_s completed;
+            struct minit_transfer_status_s* stuff_done;
+            BUILD_BUG_ON(sizeof(struct minit_transfer_status_s) != MINIT_TRANSFER_STATUS_SIZE);
+            BUILD_BUG_ON(sizeof(struct minit_completed_transfers_s) != MINIT_COMPLETED_TRANSFERS_SIZE);
+            VPRINTK("MINIT_IOCTL_WHATS_COMPLETED\n");
+            rc = copy_from_user(&completed, (void __user*)arg, sizeof(completed));
+            if (rc) {
+                DPRINTK("copy_from_user failed\n");
+                return rc;
+            }
 
-        // Allocate memory to prepare the list of completed transfers.
-        /// @TODO: This could possibly be done by mapping the user-space buffer into k-space.
-        stuff_done = kzalloc(sizeof(struct minit_transfer_status_s) * completed.completed_transfers_size, GFP_KERNEL);
-        if (!stuff_done) {
-            DPRINTK("Failed to allocate memory for completed transfer list\n");
-            return -ENOMEM;
+            // Allocate memory to prepare the list of completed transfers.
+            /// @TODO: This could possibly be done by mapping the user-space buffer into k-space.
+            stuff_done = kzalloc(sizeof(struct minit_transfer_status_s) * completed.completed_transfers_size, GFP_KERNEL);
+            if (!stuff_done) {
+                DPRINTK("Failed to allocate memory for completed transfer list\n");
+                return -ENOMEM;
+            }
+            completed.no_completed_transfers = get_completed_data_transfers(
+                        minit_dev->dma_dev,
+                        completed.completed_transfers_size,
+                        stuff_done );
+            rc = copy_to_user(
+                        (void __user*)completed.completed_transfers,
+                        stuff_done,
+                        sizeof(struct minit_transfer_status_s) * completed.completed_transfers_size );
+            if (!rc) {
+                rc = copy_to_user(
+                        (void __user*)arg,
+                        &completed,
+                        sizeof(completed) );
+            }
+            kfree(stuff_done);
+            if (rc) {
+                DPRINTK("copy_to_user failed\n");
+                return rc;
+            }
+            return 0;
         }
-        completed.no_completed_transfers = get_completed_data_transfers(
-                    minit_dev->dma_dev,
-                    completed.completed_transfers_size,
-                    stuff_done );
-        rc = copy_to_user(
-                    (void __user*)completed.completed_transfers,
-                    stuff_done,
-                    sizeof(struct minit_transfer_status_s) * completed.completed_transfers_size );
-        kfree(stuff_done);
-        if (rc) {
-            DPRINTK("copy_to_user failed\n");
-            return rc;
-        }
-    }
+        break;
     case MINIT_IOCTL_CANCEL_TRANSFER: {
-        VPRINTK("MINIT_IOCTL_CANCEL_TRANSFER\n");
-        return cancel_data_transfer(minit_dev->dma_dev, arg);
-    }
+            VPRINTK("MINIT_IOCTL_CANCEL_TRANSFER\n");
+            return cancel_data_transfer(minit_dev->dma_dev, arg);
+        }
+        break;
     default:
         printk(KERN_ERR ONT_DRIVER_NAME": Invalid ioctl for this device (%u)\n", cmd);
     }
