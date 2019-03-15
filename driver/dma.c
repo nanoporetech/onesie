@@ -978,7 +978,7 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
 
         // check for error, reset core ?
         status = READL(adma->msgdma_base + MSGDMA_STATUS);
-        job->status = status;
+        job->status = status & MSGDMA_STATUS_STOP_ERROR;
         if (status & (MSGDMA_STATUS_STOP_EARLY| MSGDMA_STATUS_STOP_ERROR|MSGDMA_STATUS_STOPPED)) {
             crazy_dump_debug(adma);
             reset_dma_hardware(adma);
