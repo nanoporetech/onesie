@@ -7,7 +7,7 @@ UTILS := minit-reg minit-hsrx minit-shift minit-eeprom minit-dma
 
 IOCTL := ../driver/ont_minit_ioctl.h
 
-CXXFLAGS += -std=c++11 -I ../driver
+CXXFLAGS += -std=c++11 -I ../driver -pthread -Wl,--no-as-needed
 
 all: $(UTILS)
 
