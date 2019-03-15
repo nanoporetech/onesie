@@ -121,7 +121,7 @@ private:
             std::cerr << "signal handler called when not ready" << std::endl;
             return;
         }
-        auto transfers = _instance->_transfers;
+        auto& transfers = _instance->_transfers;
         bool more;
         do {
             // get the status information for completed transfers
@@ -138,7 +138,8 @@ private:
                 break;
             }
 
-            for (const auto& transfer_status : statuses) {
+            for (int i(0); i < transfer_results.no_completed_transfers; ++i) {
+                const auto& transfer_status = statuses[i];
                 const auto& completed_id = transfer_status.transfer_id;
                 // find transfer in queue
                 auto it = std::find_if(transfers.begin(),transfers.end(),
@@ -198,16 +199,16 @@ public:
             // wait for oldest transfer on queue to finish
             if (!transfers.empty()) {
                 auto oldest = transfers.front();
-                transfers.pop_front();
                 wait_and_stream(out, oldest);
+                transfers.pop_front();
             }
         }
 
         // wait for remaining transfers to finish
         while (!transfers.empty()) {
             auto oldest = transfers.front();
-            transfers.pop_front();
             wait_and_stream(out, oldest);
+            transfers.pop_front();
         }
     }
     void wait_and_stream(std::ostream& out, std::shared_ptr<transfer>& oldest)
@@ -226,7 +227,7 @@ void usage()
               << " -s, --size size      Size of each transfer, defaults to 514*2-bytes\n"
               << " -n, --no-transfers   Number of transfers, (default 1)\n"
               << "     --stream         Transfer data repeatedly until further notice\n"
-              << " -q, --max-queue      Waximum number of transfers to queue at once (default 8)\n"
+              << " -q, --max-queue      Maximum number of transfers to queue at once (default 8)\n"
               << " -p, --poll           Use polling rather than signals to detect when transfers have completed"
               << std::endl;
     exit(1);
