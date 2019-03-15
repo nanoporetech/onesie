@@ -383,7 +383,7 @@ static inline dma_addr_t descriptor_get_phys(u32* hi, u32* lo)
  */
 static int dma_busy(struct altr_dma_dev* adma)
 {
-    return READL(adma->msgdma_base + MSGDMA_CONTROL) & MSGDMA_STATUS_BUSY;
+    return READL(adma->msgdma_base + MSGDMA_STATUS) & MSGDMA_STATUS_BUSY;
 }
 
 /**
