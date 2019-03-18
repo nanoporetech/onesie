@@ -1029,9 +1029,11 @@ static void send_signal(const int signal_number, const int pid)
         rcu_read_lock();
         task = pid_task(find_vpid( pid ), PIDTYPE_PID);
         rcu_read_unlock();
-        rc = send_sig(signal_number, task, 0);
-        if (rc < 0) {
-            DPRINTK("error sending signal\n");
+        if (task) {
+            rc = send_sig(signal_number, task, 0);
+            if (rc < 0) {
+                DPRINTK("error sending signal\n");
+            }
         }
     }
 }
