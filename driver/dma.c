@@ -776,11 +776,12 @@ u32 get_completed_data_transfers(struct altr_dma_dev* adma, u32 max_elem, struct
 static struct transfer_job_s* find_job_by_id(struct altr_dma_dev* adma, u32 transfer_id)
 {
     struct transfer_job_s* job;
+    struct transfer_job_s* temp;
     unsigned long flags;
 
     spin_lock_irqsave(&adma->hardware_lock, flags);
-    list_for_each_entry(job, &adma->transfers_ready_for_hardware, list) {
-        if (job->transfer_id == transfer_id) {
+    list_for_each_entry_safe(job, temp, &adma->transfers_ready_for_hardware, list) {
+        if (job && job->transfer_id == transfer_id) {
             list_del(&job->list);
             spin_unlock_irqrestore(&adma->hardware_lock, flags);
             return job;
@@ -798,8 +799,8 @@ static struct transfer_job_s* find_job_by_id(struct altr_dma_dev* adma, u32 tran
         spin_unlock_irqrestore(&adma->hardware_lock, flags);
         return job;
     }
-    list_for_each_entry(job, &adma->post_hardware, list) {
-        if (job->transfer_id == transfer_id) {
+    list_for_each_entry_safe(job, temp, &adma->post_hardware, list) {
+        if (job && job->transfer_id == transfer_id) {
             list_del(&job->list);
             spin_unlock_irqrestore(&adma->hardware_lock, flags);
             return job;
@@ -820,10 +821,11 @@ static struct transfer_job_s* find_job_by_id(struct altr_dma_dev* adma, u32 tran
 static struct transfer_job_s* find_job_by_file(struct altr_dma_dev* adma, struct file* file)
 {
     struct transfer_job_s* job;
+    struct transfer_job_s* temp;
     unsigned long flags;
 
     spin_lock_irqsave(&adma->hardware_lock, flags);
-    list_for_each_entry(job, &adma->transfers_ready_for_hardware, list) {
+    list_for_each_entry_safe(job, temp, &adma->transfers_ready_for_hardware, list) {
         DPRINTK("investigating job %p",job);
         if (job->file == file) {
             DPRINTK("job found queued ready for hardware\n");
@@ -848,7 +850,7 @@ static struct transfer_job_s* find_job_by_file(struct altr_dma_dev* adma, struct
         spin_unlock_irqrestore(&adma->hardware_lock, flags);
         return job;
     }
-    list_for_each_entry(job, &adma->post_hardware, list) {
+    list_for_each_entry_safe(job, temp, &adma->post_hardware, list) {
         DPRINTK("investigating job %p",job);
         if (job->file == file) {
             DPRINTK("job found queued post hardware\n");
@@ -875,6 +877,7 @@ long cancel_data_transfer(struct altr_dma_dev* adma, u32 transfer_id)
 {
     unsigned long flags;
     struct transfer_job_s* job;
+    struct transfer_job_s* temp;
 
     job = find_job_by_id(adma, transfer_id);
     if (job) {
@@ -887,7 +890,7 @@ long cancel_data_transfer(struct altr_dma_dev* adma, u32 transfer_id)
 
     // may have already completed, but the userspace app still wants to cancel
     spin_lock_irqsave(&adma->done_lock, flags);
-    list_for_each_entry(job, &adma->transfers_done, list) {
+    list_for_each_entry_safe(job, temp, &adma->transfers_done, list) {
         if (job->transfer_id == transfer_id) {
             list_del(&job->list);
             kfree(job);
@@ -908,6 +911,7 @@ void cancel_data_transfers_for_file(struct altr_dma_dev* adma, struct file* file
 {
     unsigned long flags;
     struct transfer_job_s* job;
+    struct transfer_job_s* temp;
 
     DPRINTK("cancel_data_transfer_for_file %p\n",file);
     do {
@@ -923,7 +927,7 @@ void cancel_data_transfers_for_file(struct altr_dma_dev* adma, struct file* file
 
     // may have already completed, but still cancel
     spin_lock_irqsave(&adma->done_lock, flags);
-    list_for_each_entry(job, &adma->transfers_done, list) {
+    list_for_each_entry_safe(job, temp, &adma->transfers_done, list) {
         DPRINTK("investigating job %p\n",job);
         if (job && job->file == file) {
             DPRINTK("freeing job %p\n",job);
