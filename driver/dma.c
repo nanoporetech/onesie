@@ -246,13 +246,14 @@ static void dump_dma_registers(struct altr_dma_dev* adma) {
     printk(KERN_ERR"PRE_STATUS = 0x%08x\n",reg);
     printk(KERN_ERR" %s\n",
            (reg & 0x00000001) ? "IRQ": ".");
-
-    // dump descriptor chains.
-    if (adma->transfer_on_hardware) {
-        desc = adma->transfer_on_hardware->descriptor;
-        while (desc) {
-            dump_descriptor(desc);
-            desc = desc->next_desc_virt;
+    if (0) {
+        // dump descriptor chains.
+        if (adma->transfer_on_hardware) {
+            desc = adma->transfer_on_hardware->descriptor;
+            while (desc) {
+                dump_descriptor(desc);
+                desc = desc->next_desc_virt;
+            }
         }
     }
 }
@@ -429,13 +430,19 @@ static void start_transfer_unlocked(struct altr_dma_dev* adma)
         adma->transfer_on_hardware ||
         list_empty(&adma->transfers_ready_for_hardware))
     {
-        VPRINTK("start_transfer_unlocked we already seem busy or nothing to do\n");
+        VPRINTK("start_transfer_unlocked we already seem busy %p %s\n",
+                adma->transfer_on_hardware,
+                list_empty(&adma->transfers_ready_for_hardware) ? "nothing to do" : "stuff waiting");
         return;
     }
 
     job = list_first_entry(&adma->transfers_ready_for_hardware, struct transfer_job_s, list);
     list_del(&job->list);
     adma->transfer_on_hardware = job;
+
+    VPRINTK("start job %p\n",job);
+    // stop the prefetcher core
+    WRITEL(0, adma->prefetcher_base + PRE_CONTROL);
 
     // load the descriptor chain into the prefetcher core
     descriptor_set_phys(
@@ -577,7 +584,7 @@ static long create_descriptor_list(struct altr_dma_dev* adma, struct transfer_jo
                             &prev_desc->next_desc_lo_phys,
                             desc_phys);
             }
-            dump_descriptor(desc);
+//            dump_descriptor(desc);
 
             prev_desc = desc;
         }
@@ -693,7 +700,6 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minit_data_transfer_s
         goto err_unmap;
     }
 
-    dump_job(job);
     // success
     return 0;
 err_unmap:
@@ -819,7 +825,6 @@ static struct transfer_job_s* find_job_by_file(struct altr_dma_dev* adma, struct
     spin_lock_irqsave(&adma->hardware_lock, flags);
     list_for_each_entry(job, &adma->transfers_ready_for_hardware, list) {
         DPRINTK("investigating job %p",job);
-        dump_job(job);
         if (job->file == file) {
             DPRINTK("job found queued ready for hardware\n");
             list_del(&job->list);
@@ -832,7 +837,6 @@ static struct transfer_job_s* find_job_by_file(struct altr_dma_dev* adma, struct
     {
         job = adma->transfer_on_hardware;
         DPRINTK("job found on hardware %p",job);
-        dump_job(job);
         reset_dma_hardware(adma);
         adma->transfer_on_hardware = NULL; // it's not on hardware now!
 
@@ -846,7 +850,6 @@ static struct transfer_job_s* find_job_by_file(struct altr_dma_dev* adma, struct
     }
     list_for_each_entry(job, &adma->post_hardware, list) {
         DPRINTK("investigating job %p",job);
-        dump_job(job);
         if (job->file == file) {
             DPRINTK("job found queued post hardware\n");
             list_del(&job->list);
@@ -911,7 +914,6 @@ void cancel_data_transfers_for_file(struct altr_dma_dev* adma, struct file* file
         job = find_job_by_file(adma, file);
         if (job) {
             DPRINTK("freeing job %p",job);
-            dump_job(job);
             // free descriptors and unmap dma
             free_descriptor_list(adma, job);
             pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
@@ -922,10 +924,9 @@ void cancel_data_transfers_for_file(struct altr_dma_dev* adma, struct file* file
     // may have already completed, but still cancel
     spin_lock_irqsave(&adma->done_lock, flags);
     list_for_each_entry(job, &adma->transfers_done, list) {
-        DPRINTK("investigating job %p",job);
-        dump_job(job);
-        if (job->file == file) {
-            DPRINTK("freeing job %p",job);
+        DPRINTK("investigating job %p\n",job);
+        if (job && job->file == file) {
+            DPRINTK("freeing job %p\n",job);
             list_del(&job->list);
             kfree(job);
         }
@@ -989,8 +990,10 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
         job->status = status & MSGDMA_STATUS_STOP_ERROR;
         if (status & (MSGDMA_STATUS_STOP_EARLY| MSGDMA_STATUS_STOP_ERROR|MSGDMA_STATUS_STOPPED)) {
             crazy_dump_debug(adma);
-            reset_dma_hardware(adma);
+            //reset_dma_hardware(adma);
         }
+        VPRINTK("finished job %p\n",job);
+
 
         list_add_tail( &job->list, &adma->post_hardware);
 
