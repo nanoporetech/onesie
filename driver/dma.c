@@ -502,7 +502,7 @@ static long terminal_descriptor(struct altr_dma_dev* adma, struct transfer_job_s
         // oh poop!
         return -ENOMEM;
     }
-    desc->control = 0;
+    memset(desc, 0, sizeof(minit_dma_extdesc_t));
     prev->next_desc_virt = desc;
     descriptor_set_phys(
                 &prev->next_desc_hi_phys,
