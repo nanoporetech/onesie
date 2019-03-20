@@ -16,8 +16,7 @@
 
 void hs_receiver_ioctl(
         const std::string& device,
-        std::array<std::uint16_t, MINIT_IOCTL_HS_RECEIVER_REG_SIZE>& data,
-        const bool write)
+        std::array<std::uint16_t, MINIT_IOCTL_HS_RECEIVER_REG_SIZE>& data)
 {
     // try and open file
     int fd = open(device.c_str(), O_RDWR);
@@ -111,7 +110,7 @@ int main(int argc, char* argv[]) {
     regs[0] |= reset  ? 2 : 0;
 
     try {
-        hs_receiver_ioctl(device, regs, write);
+        hs_receiver_ioctl(device, regs);
     } catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
         exit(1);
