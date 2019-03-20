@@ -38,8 +38,8 @@ protected:
 public:
     transfer(const std::size_t size, std::uint32_t id)
         : _size(size)
-        , _buffer(size)
-        , _transfer_id(id)
+        , _buffer(size, 0)
+        , _transfer_id(id + 1)
     {
     }
 
@@ -111,8 +111,6 @@ private:
         usr_action.sa_mask = block_mask; //block all signal inside signal handler.
         usr_action.sa_flags = SA_NODEFER;//do not block SIGUSR1 within sig_handler_int.
         sigaction (SIGUSR1, &usr_action, nullptr);
-
-        std::cerr << "file descriptor " << _fd << std::endl;
     }
 
     static void signal_receiver(int signal)
