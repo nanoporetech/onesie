@@ -19,6 +19,7 @@
 #include <linux/pci.h>
 #include <linux/dmapool.h>
 #include <linux/spinlock.h>
+#include <linux/delay.h>
 
 #include "ont_minit1c.h"
 #include "ont_minit_ioctl.h"
@@ -392,6 +393,7 @@ static inline dma_addr_t descriptor_get_phys(u32* hi, u32* lo)
  */
 static int dma_busy(struct altr_dma_dev* adma)
 {
+    rmb();
     return READL(adma->msgdma_base + MSGDMA_STATUS) & MSGDMA_STATUS_BUSY;
 }
 
@@ -439,20 +441,22 @@ static void start_transfer_unlocked(struct altr_dma_dev* adma)
     job = list_first_entry(&adma->transfers_ready_for_hardware, struct transfer_job_s, list);
     list_del(&job->list);
     adma->transfer_on_hardware = job;
+    wmb();
 
     VPRINTK("start job %p\n",job);
     // stop the prefetcher core
     WRITEL(0, adma->prefetcher_base + PRE_CONTROL);
+    wmb();
 
     // load the descriptor chain into the prefetcher core
-    descriptor_set_phys(
-        adma->prefetcher_base + PRE_NEXT_DESC_HI,
-        adma->prefetcher_base + PRE_NEXT_DESC_LO,
-        job->descriptor_phys);
+    WRITEL((u32)(job->descriptor_phys >> 32), adma->prefetcher_base + PRE_NEXT_DESC_HI);
+    WRITEL((u32)(job->descriptor_phys & 0x00000000ffffffff), adma->prefetcher_base + PRE_NEXT_DESC_LO);
     wmb();
 
     // start the prefetcher core
     WRITEL(ALTERA_DMA_PRE_START, adma->prefetcher_base + PRE_CONTROL);
+    wmb();
+    udelay(10);
 }
 
 /**
@@ -645,7 +649,7 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minit_data_transfer_s
     pg_end = PAGE_ALIGN((unsigned long)(job->buffer + job->buffer_size));
     no_pages = (pg_end - pg_start) >> PAGE_SHIFT;
 
-    DPRINTK("DMA transfer, usespace buffer %p len %d\n",
+    VPRINTK("DMA transfer, usespace buffer %p len %d\n",
         job->buffer,
         job->buffer_size);
 
@@ -826,7 +830,7 @@ static struct transfer_job_s* find_job_by_file(struct altr_dma_dev* adma, struct
 
     spin_lock_irqsave(&adma->hardware_lock, flags);
     list_for_each_entry_safe(job, temp, &adma->transfers_ready_for_hardware, list) {
-        DPRINTK("investigating job %p",job);
+        DPRINTK("investigating job %p\n",job);
         if (job->file == file) {
             DPRINTK("job found queued ready for hardware\n");
             list_del(&job->list);
@@ -851,7 +855,7 @@ static struct transfer_job_s* find_job_by_file(struct altr_dma_dev* adma, struct
         return job;
     }
     list_for_each_entry_safe(job, temp, &adma->post_hardware, list) {
-        DPRINTK("investigating job %p",job);
+        DPRINTK("investigating job %p\n",job);
         if (job->file == file) {
             DPRINTK("job found queued post hardware\n");
             list_del(&job->list);
@@ -979,8 +983,6 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
     }
 
     VPRINTK("dma_isr\n");
-
-    dump_dma_registers(adma);
 
     spin_lock(&adma->hardware_lock);
     // is there a transfer complete
