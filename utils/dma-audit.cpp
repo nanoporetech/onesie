@@ -6,6 +6,7 @@
 #include <string>
 #include <iostream>
 #include <array>
+#include <stdexcept>
 
 static const std::size_t frame_length = 522; //522 D-words
 typedef std::array<std::uint16_t, 522> frame_t;
@@ -34,7 +35,7 @@ int main(int argc, char* argv[])
         std::uint16_t asic_config_id;
 
         // check a 16-bit value in the frame matches an expected value
-        const auto check_update = [&](const unsigned int index, std::uint16_t& value, const std::string& name)->void
+        const auto check_and_update_word = [&](const unsigned int index, std::uint16_t& value, const std::string& name)->void
         {
             if (frame[index] != value) {
                 if (frame_no > 0) {
@@ -49,7 +50,7 @@ int main(int argc, char* argv[])
             }
         };
         // check a 32-bit value in the frame matches an expected value
-        const auto check_update_quad = [&](const unsigned int index, std::uint32_t& value, const std::string& name)->void
+        const auto check_and_update_quad = [&](const unsigned int index, std::uint32_t& value, const std::string& name)->void
         {
             std::uint32_t quad = frame[index+1];
             quad <<= 16;
@@ -76,20 +77,24 @@ int main(int argc, char* argv[])
                 byteswap(data);
             }
 
-            check_update(516, sampling_freq, "sampling frequency");
-            check_update_quad(517, asic_id, "ASIC-ID");
-            check_update(519, bias_volt, "bias voltage");
-            check_update(520, temp, "heatsink temp");
-            check_update(521, asic_config_id, "asic_config_id");
-            check_update_quad(514, frame_no, "frame-no");
+            check_and_update_quad(514, frame_no, "frame-no");
+            check_and_update_word(516, sampling_freq, "sampling frequency");
+            check_and_update_quad(517, asic_id, "ASIC-ID");
+            check_and_update_word(519, bias_volt, "bias voltage");
+            check_and_update_word(520, temp, "heatsink temp");
+            check_and_update_word(521, asic_config_id, "asic_config_id");
+
+            // increment within 24-bit limits
             ++frame_no;
             if (frame_no == max_frame_no) {
                 frame_no = 0;
             }
+
+            // increment byte-index ready for next frame
             pos += frame_length * 2;
         }
-    } catch (...) {
-        std::cerr << "error";
+    } catch (std::runtime_error& e) {
+        std::cerr << e.what() << std::endl;
         return 1;
     }
 
