@@ -159,6 +159,31 @@ private:
             more = (transfer_results.no_completed_transfers == transfer_results.completed_transfers_size) ;
         } while (more);
     }
+
+    /**
+     * @brief send ioctl to control hs-receiver core
+     * @param enable set enable bit allowing data to be transferred
+     * @param reset set reset bit resetting the hs-receiver core.
+     */
+    void hs_receiver(const bool enable, const bool reset)
+    {
+
+        struct minit_hs_receiver_s hs_rx_ioctl;
+        std::memset(&hs_rx_ioctl, 0, sizeof(hs_rx_ioctl));
+        hs_rx_ioctl.write = 1;
+        hs_rx_ioctl.registers[0] |= enable ? 1 : 0;
+        hs_rx_ioctl.registers[0] |= reset  ? 2 : 0;
+
+        std::cerr << " hs_rx "
+                  << (enable ? "enable " : ". ")
+                  << (reset  ? "reset " : ". ")
+                  << std::endl;
+
+        const auto rc = ioctl(_instance->_fd, MINIT_IOCTL_HS_RECIEVER, &hs_rx_ioctl);
+        if (rc < 0) {
+            throw std::runtime_error(strerror(rc));
+        }
+    }
 public:
     static transfer_manager* setup(
         const int fd,
@@ -175,12 +200,23 @@ public:
     void stream_data(
             std::ostream& out,
             const std::size_t no_transfers,
-            const bool stream
+            const bool stream,
+            const bool reset = false
             )
     {
         std::size_t transfers_submitted(0);
         std::atomic<std::size_t> active_transfers(0);
         auto& transfers = _instance->_transfers;
+        bool in_reset = false;
+
+        // if resetting put hs-receiver into reset
+        if (reset) {
+            _instance->hs_receiver(false, true);
+            _instance->hs_receiver(true, true);
+            in_reset = true;
+        }
+
+
         while (transfers_submitted < no_transfers || stream) {
             // loop until transfers active reaches limint
             while ((transfers.size() < _instance->_max_queue_size) &&
@@ -194,6 +230,13 @@ public:
                 trans->submit_transfer(_fd);
                 ++transfers_submitted;
             }
+
+            // if in reset, take the hs-receiver out of reset
+            if (in_reset) {
+                _instance->hs_receiver(true, false);
+                in_reset = false;
+            }
+
             // wait for oldest transfer on queue to finish
             if (!transfers.empty()) {
                 auto oldest = transfers.front();
@@ -226,8 +269,8 @@ void usage()
               << " -n, --no-transfers   Number of transfers, (default 1)\n"
               << "     --stream         Transfer data repeatedly until further notice\n"
               << " -q, --max-queue      Maximum number of transfers to queue at once (default 8)\n"
-              << " -p, --poll           Use polling rather than signals to detect when transfers have completed"
-              << std::endl;
+              << " -p, --poll           Use polling rather than signals to detect when transfers have completed\n"
+              << " -r, --reset          Reset the High-Speed receiver when starting\n";
     exit(1);
 }
 
@@ -251,6 +294,7 @@ int main(int argc, char* argv[]) {
     std::size_t max_queue_size(8);
     bool stream = false;
     bool poll = false;
+    bool reset = false;
 
     // parse options
     if (argc == 1) {
@@ -281,6 +325,10 @@ int main(int argc, char* argv[]) {
         }
         if (arg == "-p" || arg == "--poll") {
             poll = true;
+            continue;
+        }
+        if (arg == "-r" || arg == "--reset") {
+            reset = true;
             continue;
         }
         // assume that arguments not starting with '-' may be device files
@@ -315,7 +363,7 @@ int main(int argc, char* argv[]) {
         }
 
         auto* manager = transfer_manager::setup(fd, size, max_queue_size);
-        manager->stream_data(std::cout, no_transfers, stream);
+        manager->stream_data(std::cout, no_transfers, stream, reset);
     } catch (std::runtime_error& e) {
         std::cerr << e.what() << std::endl;
         exit(1);
