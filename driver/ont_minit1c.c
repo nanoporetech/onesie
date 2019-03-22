@@ -632,8 +632,8 @@ static int minit_file_close(struct inode *inode, struct file *file)
         return 0;
     }
 
-    // find all DMAs started by the user of this file and cancel them.
-    cancel_data_transfers_for_file(minit_dev->dma_dev, file);
+    // cancel all transfers
+    cancel_data_transfers(minit_dev->dma_dev);
 
     return 0;
 }
@@ -842,9 +842,9 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             return 0;
         }
         break;
-    case MINIT_IOCTL_CANCEL_TRANSFER: {
-            VPRINTK("MINIT_IOCTL_CANCEL_TRANSFER\n");
-            return cancel_data_transfer(minit_dev->dma_dev, arg);
+    case MINIT_IOCTL_CANCEL_TRANSFERS: {
+            VPRINTK("MINIT_IOCTL_CANCEL_TRANSFERS\n");
+            return cancel_data_transfers(minit_dev->dma_dev);
         }
         break;
     default:

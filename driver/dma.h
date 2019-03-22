@@ -30,7 +30,7 @@
 
 #define PRE_STATUS_IRQ              (1 << 0)
 
-#define ALTERA_DMA_PRE_START (PRE_CTRL_IRQ_MASK|PRE_CTRL_RUN)
+#define ALTERA_DMA_PRE_START (PRE_CTRL_IRQ_MASK|PRE_CTRL_RUN|PRE_CTRL_POLL_ENABLE)
 
 /** mSGDMA core registers */
 #define MSGDMA_STATUS       0x00
@@ -140,7 +140,7 @@ struct transfer_job_s {
     struct list_head list;
     char __user* buffer;
     u32 buffer_size;
-    u32 transfer_id;
+    u32 transfer_id; // for the user to track transfers
     int signal_number;
     int pid;
     struct sg_table sgt;
@@ -150,6 +150,12 @@ struct transfer_job_s {
     // DMA descriptor chain virtual and dma addreses
     minit_dma_extdesc_t* descriptor;
     dma_addr_t descriptor_phys;
+
+    // DMA descriptor terminating the descriptor chain
+    minit_dma_extdesc_t* terminal_desc;
+    dma_addr_t terminal_desc_phys;
+
+    u16 sequence_no; // for us to track transfers.
 };
 
 
@@ -162,8 +168,7 @@ struct altr_dma_dev {
     // This covers transfers_ready_for_hardware, transfers_on_hardware and post_hardware
     spinlock_t hardware_lock;
 
-    struct list_head transfers_ready_for_hardware;
-    struct transfer_job_s* transfer_on_hardware;
+    struct list_head transfers_on_hardware;
     struct list_head post_hardware;
 
     // covers transfers_done, do-not attempt to take the hardware_lock after
@@ -174,5 +179,15 @@ struct altr_dma_dev {
     struct dma_pool* descriptor_pool;
     struct workqueue_struct* finishing_queue;
     struct work_struct finishing_work;
+
+    // DMA descriptor terminating the descriptor chain
+    minit_dma_extdesc_t* terminal_desc;
+    dma_addr_t terminal_desc_phys;
+
+    // source of sequence-numbers, use hardware_lock when modifying
+    u16 sequence_no; // for us to track transfers.
+
+    // dma in flight
+    atomic_t count;
 };
 #endif // ONT_ALTERA_DMA_H

@@ -118,6 +118,5 @@ extern int altera_sgdma_probe(struct minit_device_s* mdev);
 extern void altera_sgdma_remove(struct minit_device_s* mdev);
 extern long queue_data_transfer(struct altr_dma_dev*, struct minit_data_transfer_s*, struct file* file);
 extern u32 get_completed_data_transfers(struct altr_dma_dev*, u32, struct minit_transfer_status_s*);
-extern long cancel_data_transfer(struct altr_dma_dev*, u32);
-extern void cancel_data_transfers_for_file(struct altr_dma_dev* , struct file*);
+extern long cancel_data_transfers(struct altr_dma_dev*);
 #endif        //  #ifndef ONT_MINIT1C_H

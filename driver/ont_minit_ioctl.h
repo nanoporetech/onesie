@@ -205,8 +205,8 @@ struct minit_completed_transfers_s {
  */
 #define MINIT_IOCTL_WHATS_COMPLETED  _IOWR('b', 70, struct minit_completed_transfers_s)
 
-/** Cancel a transfer, the argument is the transfer_id */
-#define MINIT_IOCTL_CANCEL_TRANSFER  _IOWR('b', 71, __u32)
+/** Cancel all transfers */
+#define MINIT_IOCTL_CANCEL_TRANSFERS  _IO('b', 71)
 
 #ifdef __cplusplus
 }
