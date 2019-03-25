@@ -859,10 +859,7 @@ static void cleanup_device(void* data) {
     struct minit_device_s* minit_dev = pci_get_drvdata(dev);
     VPRINTK("cleanup_device\n");
     if (minit_dev) {
-        borrowed_altr_i2c_remove(minit_dev);
         device_table_remove(minit_dev);
-        altera_sgdma_remove(minit_dev);
-        borrowed_altr_i2c_remove(minit_dev);
         device_destroy(minit_class, MKDEV(minit_major, minit_dev->minor_dev_no));
     }
 }
@@ -1058,12 +1055,14 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
         dev_err(&dev->dev, ": I2C bus controller probe failed\n");
         goto err;
     }
+    devm_add_action(&dev->dev, borrowed_altr_i2c_remove, minit_dev);
 
     rc = altera_sgdma_probe(minit_dev);
     if (rc) {
         dev_err(&dev->dev, ": DMA hardware probe failed\n");
         goto err;
     }
+    devm_add_action(&dev->dev, altera_sgdma_remove, minit_dev);
 
     // add to our internal device table
     rc = device_table_add(minit_dev->minor_dev_no, minit_dev);

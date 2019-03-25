@@ -42,33 +42,33 @@ static void dump_descriptor(minit_dma_extdesc_t* desc)
     big_no = desc->read_hi_phys;
     big_no <<= 32;
     big_no |= desc->read_lo_phys;
-    printk(KERN_ERR"read physical address 0x%016llx\n", big_no);
+    printk(KERN_ERR"    read physical address 0x%016llx\n", big_no);
     big_no = desc->write_hi_phys;
     big_no <<= 32;
     big_no |= desc->write_lo_phys;
-    printk(KERN_ERR"write physical address 0x%016llx\n", big_no);
+    printk(KERN_ERR"    write physical address 0x%016llx\n", big_no);
 
-    printk(KERN_ERR"LENGTH 0x%08x (%d)\n", desc->length, desc->length);
-    printk(KERN_ERR"BYTES TRANSFERRED 0x%08x (%d)\n", desc->bytes_transferred, desc->bytes_transferred);
+    printk(KERN_ERR"    LENGTH 0x%08x (%d)\n", desc->length, desc->length);
+    printk(KERN_ERR"    BYTES TRANSFERRED 0x%08x (%d)\n", desc->bytes_transferred, desc->bytes_transferred);
 
-    printk(KERN_ERR"STATUS 0x%08x\n", desc->status);
-    printk(KERN_ERR" %s Error code %02x\n",
+    printk(KERN_ERR"    STATUS 0x%08x\n", desc->status);
+    printk(KERN_ERR"        %s Error code %02x\n",
            (desc->status & (1<<8)) ? "EARLY-TERM" :".",
            (desc->status & 0xff));
 
-    printk(KERN_ERR"BURST-SEQUENCE 0x%08x\n", desc->burst_sequence);
-    printk(KERN_ERR" write burst count %d, read burst count %d, sequence no %d\n",
+    printk(KERN_ERR"    BURST-SEQUENCE 0x%08x\n", desc->burst_sequence);
+    printk(KERN_ERR"        write burst count %d, read burst count %d, sequence no %d\n",
            (desc->burst_sequence & 0xff000000) >> 24,
            (desc->burst_sequence & 0x00ff0000) >> 16,
            (desc->burst_sequence & 0x0000ffff));
 
-    printk(KERN_ERR"STRIDE 0x%08x\n",desc->stride);
-    printk(KERN_ERR" write stride %d, read stride %d\n",
+    printk(KERN_ERR"    STRIDE 0x%08x\n",desc->stride);
+    printk(KERN_ERR"        write stride %d, read stride %d\n",
            (desc->stride & 0xffff0000) >> 16,
            (desc->stride & 0x0000ffff));
 
-    printk(KERN_ERR"CONTROL 0x%08x\n", desc->control);
-    printk(KERN_ERR" %s %s %s error-enable 0x%02x, %s %s %s %s %s %s %s transmit-channel %d\n",
+    printk(KERN_ERR"    CONTROL 0x%08x\n", desc->control);
+    printk(KERN_ERR"        %s %s %s error-enable 0x%02x, %s %s %s %s %s %s %s transmit-channel %d\n",
            desc->control & (1<<31) ? "GO" : ".",
            desc->control & (1<<30) ? "HW" : ".",
            desc->control & (1<<24) ? "EARLY DONE" : ".",
@@ -81,8 +81,8 @@ static void dump_descriptor(minit_dma_extdesc_t* desc)
            desc->control & (1<<9) ? "GEN EOP" : ".",
            desc->control & (1<<8) ? "GEN SOP" : ".",
            desc->control & 0x000000ff);
-    printk(KERN_ERR"driver_ref (job) %p\n",desc->driver_ref);
-    printk(KERN_ERR"next desc virt %p\n",desc->next_desc_virt);
+    printk(KERN_ERR"    driver_ref (job) %p\n",desc->driver_ref);
+    printk(KERN_ERR"    next desc virt %p\n",desc->next_desc_virt);
 }
 
 /**
@@ -117,7 +117,7 @@ static void dump_job(struct transfer_job_s* job)
 }
 
 /**
- * Dump registers and descriptor chains and anything else useful to the
+ * Dump registers and anything else useful to the
  * kernel log
  *
  * @param adma driver structure
@@ -125,7 +125,6 @@ static void dump_job(struct transfer_job_s* job)
 static void dump_dma_registers(struct altr_dma_dev* adma) {
     u32 reg;
     u64 hi;
-    minit_dma_extdesc_t* desc;
 
     static char* response_port_strings[] = {
         "memory-mapped",
@@ -283,6 +282,8 @@ static void crazy_dump_debug(struct altr_dma_dev* adma)
     }
     printk(KERN_ERR"descriptor pool %p\n",adma->descriptor_pool);
     printk(KERN_ERR"finishing queue %p\n",adma->finishing_queue);
+    printk(KERN_ERR"terminal descriptor %p (phys 0x%016llx)\n",
+           adma->terminal_desc,adma->terminal_desc_phys);
 }
 
 /**
@@ -438,13 +439,17 @@ static void desc_copy(minit_dma_extdesc_t* dst, const minit_dma_extdesc_t* src)
 
 static void start_transfer_idle_nolocking(struct altr_dma_dev* adma, struct transfer_job_s* job)
 {
+    VPRINTK("start from idle\n");
+    // stop prefetcher core
+    WRITEL(0, adma->prefetcher_base + PRE_CONTROL);
+    wmb();
+
+    // free terminal descriptor
+    dma_pool_free(adma->descriptor_pool, adma->terminal_desc, adma->terminal_desc_phys);
+
     // register our terminal descriptor
     adma->terminal_desc = job->terminal_desc;
     adma->terminal_desc_phys = job->terminal_desc_phys;
-    wmb();
-
-    // stop prefetcher core
-    WRITEL(0, adma->prefetcher_base + PRE_CONTROL);
     wmb();
 
     // write address of first descrptor into prefetcher
@@ -468,13 +473,18 @@ static void start_transfer_idle_nolocking(struct altr_dma_dev* adma, struct tran
 // if busy, then:
 static void add_transfer_busy_nolocking(struct altr_dma_dev* adma, struct transfer_job_s* job)
 {
+    minit_dma_extdesc_t* desc;
+    minit_dma_extdesc_t* first;
+    dma_addr_t desc_phys;
+    dma_addr_t first_phys;
+    VPRINTK("add to end of descriptor chain\n");
     // find the terminal descriptor for the executing dma chain
-    minit_dma_extdesc_t* desc = adma->terminal_desc;
-    dma_addr_t desc_phys = adma->terminal_desc_phys;
+    desc = adma->terminal_desc;
+    desc_phys = adma->terminal_desc_phys;
 
     // record the job's first descriptor as we'll be freeing it later
-    minit_dma_extdesc_t* first = job->descriptor;
-    dma_addr_t first_phys = job->descriptor_phys;
+    first = job->descriptor;
+    first_phys = job->descriptor_phys;
 
     // replace the driver's ref to terminal with terminal from this job
     adma->terminal_desc = job->terminal_desc;
@@ -536,7 +546,7 @@ static void free_descriptor_list(struct altr_dma_dev* adma, struct transfer_job_
 {
     minit_dma_extdesc_t* desc = job->descriptor;
     dma_addr_t desc_phys = job->descriptor_phys;
-
+    VPRINTK("free desc list\n");
     while (desc && desc->driver_ref == job) {
         minit_dma_extdesc_t* next = desc->next_desc_virt;
         dma_addr_t next_phys = descriptor_get_phys(&desc->next_desc_hi_phys, &desc->next_desc_lo_phys);
@@ -564,7 +574,10 @@ static long terminal_descriptor(struct altr_dma_dev* adma, struct transfer_job_s
         DPRINTK("error, couldn't allocate dma descriptor\n");
         return -ENOMEM;
     }
+    VPRINTK("terminal descriptor allocated at %p\n",desc);
     memset(desc, 0, sizeof(minit_dma_extdesc_t));
+    job->terminal_desc = desc;
+    job->terminal_desc_phys = desc_phys;
     prev->next_desc_virt = desc;
     descriptor_set_phys(
                 &prev->next_desc_hi_phys,
@@ -618,7 +631,7 @@ static long create_descriptor_list(struct altr_dma_dev* adma, struct transfer_jo
             dma_address += desc->length;
             desc->bytes_transferred = 0;
             desc->status = 0;
-            desc->burst_sequence = 0;
+            desc->burst_sequence = job->sequence_no; // burst left at 0
             desc->stride = 0x00010000; //write stride 1 read stride 0
             desc->control = ALTERA_DMA_DESC_CONTROL_NOT_END;
             desc->driver_ref = job;
@@ -839,7 +852,7 @@ long cancel_data_transfers(struct altr_dma_dev* adma)
 
     // dispose of all the jobs either on the hardware or associated with the descriptor chain
     list_for_each_entry_safe(job, temp, &adma->transfers_on_hardware, list) {
-        DPRINTK("investigating job %p\n",job);
+        DPRINTK("investigating job on hw %p\n",job);
 
         if (job) {
             // free descriptors and unmap dma
@@ -850,7 +863,7 @@ long cancel_data_transfers(struct altr_dma_dev* adma)
         }
     }
     list_for_each_entry_safe(job, temp, &adma->post_hardware, list) {
-        DPRINTK("investigating job %p\n",job);
+        DPRINTK("investigating job post hw %p\n",job);
 
         if (job) {
             // free descriptors and unmap dma
@@ -865,6 +878,7 @@ long cancel_data_transfers(struct altr_dma_dev* adma)
     // may have already completed, but the userspace app still wants to cancel
     spin_lock_irqsave(&adma->done_lock, flags);
     list_for_each_entry_safe(job, temp, &adma->transfers_done, list) {
+        DPRINTK("investigating job complete %p\n",job);
         if (job) {
             list_del(&job->list);
             kfree(job);
@@ -919,6 +933,7 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
 
     VPRINTK("dma_isr\n");
 
+    // repeat this until no new transfers are found
     spin_lock(&adma->hardware_lock);
 
     // find out which jobs are still running and which are done, by checking
@@ -928,6 +943,8 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
         u32 transferred_bytes = 0;
         minit_dma_extdesc_t* desc;
 
+        VPRINTK("Job %p\n", job);
+
         desc = job->descriptor;
         // iterate through this job's descriptors
         while(desc && desc->driver_ref == job) {
@@ -936,12 +953,13 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
                 break;
             }
 
-            transferred_bytes += desc->bytes_transferred;
+            transferred_bytes += desc->length;
             desc = desc->next_desc_virt;
         }
 
         // if job hasn't transferred all data then we've reached the end of the
         // complete jobs, stop processing this list
+        VPRINTK("transferred %d, expect %d\n",transferred_bytes, job->buffer_size);
         if (transferred_bytes < job->buffer_size) {
             break;
         }
@@ -1039,6 +1057,10 @@ int altera_sgdma_probe(struct minit_device_s* mdev) {
         return -ENOMEM;
     }
 
+    // create workqueue and work to do the post-transfer unmapping and callbacks
+    adma->finishing_queue = create_singlethread_workqueue("minit-post-transfer");
+    INIT_WORK(&adma->finishing_work, post_transfer);
+
     // allocate a terminal descriptor
     adma->terminal_desc = dma_pool_alloc(adma->descriptor_pool, GFP_KERNEL, &adma->terminal_desc_phys);
     if (!adma->terminal_desc) {
@@ -1047,22 +1069,22 @@ int altera_sgdma_probe(struct minit_device_s* mdev) {
     }
     memset(adma->terminal_desc, 0, sizeof(minit_dma_extdesc_t));
 
-    // create workqueue and work to do the post-transfer unmapping and callbacks
-    adma->finishing_queue = create_singlethread_workqueue("minit-post-transfer");
-    INIT_WORK(&adma->finishing_work, post_transfer);
-
     crazy_dump_debug(adma);
     return 0;
 }
 
-void altera_sgdma_remove(struct minit_device_s* mdev) {
+void altera_sgdma_remove(void* ptr) {
+    struct minit_device_s* mdev = (struct minit_device_s* )ptr;
     struct altr_dma_dev* adma = mdev->dma_dev;
+    DPRINTK("altera_sgdma_remove\n");
     if (!adma) {
         return;
     }
 
     if (adma->terminal_desc) {
         dma_pool_free(adma->descriptor_pool, adma->terminal_desc, adma->terminal_desc_phys);
+        adma->terminal_desc = NULL;
+        adma->terminal_desc_phys = 0;
     }
 
     destroy_workqueue(adma->finishing_queue);
