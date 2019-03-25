@@ -123,13 +123,11 @@ typedef struct __attribute__((__packed__, aligned(4) )) minit_dma_extdesc_s mini
 #define ALTERA_DMA_DESC_CONTROL_HW_OWNED            (1 << 30)
 #define ALTERA_DMA_DESC_CONTROL_GO                  (1 << 31)
 
-#define ALTERA_DMA_DESC_CONTROL_NOT_END (ALTERA_DMA_DESC_CONTROL_END_ON_EOP |\
-                                         ALTERA_DMA_DESC_CONTROL_EARLY |\
+#define ALTERA_DMA_DESC_CONTROL_NOT_END (ALTERA_DMA_DESC_CONTROL_EARLY |\
                                          ALTERA_DMA_DESC_CONTROL_HW_OWNED |\
                                          ALTERA_DMA_DESC_CONTROL_GO)
 
-#define ALTERA_DMA_DESC_CONTROL_END     (ALTERA_DMA_DESC_CONTROL_END_ON_EOP |\
-                                         ALTERA_DMA_DESC_CONTROL_EARLY_IRQ |\
+#define ALTERA_DMA_DESC_CONTROL_END     (ALTERA_DMA_DESC_CONTROL_EARLY |\
                                          ALTERA_DMA_DESC_CONTROL_TX_IRQ |\
                                          ALTERA_DMA_DESC_CONTROL_HW_OWNED |\
                                          ALTERA_DMA_DESC_CONTROL_GO)
