@@ -53,15 +53,15 @@ struct minit_register_s {
 #define MINIT_IOCTL_REG_ACCESS _IOWR('b', 64, struct minit_register_s)
 
 
-#define MINIT_IOCTL_SHIFT_REG_BUFFER_SIZE 282
+#define MINIT_IOCTL_SHIFT_REG_BUFFER_SIZE 283
 /**
  * @brief read/write data to the ASICs shift-register for sending commands and
  * reading the current ASIC configuration and OTP bits, etc.
  *
- * to_device to-driver  Pointer to a 282-byte buffer containing data to write
+ * to_device to-driver  Pointer to a 283-byte buffer containing data to write
  *                      to the ASIC shift-register. If null existing hardware
  *                      buffer contents will be re-sent.
- * from_device to-driver Pointer to a 282-byte buffer for data read from the
+ * from_device to-driver Pointer to a 283-byte buffer for data read from the
  *                      ASIC shift-register. This can be the same buffer as the
  *                      one pointed to by to_device. If null any data read from
  *                      the hardware will be discarded.
