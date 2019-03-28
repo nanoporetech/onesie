@@ -32,8 +32,8 @@ void shift_ioctl(
     }
 
     struct minit_shift_reg_s shift_ioctl{
-        POINTER_TO_U64(write ? output_data.data() : nullptr),
-        POINTER_TO_U64(input_data.data()),
+        reinterpret_cast<std::uintptr_t>(write ? output_data.data() : nullptr),
+        reinterpret_cast<std::uintptr_t>(input_data.data()),
         frequency,
         start,
         enable

@@ -19,7 +19,7 @@ void read_eeprom(int fd, std::ostream& out, unsigned int start, unsigned int len
     // prepare and get driver to do transfer
     std::array< char, 256 > buffer;
     struct minit_eeprom_transfer_s eeprom_transaction{
-        POINTER_TO_U64(buffer.data()),
+        reinterpret_cast<std::uintptr_t>(buffer.data()),
         start,
         length
     };
@@ -41,7 +41,7 @@ void write_eeprom(int fd, std::istream& in, unsigned int start, unsigned int len
 
     // write to driver
     struct minit_eeprom_transfer_s eeprom_transaction{
-        POINTER_TO_U64(buffer.data()),
+        reinterpret_cast<std::uintptr_t>(buffer.data()),
         start,
         length
     };

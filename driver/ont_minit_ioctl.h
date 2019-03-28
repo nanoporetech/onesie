@@ -1,5 +1,5 @@
 /**
- * ont_minit_ioctl.h
+ * minit_ioctl.h
  *
  * Copyright (C) 2019 Oxford Nanopore Technologies Ltd.
  *
@@ -20,10 +20,6 @@
  */
 #ifndef ONT_MINIT_IOCTL_H
 #define ONT_MINIT_IOCTL_H
-
-#ifndef __KERNEL__
-#define POINTER_TO_U64(PTR) ((__u64)((void*)(PTR)))
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -109,7 +105,7 @@ struct  minit_hs_receiver_s {
  *                      the EEPROM or to a buffer to be filled with data read
  *                      from the EEPROM
  * start    to_driver   Where in the EEPROM to start the read/write
- * length   to_triver   Number of bytes to read/write
+ * length   to_driver   Number of bytes to read/write
  */
 struct minit_eeprom_transfer_s {
     __u64           data;

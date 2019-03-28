@@ -46,7 +46,7 @@ public:
     void submit_transfer(const int fd, const std::chrono::steady_clock::duration timeout = std::chrono::milliseconds(5000) )
     {
         minit_data_transfer_s data_transfer;
-        data_transfer.buffer = POINTER_TO_U64(_buffer.data());
+        data_transfer.buffer = reinterpret_cast<std::uintptr_t>(_buffer.data());
         data_transfer.buffer_size = _size;
         data_transfer.transfer_id = _transfer_id;
         data_transfer.signal_number = SIGUSR1;
@@ -125,7 +125,7 @@ private:
             // get the status information for completed transfers
             std::vector<minit_transfer_status_s> statuses(_instance->_max_queue_size);
             minit_completed_transfers_s transfer_results;
-            transfer_results.completed_transfers = POINTER_TO_U64(statuses.data());
+            transfer_results.completed_transfers = reinterpret_cast<std::uintptr_t>(statuses.data());
             transfer_results.completed_transfers_size = statuses.size();
             transfer_results.no_completed_transfers = 0;
 
