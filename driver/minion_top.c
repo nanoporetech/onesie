@@ -1,15 +1,13 @@
 /**
- * ont_minit1c.c
+ * minion_top.c
  *
  * Copyright (C) 2019 Oxford Nanopore Technologies Ltd.
  *
  * Author: <info@nanoporetech.com>
  *
- * This file contains register definitions for the MinIT-1C firmware
+ * This file contains register definitions for the MinION-1C firmware
  *
  */
-
-//#define ONT_DEBUG
 
 #include <linux/types.h>
 #include <linux/module.h>
@@ -31,9 +29,9 @@
 #include <linux/delay.h>
 #include <linux/bug.h>
 
-#include "ont_minit1c.h"
-#include "ont_minit1c_reg.h"
-#include "ont_minit_ioctl.h"
+#include "minion_top.h"
+#include "minion_reg.h"
+#include "minion_ioctl.h"
 
 /*
  * PROTOTYPES
@@ -41,11 +39,11 @@
 
 static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id);
 static void __exit pci_remove(struct pci_dev *dev);
-static int minit_file_open(struct inode* inode, struct file *file);
-static int minit_file_close(struct inode *inode, struct file *file);
-static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
-static int switch_link_mode(struct minit_device_s* , const enum link_mode_e , struct historical_link_mode* );
-static void free_link(struct minit_device_s* , const struct historical_link_mode* );
+static int minion_file_open(struct inode* inode, struct file *file);
+static int minion_file_close(struct inode *inode, struct file *file);
+static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
+static int switch_link_mode(struct minion_device_s* , const enum link_mode_e , struct historical_link_mode* );
+static void free_link(struct minion_device_s* , const struct historical_link_mode* );
 /*
  * STRUCTURES
  */
@@ -54,31 +52,31 @@ static struct pci_device_id pci_ids[] = {
     { 0 }
 };
 
-static struct pci_driver minit_driver_ops = {
+static struct pci_driver minion_driver_ops = {
     .name = ONT_DRIVER_NAME,
     .id_table = pci_ids,
     .probe = pci_probe,
     .remove = pci_remove,
 };
 
-static struct file_operations minit_fops =
+static struct file_operations minion_fops =
 {
     .owner          = THIS_MODULE,
-    .open           = minit_file_open,
-    .unlocked_ioctl = minit_unlocked_ioctl,
-    .release        = minit_file_close,
+    .open           = minion_file_open,
+    .unlocked_ioctl = minion_unlocked_ioctl,
+    .release        = minion_file_close,
 };
 
 /*
  * MODULE GLOBALS
  */
-static struct class* minit_class = NULL;
-static int minit_major = 0;
-static int minit_minor = 0;
-static struct cdev minit_cdev = {};
+static struct class* minion_class = NULL;
+static int minion_major = 0;
+static int minion_minor = 0;
+static struct cdev minion_cdev = {};
 
-/* Array of minit_device pointers indexed by device-node minor number */
-static struct minit_device_s* minit_device_table[MINIT_MAX_DEVICES] = {};
+/* Array of minion_device pointers indexed by device-node minor number */
+static struct minion_device_s* minion_device_table[MINION_MAX_DEVICES] = {};
 
 
 /*
@@ -88,68 +86,68 @@ static struct minit_device_s* minit_device_table[MINIT_MAX_DEVICES] = {};
 /**
  * @return <0 on error, 0 on OK
  */
-static int device_table_add(unsigned int minor, struct minit_device_s* minit_dev)
+static int device_table_add(unsigned int minor, struct minion_device_s* mdev)
 {
     VPRINTK("device_table_add\n");
-    if (minor >= MINIT_MAX_DEVICES) {
+    if (minor >= MINION_MAX_DEVICES) {
         printk(KERN_ERR ONT_DRIVER_NAME":Too many devices\n");
         return -EINVAL;
     }
 
-    if (minit_device_table[minor]) {
+    if (minion_device_table[minor]) {
         printk(KERN_ERR ONT_DRIVER_NAME":That device node is already in use\n");
         return -EEXIST;
     }
 
-    DPRINTK("Adding %p at %d\n", minit_dev, minor);
-    minit_device_table[minor] = minit_dev;
+    DPRINTK("Adding %p at %d\n", mdev, minor);
+    minion_device_table[minor] = mdev;
     return 0;
 }
 
 /**
  * @return <0 on error, minor number of removed device will be returned if OK
  */
-static int device_table_remove(struct minit_device_s* minit_dev)
+static int device_table_remove(struct minion_device_s* mdev)
 {
     int index;
     VPRINTK("device_table_remove\n");
-    for (index = 0; index < MINIT_MAX_DEVICES; ++index) {
-        if (minit_device_table[index] == minit_dev) {
-            DPRINTK("Removing entry %p at %d\n",minit_dev, index);
-            minit_device_table[index] = 0;
+    for (index = 0; index < MINION_MAX_DEVICES; ++index) {
+        if (minion_device_table[index] == mdev) {
+            DPRINTK("Removing entry %p at %d\n",mdev, index);
+            minion_device_table[index] = 0;
             return index;
         }
     }
-    DPRINTK("%p not found in device table\n",minit_dev);
+    DPRINTK("%p not found in device table\n",mdev);
     return -ENOENT;
 }
 
-static struct minit_device_s* device_table_lookup(unsigned int minor)
+static struct minion_device_s* device_table_lookup(unsigned int minor)
 {
     VPRINTK("device_table_lookup\n");
-    if (minor >= MINIT_MAX_DEVICES) {
+    if (minor >= MINION_MAX_DEVICES) {
         printk(KERN_ERR ONT_DRIVER_NAME":invalid device number %d\n",minor);
         return NULL;
     }
 
-    return minit_device_table[minor];
+    return minion_device_table[minor];
 }
 
 /**
  * This performs the register reading and writing for IOCTLs. It bound checks
  * register offsets, but does not enforse alignment
- * @param minit_dev device in which to access the register
+ * @param mdev device in which to access the register
  * @param reg_access contains details of the register access and will be
  *     modified with read values
  * @return 0 on success
  */
-static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_register_s* reg_access)
+static long minion_reg_access(struct minion_device_s* mdev, struct minion_register_s* reg_access)
 {
     long rc = 0;
     void* address;
 
-    BUILD_BUG_ON(sizeof(struct minit_register_s) != 16);
-    if (unlikely(!minit_dev)) {
+    BUILD_BUG_ON(sizeof(struct minion_register_s) != 16);
+    if (unlikely(!mdev)) {
         printk(KERN_ERR ONT_DRIVER_NAME": ioctl called when there is no hardware.\n");
         return -ENODEV;
     }
@@ -157,19 +155,19 @@ static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_regi
     /* select bar and check for out of bounds accesses */
     switch (reg_access->bar) {
     case CTRL_BAR:
-        address = minit_dev->ctrl_bar;
+        address = mdev->ctrl_bar;
         if ((reg_access->offset + reg_access->size) > CTRL_BAR_EXPECTED_SIZE) {
             return -EFAULT;
         }
         break;
     case SPI_BAR:
-        address = minit_dev->spi_bar;
+        address = mdev->spi_bar;
         if ((reg_access->offset + reg_access->size) > SPI_BAR_EXPECTED_SIZE) {
             return -EFAULT;
         }
         break;
     case PCI_BAR:
-        address = minit_dev->pci_bar;
+        address = mdev->pci_bar;
         if ((reg_access->offset + reg_access->size) > PCI_BAR_EXPECTED_SIZE) {
             return -EFAULT;
         }
@@ -236,7 +234,7 @@ static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_regi
 
 /**
  * @brief data transfer and control via shift-register
- * @param minit_dev pointer do driver structure
+ * @param mdev pointer do driver structure
  * @param to_dev 282 byte buffer to send to ASIC
  * @param from_dev 282 byte buffer to receive data from ASIC
  * @param start  start transfer
@@ -245,8 +243,8 @@ static long minit_reg_access(struct minit_device_s* minit_dev, struct minit_regi
  * the 62.5 MHz PCIe clock
  * @return
  */
-static long minit_shift_register_access(
-        struct minit_device_s* minit_dev,
+static long minion_shift_register_access(
+        struct minion_device_s* mdev,
         char* const to_dev,
         char* const from_dev,
         const u8 start,
@@ -259,10 +257,10 @@ static long minit_shift_register_access(
     u32 actual_clock;
     u32 control;
     unsigned int delay_ms = 1+((1000 * ASIC_SHIFT_REG_SIZE) / clk);
-    VPRINTK("minit_shift_register_access to_dev %p, from_dev %p, start %d, enable %d, clk %d\n",
+    VPRINTK("minion_shift_register_access to_dev %p, from_dev %p, start %d, enable %d, clk %d\n",
             to_dev, from_dev, start, enable, clk);
 
-    rc = switch_link_mode(minit_dev, link_mode_data, &old_link_mode);
+    rc = switch_link_mode(mdev, link_mode_data, &old_link_mode);
     if (rc < 0) {
         return rc;
     }
@@ -271,8 +269,8 @@ static long minit_shift_register_access(
     if (to_dev) {
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
-            VPRINTK("Shift to dev  : 0x%02x => %p\n",from_dev[i],minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
-            writeb(to_dev[i], minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
+            VPRINTK("Shift to dev  : 0x%02x => %p\n",from_dev[i],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
+            writeb(to_dev[i], mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
         }
     }
     wmb();
@@ -294,8 +292,8 @@ static long minit_shift_register_access(
     control = (clockdiv << ASIC_SHIFT_CTRL_DIV_SHIFT) |
               (start ? ASIC_SHIFT_CTRL_ST : 0) |
               (enable ? ASIC_SHIFT_CTRL_EN :0);
-    VPRINTK("shift reg control 0x%02x => %p\n", control, minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
-    writeb(control, minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
+    VPRINTK("shift reg control 0x%02x => %p\n", control, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
+    writeb(control, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
     wmb();
 
     if (from_dev) {
@@ -305,26 +303,26 @@ static long minit_shift_register_access(
         msleep(delay_ms);
 
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
-            from_dev[i] = readb(minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
-            VPRINTK("Shift from dev: 0x%02x <= %p\n",from_dev[i],minit_dev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
+            from_dev[i] = readb(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
+            VPRINTK("Shift from dev: 0x%02x <= %p\n",from_dev[i],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
         }
     }
 
-    free_link(minit_dev, &old_link_mode);
+    free_link(mdev, &old_link_mode);
 
     return 0;
 }
 
-static void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_hs_receiver_s* minit_hs_reg)
+static void minion_hs_reg_access(struct minion_device_s* mdev, struct minion_hs_receiver_s* minion_hs_reg)
 {
     unsigned int i;
 
 
-    DPRINTK("minit_hs_reg_access\n");
-    if (minit_hs_reg->write) {
+    DPRINTK("minion_hs_reg_access\n");
+    if (minion_hs_reg->write) {
         for (i = 0; i < NUM_HS_REGISTERS;++i) {
             if (((ASIC_HS_REG_WRITE_MASK >> i) & 1) == 1) {
-                writew(minit_hs_reg->registers[i], minit_dev->ctrl_bar + ASIC_HS_RECEIVER_BASE + (i * 2));
+                writew(minion_hs_reg->registers[i], mdev->ctrl_bar + ASIC_HS_RECEIVER_BASE + (i * 2));
             }
         }
 
@@ -332,7 +330,7 @@ static void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_h
 
     // now read registers
     for (i = 0; i < NUM_HS_REGISTERS;++i) {
-        minit_hs_reg->registers[i] = readw(minit_dev->ctrl_bar + ASIC_HS_RECEIVER_BASE + (i * 2));
+        minion_hs_reg->registers[i] = readw(mdev->ctrl_bar + ASIC_HS_RECEIVER_BASE + (i * 2));
     }
 }
 
@@ -340,7 +338,7 @@ static void minit_hs_reg_access(struct minit_device_s* minit_dev, struct minit_h
 /*
  * want to lock-out other modes until done, but allow re-entrance for things running the same mode
  */
-static int switch_link_mode(struct minit_device_s* mdev, const enum link_mode_e mode, struct historical_link_mode* old_mode)
+static int switch_link_mode(struct minion_device_s* mdev, const enum link_mode_e mode, struct historical_link_mode* old_mode)
 {
     int rc = 0;
     u8 asic_ctrl;
@@ -385,7 +383,7 @@ out:
     return 0;
 }
 
-static void free_link(struct minit_device_s* mdev, const struct historical_link_mode* old_mode)
+static void free_link(struct minion_device_s* mdev, const struct historical_link_mode* old_mode)
 {
     VPRINTK("free_link\n");
     if (unlikely(!old_mode)) {
@@ -489,13 +487,13 @@ static int write_done(struct i2c_adapter* adapter)
  * @brief read data from the eeprom, this should check for valid start, length
  * and do the appropriate locking and bus mode changes
  *
- * @param mdev minit device
+ * @param mdev minion device
  * @param buffer pointer to the buffer for the data
  * @param start  start index in eeprom
  * @param length number of bytes to read
  * @return error if negative, 0 if OK
  */
-static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
+static long read_eeprom(struct minion_device_s* mdev, u8* buffer, u32 start, u32 length)
 {
     struct historical_link_mode old_mode;
     int rc=0;
@@ -539,13 +537,13 @@ static long read_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 
  * and do the appropriate locking and bus mode changes. When this returns, the
  * EEPROM should be programmed.
  *
- * @param mdev minit device
+ * @param mdev minioon device
  * @param buffer pointer to the buffer containing the data
  * @param start  start index in eeprom
  * @param length number of bytes to read
  * @return error if negative, 0 if OK
  */
-static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32 length)
+static long write_eeprom(struct minion_device_s* mdev, u8* buffer, u32 start, u32 length)
 {
     int retry_count;
     struct historical_link_mode old_mode;
@@ -602,84 +600,84 @@ static long write_eeprom(struct minit_device_s* mdev, u8* buffer, u32 start, u32
 /*
  * File OPs
  */
-static int minit_file_open(struct inode* inode, struct file *file)
+static int minion_file_open(struct inode* inode, struct file *file)
 {
-    struct minit_device_s* minit_dev;
+    struct minion_device_s* mdev;
 
-    VPRINTK("minit_file_open\n");
+    VPRINTK("minion_file_open\n");
     /* work out which hardware the user is expecting to talk to from the device no */
-    minit_dev = device_table_lookup(iminor(inode));
-    if (!minit_dev) {
-        printk(KERN_ERR ONT_DRIVER_NAME":No MINIT device with minor device number %d\n",iminor(inode));
+    mdev = device_table_lookup(iminor(inode));
+    if (!mdev) {
+        printk(KERN_ERR ONT_DRIVER_NAME":No MINION device with minor device number %d\n",iminor(inode));
         return -ENODEV;
     }
 
-    file->private_data = minit_dev;
+    file->private_data = mdev;
     return 0;
 }
 
 /**
  * @TODO: fill this in
  */
-static int minit_file_close(struct inode *inode, struct file *file)
+static int minion_file_close(struct inode *inode, struct file *file)
 {
-    struct minit_device_s* minit_dev;
+    struct minion_device_s* mdev;
 
-    VPRINTK("minit_file_close\n");
-    minit_dev = (struct minit_device_s*)file->private_data;
-    if (!minit_dev) {
+    VPRINTK("minion_file_close\n");
+    mdev = (struct minion_device_s*)file->private_data;
+    if (!mdev) {
         DPRINTK("file->private_data null, can't clear-up!\n");
         return 0;
     }
 
     // cancel all transfers
-    cancel_data_transfers(minit_dev->dma_dev);
+    cancel_data_transfers(mdev->dma_dev);
 
     return 0;
 }
 
-static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
     long rc = 0;
-    struct minit_device_s* minit_dev = file->private_data;
+    struct minion_device_s* mdev = file->private_data;
 
     VPRINTK("IOCTL file %p cmd %u, arg %lu\n",file, cmd, arg);
-    VPRINTK("minit_dev = %p\n",minit_dev);
+    VPRINTK("mdev = %p\n",mdev);
     if (_IOC_TYPE(cmd) != 'b') {
         DPRINTK("bad magic number\n");
         return -ENOTTY;
     }
 
     switch(cmd) {
-    case MINIT_IOCTL_REG_ACCESS: {
-            struct minit_register_s reg_access = {};
-            BUILD_BUG_ON(sizeof(struct minit_register_s) != MINIT_REGISTER_SIZE);
-            VPRINTK("MINIT_IOCTL_REG_ACCESS\n");
-            rc = copy_from_user(&reg_access, (void __user*)arg, sizeof(struct minit_register_s) );
+    case MINION_IOCTL_REG_ACCESS: {
+            struct minion_register_s reg_access = {};
+            BUILD_BUG_ON(sizeof(struct minion_register_s) != MINION_REGISTER_SIZE);
+            VPRINTK("MINION_IOCTL_REG_ACCESS\n");
+            rc = copy_from_user(&reg_access, (void __user*)arg, sizeof(struct minion_register_s) );
             if (rc) {
                 DPRINTK("copy_from_user failed\n");
                 return rc;
             }
-            rc = minit_reg_access(minit_dev, &reg_access);
+            rc = minion_reg_access(mdev, &reg_access);
             if (rc) {
-                DPRINTK("minit_reg_access failed\n");
+                DPRINTK("minion_reg_access failed\n");
                 return rc;
             }
-            return copy_to_user((void __user*)arg, &reg_access, sizeof(struct minit_register_s) );
+            return copy_to_user((void __user*)arg, &reg_access, sizeof(struct minion_register_s) );
         }
         break;
-    case MINIT_IOCTL_SHIFT_REG: {
-            struct minit_shift_reg_s shift_reg_access = {};
+    case MINION_IOCTL_SHIFT_REG: {
+            struct minion_shift_reg_s shift_reg_access = {};
             char shift_reg[ASIC_SHIFT_REG_SIZE];
-            BUILD_BUG_ON(sizeof(struct minit_shift_reg_s) != MINIT_SHIFT_REG_SIZE);
-            VPRINTK("MINIT_IOCTL_SHIFT_REG\n");
-            rc = copy_from_user(&shift_reg_access, (void __user*)arg, sizeof(struct minit_shift_reg_s));
+            BUILD_BUG_ON(sizeof(struct minion_shift_reg_s) != MINION_SHIFT_REG_SIZE);
+            VPRINTK("MINION_IOCTL_SHIFT_REG\n");
+            rc = copy_from_user(&shift_reg_access, (void __user*)arg, sizeof(struct minion_shift_reg_s));
             if (rc) {
                 DPRINTK("copy_from_user failed\n");
                 return rc;
             }
             if (shift_reg_access.padding) {
-                dev_err(&minit_dev->pci_device->dev, "Padding in IOCTL not zero");
+                dev_err(&mdev->pci_device->dev, "Padding in IOCTL not zero");
                 return -EINVAL;
             }
             if (shift_reg_access.to_device) {
@@ -691,8 +689,8 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             }
 
             // do access
-            rc = minit_shift_register_access(
-                        minit_dev,
+            rc = minion_shift_register_access(
+                        mdev,
                         shift_reg_access.to_device ? shift_reg : NULL,
                         shift_reg_access.from_device ? shift_reg : NULL,
                         shift_reg_access.start,
@@ -709,42 +707,42 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
                     return rc;
                 }
             }
-            return copy_to_user((void __user*)arg, &shift_reg_access, sizeof(struct minit_shift_reg_s) );
+            return copy_to_user((void __user*)arg, &shift_reg_access, sizeof(struct minion_shift_reg_s) );
         }
         break;
-    case MINIT_IOCTL_HS_RECIEVER: {
-            struct minit_hs_receiver_s minit_hs_reg = {};
-            BUILD_BUG_ON(sizeof(struct minit_hs_receiver_s) != MINIT_HS_RECEIVER_SIZE);
-            VPRINTK("MINIT_IOCTL_HS_RECIEVER\n");
-            rc = copy_from_user(&minit_hs_reg, (void __user*)arg, sizeof(minit_hs_reg));
+    case MINION_IOCTL_HS_RECIEVER: {
+            struct minion_hs_receiver_s minion_hs_reg = {};
+            BUILD_BUG_ON(sizeof(struct minion_hs_receiver_s) != MINION_HS_RECEIVER_SIZE);
+            VPRINTK("MINION_IOCTL_HS_RECIEVER\n");
+            rc = copy_from_user(&minion_hs_reg, (void __user*)arg, sizeof(minion_hs_reg));
             if (rc) {
                 DPRINTK("copy_from_user failed\n");
                 return rc;
             }
             // check padding is zero
-            if (minit_hs_reg.padding[0] ||
-                minit_hs_reg.padding[1] ||
-                minit_hs_reg.padding[2] )
+            if (minion_hs_reg.padding[0] ||
+                minion_hs_reg.padding[1] ||
+                minion_hs_reg.padding[2] )
             {
-                dev_err(&minit_dev->pci_device->dev, "Padding in IOCTL not zero");
+                dev_err(&mdev->pci_device->dev, "Padding in IOCTL not zero");
                 return -EINVAL;
             }
-            minit_hs_reg_access(minit_dev, &minit_hs_reg);
+            minion_hs_reg_access(mdev, &minion_hs_reg);
 
-            return copy_to_user((void __user*) arg, &minit_hs_reg, sizeof(minit_hs_reg));
+            return copy_to_user((void __user*) arg, &minion_hs_reg, sizeof(minion_hs_reg));
         }
         break;
-    case MINIT_IOCTL_EEPROM_READ: {
-            struct minit_eeprom_transfer_s transfer;
+    case MINION_IOCTL_EEPROM_READ: {
+            struct minion_eeprom_transfer_s transfer;
             u8 k_buffer[EEPROM_SIZE] = {0};
-            BUILD_BUG_ON(sizeof(struct minit_eeprom_transfer_s) != MINIT_EEPROM_TRANSFER_SIZE);
-            VPRINTK("MINIT_IOCTL_EEPROM_READ\n");
+            BUILD_BUG_ON(sizeof(struct minion_eeprom_transfer_s) != MINION_EEPROM_TRANSFER_SIZE);
+            VPRINTK("MINION_IOCTL_EEPROM_READ\n");
             rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
             if (rc) {
                 DPRINTK("copy_from_user failed\n");
                 return rc;
             }
-            rc = read_eeprom(minit_dev, k_buffer, transfer.start, transfer.length );
+            rc = read_eeprom(mdev, k_buffer, transfer.start, transfer.length );
             if (rc) {
                 DPRINTK("eeprom access failed\n");
                 return rc;
@@ -759,11 +757,11 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             return 0;
         }
         break;
-    case MINIT_IOCTL_EEPROM_WRITE: {
-            struct minit_eeprom_transfer_s transfer;
+    case MINION_IOCTL_EEPROM_WRITE: {
+            struct minion_eeprom_transfer_s transfer;
             u8 k_buffer[EEPROM_SIZE] = {0};
-            BUILD_BUG_ON(sizeof(struct minit_eeprom_transfer_s) != MINIT_EEPROM_TRANSFER_SIZE);
-            VPRINTK("MINIT_IOCTL_EEPROM_WRITE\n");
+            BUILD_BUG_ON(sizeof(struct minion_eeprom_transfer_s) != MINION_EEPROM_TRANSFER_SIZE);
+            VPRINTK("MINION_IOCTL_EEPROM_WRITE\n");
             rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
             if (rc) {
                 DPRINTK("copy_from_user failed\n");
@@ -779,7 +777,7 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
                 DPRINTK("copy_from_user failed to get data from user-space\n");
                 return rc;
             }
-            rc = write_eeprom(minit_dev, k_buffer, transfer.start, transfer.length );
+            rc = write_eeprom(mdev, k_buffer, transfer.start, transfer.length );
             if (rc) {
                 DPRINTK("eeprom access failed\n");
                 return rc;
@@ -787,26 +785,26 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             return 0;
         }
         break;
-    case MINIT_IOCTL_SUBMIT_TRANSFER: {
-            struct minit_data_transfer_s transfer;
-            BUILD_BUG_ON(sizeof(struct minit_data_transfer_s) != MINIT_DATA_TRANSFER_SIZE);
-            VPRINTK("MINIT_IOCTL_SUBMIT_TRANSFER\n");
+    case MINION_IOCTL_SUBMIT_TRANSFER: {
+            struct minion_data_transfer_s transfer;
+            BUILD_BUG_ON(sizeof(struct minion_data_transfer_s) != MINION_DATA_TRANSFER_SIZE);
+            VPRINTK("MINION_IOCTL_SUBMIT_TRANSFER\n");
             rc = copy_from_user(&transfer, (void __user*)arg, sizeof(transfer));
             if (rc) {
                 DPRINTK("copy_from_user failed\n");
                 return rc;
             }
             // make a transfer object to represent the transfer when in the driver
-            rc = queue_data_transfer(minit_dev->dma_dev, &transfer, file);
+            rc = queue_data_transfer(mdev->dma_dev, &transfer, file);
             return rc;
         }
         break;
-    case MINIT_IOCTL_WHATS_COMPLETED: {
-            struct minit_completed_transfers_s completed;
-            struct minit_transfer_status_s* stuff_done;
-            BUILD_BUG_ON(sizeof(struct minit_transfer_status_s) != MINIT_TRANSFER_STATUS_SIZE);
-            BUILD_BUG_ON(sizeof(struct minit_completed_transfers_s) != MINIT_COMPLETED_TRANSFERS_SIZE);
-            VPRINTK("MINIT_IOCTL_WHATS_COMPLETED\n");
+    case MINION_IOCTL_WHATS_COMPLETED: {
+            struct minion_completed_transfers_s completed;
+            struct minion_transfer_status_s* stuff_done;
+            BUILD_BUG_ON(sizeof(struct minion_transfer_status_s) != MINION_TRANSFER_STATUS_SIZE);
+            BUILD_BUG_ON(sizeof(struct minion_completed_transfers_s) != MINION_COMPLETED_TRANSFERS_SIZE);
+            VPRINTK("MINION_IOCTL_WHATS_COMPLETED\n");
             rc = copy_from_user(&completed, (void __user*)arg, sizeof(completed));
             if (rc) {
                 DPRINTK("copy_from_user failed\n");
@@ -815,19 +813,19 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
 
             // Allocate memory to prepare the list of completed transfers.
             /// @TODO: This could possibly be done by mapping the user-space buffer into k-space.
-            stuff_done = kzalloc(sizeof(struct minit_transfer_status_s) * completed.completed_transfers_size, GFP_KERNEL);
+            stuff_done = kzalloc(sizeof(struct minion_transfer_status_s) * completed.completed_transfers_size, GFP_KERNEL);
             if (!stuff_done) {
                 DPRINTK("Failed to allocate memory for completed transfer list\n");
                 return -ENOMEM;
             }
             completed.no_completed_transfers = get_completed_data_transfers(
-                        minit_dev->dma_dev,
+                        mdev->dma_dev,
                         completed.completed_transfers_size,
                         stuff_done );
             rc = copy_to_user(
                         (void __user*)completed.completed_transfers,
                         stuff_done,
-                        sizeof(struct minit_transfer_status_s) * completed.completed_transfers_size );
+                        sizeof(struct minion_transfer_status_s) * completed.completed_transfers_size );
             if (!rc) {
                 rc = copy_to_user(
                         (void __user*)arg,
@@ -842,9 +840,9 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
             return 0;
         }
         break;
-    case MINIT_IOCTL_CANCEL_TRANSFERS: {
-            VPRINTK("MINIT_IOCTL_CANCEL_TRANSFERS\n");
-            return cancel_data_transfers(minit_dev->dma_dev);
+    case MINION_IOCTL_CANCEL_TRANSFERS: {
+            VPRINTK("MINION_IOCTL_CANCEL_TRANSFERS\n");
+            return cancel_data_transfers(mdev->dma_dev);
         }
         break;
     default:
@@ -856,90 +854,90 @@ static long minit_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned l
 
 static void cleanup_device(void* data) {
     struct pci_dev* dev = (struct pci_dev*)data;
-    struct minit_device_s* minit_dev = pci_get_drvdata(dev);
+    struct minion_device_s* mdev = pci_get_drvdata(dev);
     VPRINTK("cleanup_device\n");
-    if (minit_dev) {
-        device_table_remove(minit_dev);
-        device_destroy(minit_class, MKDEV(minit_major, minit_dev->minor_dev_no));
+    if (mdev) {
+        device_table_remove(mdev);
+        device_destroy(minion_class, MKDEV(minion_major, mdev->minor_dev_no));
     }
 }
 
-static irqreturn_t minit_isr_quick(int irq, void* _dev)
+static irqreturn_t minion_isr_quick(int irq, void* _dev)
 {
     u32 isr;
-    struct minit_device_s* minit_dev = _dev;
+    struct minion_device_s* mdev = _dev;
     irqreturn_t ret_i2c = IRQ_NONE;
     irqreturn_t ret_dma = IRQ_NONE;
 
-    VPRINTK("minit_isr_quick\n");
-    isr = READL(minit_dev->pci_bar + PCI_ISR);
+    VPRINTK("minion_isr_quick\n");
+    isr = READL(mdev->pci_bar + PCI_ISR);
     if (!isr) {
         return IRQ_NONE;
     }
-    WRITEL(isr, minit_dev->pci_bar + PCI_ISR);
+    WRITEL(isr, mdev->pci_bar + PCI_ISR);
 
     // call the quick ISR for the two cores that can generate interrupts
-    if (minit_dev->i2c_isr_quick ) {
-        ret_i2c = minit_dev->i2c_isr_quick(irq, minit_dev->i2c_dev);
+    if (mdev->i2c_isr_quick ) {
+        ret_i2c = mdev->i2c_isr_quick(irq, mdev->i2c_dev);
         if (ret_i2c == IRQ_WAKE_THREAD) {
-            set_bit(0, &minit_dev->had_i2c_irq);
+            set_bit(0, &mdev->had_i2c_irq);
         }
     }
 
-    if (minit_dev->dma_isr_quick ) {
-        ret_dma = minit_dev->dma_isr_quick(irq, minit_dev->dma_dev);
+    if (mdev->dma_isr_quick ) {
+        ret_dma = mdev->dma_isr_quick(irq, mdev->dma_dev);
         if (ret_dma == IRQ_WAKE_THREAD) {
-            set_bit(0, &minit_dev->had_dma_irq);
+            set_bit(0, &mdev->had_dma_irq);
         }
     }
 
     // either wake a bh thread, mark the irq as handled or not-us depending
     // on what the above discovered.
     if (ret_i2c == IRQ_WAKE_THREAD || ret_dma == IRQ_WAKE_THREAD) {
-        VPRINTK("minit_isr_quick wake\n");
+        VPRINTK("minion_isr_quick wake\n");
         return IRQ_WAKE_THREAD;
     }
     if (ret_i2c == IRQ_HANDLED || ret_dma == IRQ_HANDLED) {
-        VPRINTK("minit_isr_quick handled\n");
+        VPRINTK("minion_isr_quick handled\n");
         return IRQ_HANDLED;
     }
-    VPRINTK("minit_isr_quick none\n");
+    VPRINTK("minion_isr_quick none\n");
     return IRQ_NONE;
 }
 
-static irqreturn_t minit_isr(int irq, void* _dev)
+static irqreturn_t minion_isr(int irq, void* _dev)
 {
-    struct minit_device_s* minit_dev = _dev;
+    struct minion_device_s* mdev = _dev;
     irqreturn_t ret_i2c = IRQ_NONE;
     irqreturn_t ret_dma = IRQ_NONE;
 
-    VPRINTK("minit_isr (bh)\n");
+    VPRINTK("minion_isr (bh)\n");
     // should only get an IRQ from I2C core if it has a message
-    if (minit_dev->i2c_isr && test_and_clear_bit(0,&minit_dev->had_i2c_irq)) {
-        ret_i2c = minit_dev->i2c_isr(irq, minit_dev->i2c_dev);
+    if (mdev->i2c_isr && test_and_clear_bit(0,&mdev->had_i2c_irq)) {
+        ret_i2c = mdev->i2c_isr(irq, mdev->i2c_dev);
     }
-    if (minit_dev->dma_isr && test_and_clear_bit(0,&minit_dev->had_dma_irq)) {
-        ret_dma = minit_dev->dma_isr(irq, minit_dev->dma_dev);
+    if (mdev->dma_isr && test_and_clear_bit(0,&mdev->had_dma_irq)) {
+        ret_dma = mdev->dma_isr(irq, mdev->dma_dev);
     }
 
     if (ret_i2c == IRQ_HANDLED || ret_dma == IRQ_HANDLED) {
-        VPRINTK("minit_isr handled\n");
+        VPRINTK("minion_isr handled\n");
         return IRQ_HANDLED;
     }
-    VPRINTK("minit_isr none\n");
+    VPRINTK("minion_isr none\n");
     return IRQ_NONE;
 }
 
 /**
  * This should:
- *  Verify that we're talking to usable minit hardware.
+ *  Verify that we're talking to usable minion hardware.
  *  Map bars and create the device data structure.
  *
  */
 static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 {
     int rc,irq;
-    struct minit_device_s* minit_dev = NULL;
+    struct minion_device_s* mdev = NULL;
     struct device* char_device;
     DPRINTK("PROBE\n");
 
@@ -955,16 +953,16 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     }
 
     // allocate and initialise device structure
-    minit_dev = devm_kzalloc(&dev->dev, sizeof(struct minit_device_s), GFP_KERNEL);
-    if (!minit_dev) {
+    mdev = devm_kzalloc(&dev->dev, sizeof(struct minion_device_s), GFP_KERNEL);
+    if (!mdev) {
         dev_err(&dev->dev, "Unable to allocate memory for managing device\n");
         goto err;
     }
-    minit_dev->link_mode = link_idle;
-    mutex_init(&minit_dev->link_mtx);
-    minit_dev->pci_device = dev;
-    minit_dev->minor_dev_no = minit_minor++;
-    pci_set_drvdata(dev, minit_dev);
+    mdev->link_mode = link_idle;
+    mutex_init(&mdev->link_mtx);
+    mdev->pci_device = dev;
+    mdev->minor_dev_no = minion_minor++;
+    pci_set_drvdata(dev, mdev);
 
     // map all bars
     rc = pcim_iomap_regions(dev, 1 << CTRL_BAR, "MinION control");
@@ -983,12 +981,12 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
         goto err;
     }
 
-    minit_dev->ctrl_bar  = pcim_iomap_table(dev)[CTRL_BAR];
-    minit_dev->spi_bar = pcim_iomap_table(dev)[SPI_BAR];
-    minit_dev->pci_bar = pcim_iomap_table(dev)[PCI_BAR];
-    DPRINTK("Control bar mapped to %p\n", minit_dev->ctrl_bar);
-    DPRINTK("SPI bar mapped to %p\n", minit_dev->spi_bar);
-    DPRINTK("PCI bar mapped to %p\n", minit_dev->pci_bar);
+    mdev->ctrl_bar  = pcim_iomap_table(dev)[CTRL_BAR];
+    mdev->spi_bar = pcim_iomap_table(dev)[SPI_BAR];
+    mdev->pci_bar = pcim_iomap_table(dev)[PCI_BAR];
+    DPRINTK("Control bar mapped to %p\n", mdev->ctrl_bar);
+    DPRINTK("SPI bar mapped to %p\n", mdev->spi_bar);
+    DPRINTK("PCI bar mapped to %p\n", mdev->pci_bar);
 
     // Use the existance of a define as indication that we're compiling on a new
     // kernel with the simpler way of setting up interrupts for PCIe
@@ -1008,9 +1006,9 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     irq = dev->irq;
 #endif
     DPRINTK("Using irq %d\n",irq);
-    rc = devm_request_threaded_irq(&dev->dev, irq, minit_isr_quick,
-                    minit_isr, IRQF_SHARED,
-                    "minit", minit_dev);
+    rc = devm_request_threaded_irq(&dev->dev, irq, minion_isr_quick,
+                    minion_isr, IRQF_SHARED,
+                    "minion", mdev);
     if (rc) {
         dev_err(&dev->dev, "failed to claim IRQ %d\n", dev->irq);
         goto err;
@@ -1038,11 +1036,11 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 
     // create character device
     char_device = device_create(
-        minit_class,
+        minion_class,
         &dev->dev,
-        MKDEV(minit_major, minit_dev->minor_dev_no),
-        minit_dev,
-        "%s_%d", ONT_DRIVER_NAME, minit_dev->minor_dev_no);
+        MKDEV(minion_major, mdev->minor_dev_no),
+        mdev,
+        "%s_%d", ONT_DRIVER_NAME, mdev->minor_dev_no);
     if (IS_ERR(char_device)) {
         dev_info(&dev->dev, "unable to create a sysfs device.\n");
         rc = PTR_ERR(char_device);
@@ -1050,28 +1048,28 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     }
 
     // register the Altera I2C core using a slightly modified Altera driver
-    rc = borrowed_altr_i2c_probe(minit_dev);
+    rc = borrowed_altr_i2c_probe(mdev);
     if (rc) {
         dev_err(&dev->dev, ": I2C bus controller probe failed\n");
         goto err;
     }
-    devm_add_action(&dev->dev, borrowed_altr_i2c_remove, minit_dev);
+    devm_add_action(&dev->dev, borrowed_altr_i2c_remove, mdev);
 
-    rc = altera_sgdma_probe(minit_dev);
+    rc = altera_sgdma_probe(mdev);
     if (rc) {
         dev_err(&dev->dev, ": DMA hardware probe failed\n");
         goto err;
     }
-    devm_add_action(&dev->dev, altera_sgdma_remove, minit_dev);
+    devm_add_action(&dev->dev, altera_sgdma_remove, mdev);
 
     // add to our internal device table
-    rc = device_table_add(minit_dev->minor_dev_no, minit_dev);
+    rc = device_table_add(mdev->minor_dev_no, mdev);
 
     // enable interrupts
-    WRITEL(PCI_ISR_I2C | PCI_ISR_DMA, minit_dev->pci_bar + PCI_ENB);
+    WRITEL(PCI_ISR_I2C | PCI_ISR_DMA, mdev->pci_bar + PCI_ENB);
 
     // enable clock in ASIC control
-    writeb(ASIC_CTRL_CLK_128, minit_dev->ctrl_bar + ASIC_CTRL_BASE);
+    writeb(ASIC_CTRL_CLK_128, mdev->ctrl_bar + ASIC_CTRL_BASE);
 
     DPRINTK("probe finished successfully\n");
 err:
@@ -1087,41 +1085,41 @@ static void __exit pci_remove(struct pci_dev *dev)
     }
 }
 
-static int __init ont_minit1c_init(void)
+static int __init minion_init(void)
 {
     int rc = 0;
     dev_t first_dev;
-    DPRINTK("ont_minit1c_init\n");
+    DPRINTK("minion_init\n");
 
     // grab some character device numbers
     rc = alloc_chrdev_region(
         &first_dev,
         ONT_FIRST_MINOR,
-        MINIT_MAX_DEVICES,
+        MINION_MAX_DEVICES,
         ONT_DRIVER_NAME);
-    minit_major = MAJOR(first_dev);
-    minit_minor = MINOR(first_dev);
+    minion_major = MAJOR(first_dev);
+    minion_minor = MINOR(first_dev);
     if (rc < 0) {
         printk(KERN_ERR ONT_DRIVER_NAME": Failed to allocate major number\n");
         goto err_grab_chrdev;
     }
 
     // define a type of sysfs class associated with this module
-    minit_class = class_create(THIS_MODULE, ONT_DRIVER_NAME);
-    if (IS_ERR(minit_class)) {
-        rc = PTR_ERR(minit_class);
-        printk(KERN_ERR"Failed to create ont_minit1c device class\n");
+    minion_class = class_create(THIS_MODULE, ONT_DRIVER_NAME);
+    if (IS_ERR(minion_class)) {
+        rc = PTR_ERR(minion_class);
+        printk(KERN_ERR"Failed to create minion device class\n");
         goto err_reg_class;
     }
-    cdev_init(&minit_cdev, &minit_fops);
-    rc = cdev_add(&minit_cdev, first_dev, MINIT_MAX_DEVICES);
+    cdev_init(&minion_cdev, &minion_fops);
+    rc = cdev_add(&minion_cdev, first_dev, MINION_MAX_DEVICES);
     if (rc < 0) {
         printk(KERN_ERR"Failed to add cdev\n");
         goto err_reg_cdev;
     }
 
     // let the pci stack know we exist
-    rc = pci_register_driver(&minit_driver_ops);
+    rc = pci_register_driver(&minion_driver_ops);
     if (rc) {
         printk(KERN_ERR ONT_DRIVER_NAME": PCI driver registration failed\n");
         goto err_reg_driver;
@@ -1130,31 +1128,31 @@ static int __init ont_minit1c_init(void)
     return rc;
 
 err_reg_driver:
-    cdev_del(&minit_cdev);
+    cdev_del(&minion_cdev);
 err_reg_cdev:
-    class_destroy(minit_class);
+    class_destroy(minion_class);
 err_reg_class:
-    unregister_chrdev_region(first_dev, MINIT_MAX_DEVICES);
+    unregister_chrdev_region(first_dev, MINION_MAX_DEVICES);
 err_grab_chrdev:
     return rc;
 }
 
-static void __exit ont_minit1c_exit(void)
+static void __exit minion_exit(void)
 {
-    pci_unregister_driver(&minit_driver_ops);
-    cdev_del(&minit_cdev);
-    if (minit_class) {
-        class_destroy(minit_class);
+    pci_unregister_driver(&minion_driver_ops);
+    cdev_del(&minion_cdev);
+    if (minion_class) {
+        class_destroy(minion_class);
     }
-    unregister_chrdev_region(MKDEV(minit_major, ONT_FIRST_MINOR), MINIT_MAX_DEVICES);
+    unregister_chrdev_region(MKDEV(minion_major, ONT_FIRST_MINOR), MINION_MAX_DEVICES);
 }
 
 
-module_init(ont_minit1c_init);
-module_exit(ont_minit1c_exit);
+module_init(minion_init);
+module_exit(minion_exit);
 
 MODULE_AUTHOR("Oxford Nanopore Technologies Ltd <info@nanoporetech.com>");
-MODULE_DESCRIPTION("ONT MinIT-1C PCIe Driver");
+MODULE_DESCRIPTION("MinION-mk1C PCIe Driver");
 MODULE_VERSION(ONT_DRIVER_VERSION);
 
 MODULE_LICENSE("GPL v2");

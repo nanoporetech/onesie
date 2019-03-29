@@ -1,4 +1,4 @@
-#include "ont_minit_ioctl.h"
+#include "minion_ioctl.h"
 
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -18,12 +18,12 @@ void read_eeprom(int fd, std::ostream& out, unsigned int start, unsigned int len
 {
     // prepare and get driver to do transfer
     std::array< char, 256 > buffer;
-    struct minit_eeprom_transfer_s eeprom_transaction{
+    struct minion_eeprom_transfer_s eeprom_transaction{
         reinterpret_cast<std::uintptr_t>(buffer.data()),
         start,
         length
     };
-    const auto rc = ioctl(fd, MINIT_IOCTL_EEPROM_READ, &eeprom_transaction);
+    const auto rc = ioctl(fd, MINION_IOCTL_EEPROM_READ, &eeprom_transaction);
     if (rc < 0) {
         throw std::runtime_error(strerror(errno));
     }
@@ -40,12 +40,12 @@ void write_eeprom(int fd, std::istream& in, unsigned int start, unsigned int len
     in.read(buffer.data(), std::min(length, (unsigned int)buffer.size()));
 
     // write to driver
-    struct minit_eeprom_transfer_s eeprom_transaction{
+    struct minion_eeprom_transfer_s eeprom_transaction{
         reinterpret_cast<std::uintptr_t>(buffer.data()),
         start,
         length
     };
-    const auto rc = ioctl(fd, MINIT_IOCTL_EEPROM_WRITE, &eeprom_transaction);
+    const auto rc = ioctl(fd, MINION_IOCTL_EEPROM_WRITE, &eeprom_transaction);
     if (rc < 0) {
         throw std::runtime_error(strerror(errno));
     }

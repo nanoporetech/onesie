@@ -30,8 +30,8 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/pci.h>
-#include "ont_minit1c.h"
-#include "ont_minit1c_reg.h"
+#include "minion_top.h"
+#include "minion_reg.h"
 
 #define ALTR_I2C_TFR_CMD    0x00    /* Transfer Command register */
 #define     ALTR_I2C_TFR_CMD_STA    BIT(9)  /* send START before byte */
@@ -444,7 +444,7 @@ static const struct i2c_algorithm altr_i2c_algo = {
     .functionality = altr_i2c_func,
 };
 
-int borrowed_altr_i2c_probe(struct minit_device_s* m_dev)
+int borrowed_altr_i2c_probe(struct minion_device_s* m_dev)
 {
     struct altr_i2c_dev *idev = NULL;
     int ret;
@@ -479,7 +479,7 @@ int borrowed_altr_i2c_probe(struct minit_device_s* m_dev)
     altr_i2c_init(idev);
 
     i2c_set_adapdata(&idev->adapter, idev);
-    strlcpy(idev->adapter.name, "minit-i2c", sizeof(idev->adapter.name));
+    strlcpy(idev->adapter.name, "minion-i2c", sizeof(idev->adapter.name));
     idev->adapter.owner = THIS_MODULE;
     idev->adapter.algo = &altr_i2c_algo;
     idev->adapter.dev.parent = dev;
@@ -501,7 +501,7 @@ int borrowed_altr_i2c_probe(struct minit_device_s* m_dev)
 
 void borrowed_altr_i2c_remove(void* ptr)
 {
-    struct minit_device_s* m_dev = (struct minit_device_s*)ptr;
+    struct minion_device_s* m_dev = (struct minion_device_s*)ptr;
     struct i2c_adapter* adapter = m_dev->i2c_adapter;
     if (adapter) {
         i2c_del_adapter(adapter);

@@ -1,14 +1,13 @@
 /**
- * ont_minit1c.h
+ * minion_top.h
  *
  * Copyright (C) 2019 Oxford Nanopore Technologies Ltd.
  *
  * Author: <info@nanoporetech.com>
  *
  */
-
-#ifndef ONT_MINIT1C_H
-#define ONT_MINIT1C_H
+#ifndef MINION_TOP_H
+#define MINION_TOP_H
 
 #define ONT_DEBUG
 //#define ONT_VERBOSE_DEBUG
@@ -27,8 +26,8 @@
 
     // optionally dump out the majority of register accesses
     #ifdef ONT_VERBOSE_DEBUG
-        #define WRITEL(VAL,ADDR) do{u32 val=(VAL); void* addr=(ADDR); printk(KERN_ERR"minit 0x%08x => %p\n",val,addr);writel(val,addr); } while(0)
-        static inline u32 myreadl(void* addr) {u32 r=readl(addr);printk(KERN_ERR"minit 0x%08x <= %p\n",r,addr);return r;}
+        #define WRITEL(VAL,ADDR) do{u32 val=(VAL); void* addr=(ADDR); printk(KERN_ERR"minion 0x%08x => %p\n",val,addr);writel(val,addr); } while(0)
+        static inline u32 myreadl(void* addr) {u32 r=readl(addr);printk(KERN_ERR"minion 0x%08x <= %p\n",r,addr);return r;}
         #define READL(ADDR) myreadl(ADDR)
 
         #define VPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
@@ -43,7 +42,7 @@
     #define WRITEL(VAL,ADDR) writel(VAL,ADDR)
 #endif
 
-#define ONT_DRIVER_NAME     "ont-minit1c"
+#define ONT_DRIVER_NAME     "ont-minion1c"
 
 /* version is major.minor.patch */
 #define ONT_DRIVER_VERSION  "0.0.1"
@@ -51,7 +50,7 @@
 #define ONT_FIRST_MINOR 0
 
 /* set to 5 for potential use with gridion */
-#define MINIT_MAX_DEVICES 5
+#define MINION_MAX_DEVICES 5
 
 /* BAR numbers */
 #define CTRL_BAR 0
@@ -68,8 +67,8 @@
 struct altr_i2c_dev;
 struct altr_dma_dev;
 struct i2c_client;
-struct minit_data_transfer_s;
-struct minit_transfer_status_s;
+struct minion_data_transfer_s;
+struct minion_transfer_status_s;
 
 enum link_mode_e {
     link_idle,
@@ -82,7 +81,7 @@ struct historical_link_mode {
     u8 reg;
 };
 
-struct minit_device_s {
+struct minion_device_s {
     struct pci_dev* pci_device;
 
     struct altr_i2c_dev* i2c_dev;
@@ -112,11 +111,11 @@ struct minit_device_s {
 };
 
 
-extern int borrowed_altr_i2c_probe(struct minit_device_s* base);
+extern int borrowed_altr_i2c_probe(struct minion_device_s* base);
 extern void borrowed_altr_i2c_remove(void* ptr);
-extern int altera_sgdma_probe(struct minit_device_s* mdev);
+extern int altera_sgdma_probe(struct minion_device_s* mdev);
 extern void altera_sgdma_remove(void* ptr);
-extern long queue_data_transfer(struct altr_dma_dev*, struct minit_data_transfer_s*, struct file* file);
-extern u32 get_completed_data_transfers(struct altr_dma_dev*, u32, struct minit_transfer_status_s*);
+extern long queue_data_transfer(struct altr_dma_dev*, struct minion_data_transfer_s*, struct file* file);
+extern u32 get_completed_data_transfers(struct altr_dma_dev*, u32, struct minion_transfer_status_s*);
 extern long cancel_data_transfers(struct altr_dma_dev*);
-#endif        //  #ifndef ONT_MINIT1C_H
+#endif        //  #ifndef MINION_TOP_H

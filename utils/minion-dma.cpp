@@ -1,4 +1,4 @@
-#include "ont_minit_ioctl.h"
+#include "minion_ioctl.h"
 
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -23,7 +23,7 @@
 #include <chrono>
 #include <algorithm>
 
-static_assert(sizeof(struct minit_data_transfer_s) == MINIT_DATA_TRANSFER_SIZE , "ioctl size wrong");
+static_assert(sizeof(struct minion_data_transfer_s) == MINION_DATA_TRANSFER_SIZE , "ioctl size wrong");
 
 class transfer {
 public:
@@ -45,7 +45,7 @@ public:
 
     void submit_transfer(const int fd, const std::chrono::steady_clock::duration timeout = std::chrono::milliseconds(5000) )
     {
-        minit_data_transfer_s data_transfer;
+        minion_data_transfer_s data_transfer;
         data_transfer.buffer = reinterpret_cast<std::uintptr_t>(_buffer.data());
         data_transfer.buffer_size = _size;
         data_transfer.transfer_id = _transfer_id;
@@ -53,7 +53,7 @@ public:
         data_transfer.pid = getpid();
         _deadline = std::chrono::steady_clock::now() + timeout;
 
-        const auto rc = ioctl(fd, MINIT_IOCTL_SUBMIT_TRANSFER, &data_transfer);
+        const auto rc = ioctl(fd, MINION_IOCTL_SUBMIT_TRANSFER, &data_transfer);
         if (rc < 0) {
             throw std::runtime_error(strerror(errno));
         }
@@ -123,13 +123,13 @@ private:
         bool more;
         do {
             // get the status information for completed transfers
-            std::vector<minit_transfer_status_s> statuses(_instance->_max_queue_size);
-            minit_completed_transfers_s transfer_results;
+            std::vector<minion_transfer_status_s> statuses(_instance->_max_queue_size);
+            minion_completed_transfers_s transfer_results;
             transfer_results.completed_transfers = reinterpret_cast<std::uintptr_t>(statuses.data());
             transfer_results.completed_transfers_size = statuses.size();
             transfer_results.no_completed_transfers = 0;
 
-            const auto rc = ioctl(_instance->_fd, MINIT_IOCTL_WHATS_COMPLETED, &transfer_results);
+            const auto rc = ioctl(_instance->_fd, MINION_IOCTL_WHATS_COMPLETED, &transfer_results);
             if (rc < 0) {
                 // error, but can't throw as we've been asynchronusly called
                 std::cerr << "ioctl failed with error " << rc << std::endl;
@@ -168,7 +168,7 @@ private:
     void hs_receiver(const bool enable, const bool reset)
     {
 
-        struct minit_hs_receiver_s hs_rx_ioctl;
+        struct minion_hs_receiver_s hs_rx_ioctl;
         std::memset(&hs_rx_ioctl, 0, sizeof(hs_rx_ioctl));
         hs_rx_ioctl.write = 1;
         hs_rx_ioctl.registers[0] |= enable ? 1 : 0;
@@ -179,7 +179,7 @@ private:
                   << (reset  ? "reset " : ". ")
                   << std::endl;
 
-        const auto rc = ioctl(_instance->_fd, MINIT_IOCTL_HS_RECIEVER, &hs_rx_ioctl);
+        const auto rc = ioctl(_instance->_fd, MINION_IOCTL_HS_RECIEVER, &hs_rx_ioctl);
         if (rc < 0) {
             throw std::runtime_error(strerror(rc));
         }

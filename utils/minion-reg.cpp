@@ -1,4 +1,4 @@
-#include "ont_minit_ioctl.h"
+#include "minion_ioctl.h"
 
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -43,7 +43,7 @@ int reg_access_ioctl(
     int rc = 0;
     do {
         // make structure
-        struct minit_register_s reg_ioctl = {
+        struct minion_register_s reg_ioctl = {
             offset,
             uint16_t(size),
             uint8_t(read ? 0 : 1),
@@ -51,7 +51,7 @@ int reg_access_ioctl(
             value
         };
 
-        rc = ioctl(fd, MINIT_IOCTL_REG_ACCESS, &reg_ioctl);
+        rc = ioctl(fd, MINION_IOCTL_REG_ACCESS, &reg_ioctl);
         if (rc < 0) {
             if (!success) {
                 cerr << "Error " << rc << " (" << strerror(-rc) << ")" << endl;

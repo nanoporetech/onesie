@@ -1,12 +1,12 @@
 /**
- * minit_ioctl.h
+ * minion_ioctl.h
  *
  * Copyright (C) 2019 Oxford Nanopore Technologies Ltd.
  *
  * Author: <info@nanoporetech.com>
  *
  * These are the IOCTL definition for interacting with the Oxford Nanopore 
- * Technologies MinIT-1C firmware and hardware.
+ * Technologies MinION-1C firmware and hardware.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,8 +18,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-#ifndef ONT_MINIT_IOCTL_H
-#define ONT_MINIT_IOCTL_H
+#ifndef MINION_IOCTL_H
+#define MINION_IOCTL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,19 +37,19 @@ extern "C" {
  * value    to/from-driver data to write to the register or the data read from
  *                      the register
  */
-struct minit_register_s {
+struct minion_register_s {
     __u32 offset;
     __u16 size;
     __u8 write;
     __u8 bar;
     __u64 value;
 } __attribute__(( packed ));
-#define MINIT_REGISTER_SIZE 16
+#define MINION_REGISTER_SIZE 16
 
-#define MINIT_IOCTL_REG_ACCESS _IOWR('b', 64, struct minit_register_s)
+#define MINION_IOCTL_REG_ACCESS _IOWR('b', 64, struct minion_register_s)
 
 
-#define MINIT_IOCTL_SHIFT_REG_BUFFER_SIZE 283
+#define MINION_IOCTL_SHIFT_REG_BUFFER_SIZE 283
 /**
  * @brief read/write data to the ASICs shift-register for sending commands and
  * reading the current ASIC configuration and OTP bits, etc.
@@ -67,7 +67,7 @@ struct minit_register_s {
  * start    to-driver   Sets start-bit if non-zero
  * enable   to-driver   Sets enable-bit it non-zero
  */
-struct minit_shift_reg_s {
+struct minion_shift_reg_s {
     __u64   to_device;
     __u64   from_device;
     __u32   clock_hz;
@@ -75,12 +75,12 @@ struct minit_shift_reg_s {
     __u8    enable;
     __u16   padding; // must be zero
 } __attribute__(( packed ));
-#define MINIT_SHIFT_REG_SIZE 24
+#define MINION_SHIFT_REG_SIZE 24
 
-#define MINIT_IOCTL_SHIFT_REG _IOWR('b', 65, struct minit_shift_reg_s)
+#define MINION_IOCTL_SHIFT_REG _IOWR('b', 65, struct minion_shift_reg_s)
 
 
-#define MINIT_IOCTL_HS_RECEIVER_REG_SIZE 12
+#define MINION_IOCTL_HS_RECEIVER_REG_SIZE 12
 /**
  * @brief Optionally write data, then read the contents of the HS Receiver core
  * registers to/from-driver If write is set then the writable registers will be
@@ -90,14 +90,14 @@ struct minit_shift_reg_s {
  *                      be written to writable registers. Which registers are
  *                      writable is programmed into the driver.
  */
-struct  minit_hs_receiver_s {
-   __u16    registers[MINIT_IOCTL_HS_RECEIVER_REG_SIZE];
+struct  minion_hs_receiver_s {
+   __u16    registers[MINION_IOCTL_HS_RECEIVER_REG_SIZE];
    __u8     write;
    __u8     padding[3]; // pad to multiple of 64 bytes (MUST BE ZERO)
 } __attribute__(( packed ));
-#define MINIT_HS_RECEIVER_SIZE 28
+#define MINION_HS_RECEIVER_SIZE 28
 
-#define MINIT_IOCTL_HS_RECIEVER _IOWR('b', 66, struct minit_hs_receiver_s)
+#define MINION_IOCTL_HS_RECIEVER _IOWR('b', 66, struct minion_hs_receiver_s)
 
 /**
  * @brief Transfer data to/from the EEPROM
@@ -107,12 +107,12 @@ struct  minit_hs_receiver_s {
  * start    to_driver   Where in the EEPROM to start the read/write
  * length   to_driver   Number of bytes to read/write
  */
-struct minit_eeprom_transfer_s {
+struct minion_eeprom_transfer_s {
     __u64           data;
     __u32           start;
     __u32           length;
 } __attribute__(( packed ));
-#define MINIT_EEPROM_TRANSFER_SIZE 16
+#define MINION_EEPROM_TRANSFER_SIZE 16
 
 /**
  * For these defines the return values may indicate
@@ -122,19 +122,19 @@ struct minit_eeprom_transfer_s {
  *  EIO     Probably timed out
  *  ERANGE  Start and/or length are too big for the EEPROM
  */
-#define MINIT_IOCTL_EEPROM_READ  _IOWR('b', 67, struct minit_eeprom_transfer_s)
-#define MINIT_IOCTL_EEPROM_WRITE _IOWR('b', 68, struct minit_eeprom_transfer_s)
+#define MINION_IOCTL_EEPROM_READ  _IOWR('b', 67, struct minion_eeprom_transfer_s)
+#define MINION_IOCTL_EEPROM_WRITE _IOWR('b', 68, struct minion_eeprom_transfer_s)
 
 /**
  * @brief DMA data into memory, optionally with a signal when complete
  *
  * Use to submit transfers to the driver. When these are done, the driver will
  * send the process that submitted the transfer the signal [signal_number]. The
- * user-space process should then send a [MINIT_IOCTL_WHATS_COMPLETED] ioctl
+ * user-space process should then send a [MINION_IOCTL_WHATS_COMPLETED] ioctl
  * to get a list of transfers that are done.
  *
  * Signals will cause some system-calls to return early so decide if you want
- * use signals or just poll. with the MINIT_IOCTL_WHATS_COMPLETED ioctl.
+ * use signals or just poll. with the MINION_IOCTL_WHATS_COMPLETED ioctl.
  *
  * buffer        to-driver Pointer to a buffer that will contain the data read
  * buffer_size   to_driver The size of the abave buffer
@@ -146,16 +146,16 @@ struct minit_eeprom_transfer_s {
  *                         coalesced by the OS. If this value is 0 no signal
  *                         will be sent
  */
-struct minit_data_transfer_s {
+struct minion_data_transfer_s {
     __u64           buffer;
     __u32           buffer_size;
     __u32           transfer_id;
     __u32           signal_number;
     __u32           pid;
 } __attribute__(( packed ));
-#define MINIT_DATA_TRANSFER_SIZE 24
+#define MINION_DATA_TRANSFER_SIZE 24
 
-#define MINIT_IOCTL_SUBMIT_TRANSFER  _IOWR('b', 69, struct minit_data_transfer_s)
+#define MINION_IOCTL_SUBMIT_TRANSFER  _IOWR('b', 69, struct minion_data_transfer_s)
 
 /**
  * @brief information about a completed transfer
@@ -163,14 +163,14 @@ struct minit_data_transfer_s {
  * This is used to for the driver to pass information about completed transfers
  * back to the client/user-space
  *
- * transfer_id   from_driver matches up with transfer_id in minit_data_transfer_s
+ * transfer_id   from_driver matches up with transfer_id in minion_data_transfer_s
  * status        from_driver Non-zero indicates an error, zero success
  */
-struct minit_transfer_status_s {
+struct minion_transfer_status_s {
     __u32           transfer_id;
     __u32           status;// 0 = OK
 } __attribute__(( packed ));
-#define MINIT_TRANSFER_STATUS_SIZE 8
+#define MINION_TRANSFER_STATUS_SIZE 8
 
 /**
  * @todo: Add a pid field to we don't steal another processes completed transfers
@@ -187,25 +187,25 @@ struct minit_transfer_status_s {
  *           then the driver may have more completed transfers and another
  *           call to this IOCTL should be made to fetch them.
  */
-struct minit_completed_transfers_s {
+struct minion_completed_transfers_s {
     __u64           completed_transfers;
     __u32           completed_transfers_size;
     __u32           no_completed_transfers;
 } __attribute__(( packed ));
-#define MINIT_COMPLETED_TRANSFERS_SIZE 16
+#define MINION_COMPLETED_TRANSFERS_SIZE 16
 
 /**
  * After receiving a signal from the driver, the user-space code uses this
  * ioctl to enquire which transfers are done. When this IOCTL returns, the
  * transfers for which status is provided are completely disowned by the driver.
  */
-#define MINIT_IOCTL_WHATS_COMPLETED  _IOWR('b', 70, struct minit_completed_transfers_s)
+#define MINION_IOCTL_WHATS_COMPLETED  _IOWR('b', 70, struct minion_completed_transfers_s)
 
 /** Cancel all transfers */
-#define MINIT_IOCTL_CANCEL_TRANSFERS  _IO('b', 71)
+#define MINION_IOCTL_CANCEL_TRANSFERS  _IO('b', 71)
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif        //  #ifndef ONT_MINIT_IOCTL_H
+#endif        //  #ifndef MINION_IOCTL_H

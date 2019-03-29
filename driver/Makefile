@@ -1,8 +1,8 @@
-MODNAME := minit1c
+MODNAME := minion
 
 obj-m	:= $(MODNAME).o
 
-minit1c-objs :=  i2c-altera.o ont_minit1c.o dma.o
+minion-objs :=  i2c-altera.o minion_top.o dma.o
 
 # Work out the kernel version
 ifeq (,$(KERNELRELEASE))
@@ -17,9 +17,9 @@ PWD       := $(shell pwd)
 RM        := rm -f
 
 # source file groups
-SHARED_HEADERS := ont_minit_ioctl.h
-KERNEL_SRCS    := ont_minit1c.h dma.h ont_minit1c_reg.h $(minit1c-objs:.o=.c)
-UDEV_RULE      := 10-minit1c-perms.rules
+SHARED_HEADERS := minion_ioctl.h
+KERNEL_SRCS    := minion_top.h dma.h minion_reg.h $(minion-objs:.o=.c)
+UDEV_RULE      := 10-minion-perms.rules
 DISTFILES := Makefile $(UDEV_RULE) $(SHARED_HEADERS) $(KERNEL_SRCS)
 
 all: modules

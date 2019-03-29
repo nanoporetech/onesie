@@ -1,11 +1,11 @@
 # unless told otherwise, files will be installed in this directory
-PREFIX ?= /opt/ONT/minit1c-driver-utils
+PREFIX ?= /opt/ONT/minion1c-driver-utils
 RM        := rm -f
 
 # list of all the programs to build
-UTILS := minit-reg minit-hsrx minit-shift minit-eeprom minit-dma dma-audit
+UTILS := minion-reg minion-hsrx minion-shift minion-eeprom minion-dma dma-audit
 
-IOCTL := ../driver/ont_minit_ioctl.h
+IOCTL := ../driver/minion_ioctl.h
 
 CXXFLAGS += -std=c++11 -I ../driver -pthread -Wl,--no-as-needed
 

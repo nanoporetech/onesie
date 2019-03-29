@@ -25,7 +25,7 @@ endif
 
 # Extract a version string from the driver source it mus be the only thing
 # between quotes
-VERSION   := $(shell grep ONT_DRIVER_VERSION driver/ont_minit1c.h | sed -e 's/^.*"\([^"]*\)"$$/\1/')
+VERSION   := $(shell grep ONT_DRIVER_VERSION driver/minion_top.h | sed -e 's/^.*"\([^"]*\)"$$/\1/')
 all: utils driver test
 
 driver:
@@ -47,10 +47,10 @@ clean:
 	$(MAKE) -C utils $@
 	#$(MAKE) -C test $@
 	$(RM) -r package
-	$(RM) ont-minit1c-driver-dev_$(VERSION)-1~$(shell lsb_release -cs)_all.deb
-	$(RM) ont-minit1c-driver-dkms_$(VERSION)-1~$(shell lsb_release -cs)_all.deb
-	$(RM) ont-minit1c-driver-utils_$(VERSION)-1~$(shell lsb_release -cs)_amd64.deb
-	$(RM) ont-minit1c-driver-$(KVERS)_$(VERSION)-1~$(shell lsb_release -cs)_amd64.deb
+	$(RM) ont-minion1c-driver-dev_$(VERSION)-1~$(shell lsb_release -cs)_all.deb
+	$(RM) ont-minion1c-driver-dkms_$(VERSION)-1~$(shell lsb_release -cs)_all.deb
+	$(RM) ont-minion1c-driver-utils_$(VERSION)-1~$(shell lsb_release -cs)_amd64.deb
+	$(RM) ont-minion1c-driver-$(KVERS)_$(VERSION)-1~$(shell lsb_release -cs)_amd64.deb
 
 dist-deb:
 	# assmeble all the files under package
@@ -64,25 +64,25 @@ dist-deb:
 	sed -i -e "s/_ARCH_/$(DEB_ARCH)/g" package/debian/control
 	# debhelper version-9, changelog is just version number
 	echo 9 > package/debian/compat
-	echo "ont-minit1c-driver ($(VERSION)-1~$(shell lsb_release -cs)) unstable; urgency=low" > package/debian/changelog
+	echo "ont-minion1c-driver ($(VERSION)-1~$(shell lsb_release -cs)) unstable; urgency=low" > package/debian/changelog
 
 	# cleanup
 	cd package && fakeroot dh_prep
 	# add utils
-	$(MAKE) -C utils DESTDIR=$(PWD)/package/debian/ont-minit1c-driver-utils install
+	$(MAKE) -C utils DESTDIR=$(PWD)/package/debian/ont-minion1c-driver-utils install
 
 	# if this is a binary then make and add driver object file.
-	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then $(MAKE) -C driver DESTDIR=$(PWD)/package/debian/ont-minit1c-driver-$(KVERS) PREFIX=/usr install-modules; fi
+	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then $(MAKE) -C driver DESTDIR=$(PWD)/package/debian/ont-minion1c-driver-$(KVERS) PREFIX=/usr install-modules; fi
 	# add driver-includes and udev rules, add source files for DKMS
-	$(MAKE) -C driver DESTDIR=$(PWD)/package/debian/ont-minit1c-driver-dev PREFIX=/usr install-dev
-	$(MAKE) -C driver distdir=$(PWD)/package/debian/ont-minit1c-driver-dkms/usr/src/ont-minit1c-driver-$(VERSION) dist
-	$(MAKE) -C utils DESTDIR=$(PWD)/package/debian/ont-minit1c-driver-utils PREFIX=/usr install
+	$(MAKE) -C driver DESTDIR=$(PWD)/package/debian/ont-minion1c-driver-dev PREFIX=/usr install-dev
+	$(MAKE) -C driver distdir=$(PWD)/package/debian/ont-minion1c-driver-dkms/usr/src/ont-minion1c-driver-$(VERSION) dist
+	$(MAKE) -C utils DESTDIR=$(PWD)/package/debian/ont-minion1c-driver-utils PREFIX=/usr install
 	# change the DKMS version to match the driver
-	sed -e "s/_VERSION_/$(VERSION)/g" debian/dkms.conf.in > package/debian/ont-minit1c-driver-dkms.dkms
+	sed -e "s/_VERSION_/$(VERSION)/g" debian/dkms.conf.in > package/debian/ont-minion1c-driver-dkms.dkms
 	# generate .deb files to install binary driver
 	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then cd package && fakeroot dh_installmodules; fi
 	# generate .deb filse for the rest
-	cd package && fakeroot dh_dkms -pont-minit1c-driver-dkms
+	cd package && fakeroot dh_dkms -pont-minion1c-driver-dkms
 	cd package && fakeroot dh_installdeb
 	cd package && fakeroot dh_gencontrol
 	cd package && fakeroot dh_builddeb

@@ -1,4 +1,4 @@
-#include "ont_minit_ioctl.h"
+#include "minion_ioctl.h"
 
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -31,14 +31,14 @@ void shift_ioctl(
         throw std::runtime_error("Failed to open device node");
     }
 
-    struct minit_shift_reg_s shift_ioctl{
+    struct minion_shift_reg_s shift_ioctl{
         reinterpret_cast<std::uintptr_t>(write ? output_data.data() : nullptr),
         reinterpret_cast<std::uintptr_t>(input_data.data()),
         frequency,
         start,
         enable
     };
-    const auto rc = ioctl(fd, MINIT_IOCTL_SHIFT_REG, &shift_ioctl);
+    const auto rc = ioctl(fd, MINION_IOCTL_SHIFT_REG, &shift_ioctl);
     if (rc < 0) {
         throw std::runtime_error(strerror(errno));
     }
@@ -47,7 +47,7 @@ void shift_ioctl(
 void usage()
 {
     std::cerr
-        << "usage minit-shift [-x] [-e] [-s] [-f frequency ] <device>\n"
+        << "usage minion-shift [-x] [-e] [-s] [-f frequency ] <device>\n"
         << " -x, --hex        Output will be in hexadecimal csv\n"
         << " -e, --enable     Set the mod-enable bit\n"
         << " -s, --start      Set the start-bit\n"

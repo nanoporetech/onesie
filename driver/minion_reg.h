@@ -1,11 +1,11 @@
 /**
- * ont_minit1c_reg.h
+ * minion_reg.h
  *
  * Copyright (C) 2019 Oxford Nanopore Technologies Ltd.
  *
  * Author: <info@nanoporetech.com>
  *
- * This file contains register definitions for the MinIT-1C firmware, the sort
+ * This file contains register definitions for the MinION-1C firmware, the sort
  * of stuff that could be generated automatically by tools from the firmware
  * code.
  *
@@ -20,8 +20,8 @@
  * GNU General Public License for more details.
  */
 
-#ifndef ONT_MINIT1C_REG_H
-#define ONT_MINIT1C_REG_H
+#ifndef MINION_REG_H
+#define MINION_REG_H
 
 #define PCIe_LANE_CLOCK 62500000 //62.5 MHz
 
@@ -87,4 +87,4 @@
 
 
 
-#endif        //  #ifndef ONT_MINIT1C_REG_H
+#endif        //  #ifndef MINION_REG_H

@@ -1,4 +1,4 @@
-#include "ont_minit_ioctl.h"
+#include "minion_ioctl.h"
 
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -16,7 +16,7 @@
 
 void hs_receiver_ioctl(
         const std::string& device,
-        std::array<std::uint16_t, MINIT_IOCTL_HS_RECEIVER_REG_SIZE>& data)
+        std::array<std::uint16_t, MINION_IOCTL_HS_RECEIVER_REG_SIZE>& data)
 {
     // try and open file
     int fd = open(device.c_str(), O_RDWR);
@@ -24,16 +24,16 @@ void hs_receiver_ioctl(
         throw std::runtime_error("Failed to open device node");
     }
 
-    struct minit_hs_receiver_s hs_rx_ioctl;
-    for (unsigned int i(0); i < MINIT_IOCTL_HS_RECEIVER_REG_SIZE ;++i) {
+    struct minion_hs_receiver_s hs_rx_ioctl;
+    for (unsigned int i(0); i < MINION_IOCTL_HS_RECEIVER_REG_SIZE ;++i) {
         hs_rx_ioctl.registers[i] = data.at(i);
     }
     hs_rx_ioctl.write = 1;
-    const auto rc = ioctl(fd, MINIT_IOCTL_HS_RECIEVER, &hs_rx_ioctl);
+    const auto rc = ioctl(fd, MINION_IOCTL_HS_RECIEVER, &hs_rx_ioctl);
     if (rc < 0) {
         throw std::runtime_error(strerror(rc));
     }
-    for (unsigned int i(0); i < MINIT_IOCTL_HS_RECEIVER_REG_SIZE ;++i) {
+    for (unsigned int i(0); i < MINION_IOCTL_HS_RECEIVER_REG_SIZE ;++i) {
         data.at(i) = hs_rx_ioctl.registers[i];
     }
 }
@@ -105,7 +105,7 @@ int main(int argc, char* argv[]) {
         usage();
     }
 
-    std::array<std::uint16_t, MINIT_IOCTL_HS_RECEIVER_REG_SIZE> regs{0};
+    std::array<std::uint16_t, MINION_IOCTL_HS_RECEIVER_REG_SIZE> regs{0};
     regs[0] |= enable ? 1 : 0;
     regs[0] |= reset  ? 2 : 0;
 

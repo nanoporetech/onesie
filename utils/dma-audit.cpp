@@ -1,5 +1,5 @@
 /**
- * This should read in a binary file output from minit-dma via stdin and audit the data
+ * This should read in a binary file output from minion-dma via stdin and audit the data
  * checking for gaps in frame-numbers, consistent asic-id, sampling frequency, etc.
  */
 

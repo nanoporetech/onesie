@@ -5,7 +5,7 @@ MinION flowcell over a PCIe link.
 
 ## Getting Started
 
-Build with `make all` and start with `insmod driver/minit-1c.ko`
+Build with `make all` and start with `insmod driver/minion.ko`
 
 Check the kernel logs (`dmesg`) to see if the driver has found hardware. Currently the
 driver doesn't create a device-node so you have to run through a couple of steps to

@@ -1,5 +1,5 @@
 /**
- * dma.c
+ * dma.h
  *
  * Copyright (C) 2019 Oxford Nanopore Technologies Ltd.
  *
@@ -85,7 +85,7 @@ struct transfer_job_s;
 /**
  * @brief extended descriptor with some software bits on the end
  */
-struct __attribute__((__packed__, aligned(4) )) minit_dma_extdesc_s {
+struct __attribute__((__packed__, aligned(4) )) minion_dma_extdesc_s {
     u32 read_lo_phys;           // 00
     u32 write_lo_phys;          // 04
     u32 length;                 // 08
@@ -103,10 +103,10 @@ struct __attribute__((__packed__, aligned(4) )) minit_dma_extdesc_s {
     u32 reserved_0x38;          // 38
     u32 control;                // 3c
     struct transfer_job_s* driver_ref;
-    struct minit_dma_extdesc_s* next_desc_virt;
+    struct minion_dma_extdesc_s* next_desc_virt;
 };
 
-typedef struct __attribute__((__packed__, aligned(4) )) minit_dma_extdesc_s minit_dma_extdesc_t;
+typedef struct __attribute__((__packed__, aligned(4) )) minion_dma_extdesc_s minion_dma_extdesc_t;
 
 #define ALTERA_DMA_DESC_CONTROL_TX_CHAN_SHIFT       0
 #define ALTERA_DMA_DESC_CONTROL_TX_CHAN_MASK        0x000000ff
@@ -146,11 +146,11 @@ struct transfer_job_s {
     struct file* file;
 
     // DMA descriptor chain virtual and dma addreses
-    minit_dma_extdesc_t* descriptor;
+    minion_dma_extdesc_t* descriptor;
     dma_addr_t descriptor_phys;
 
     // DMA descriptor terminating the descriptor chain
-    minit_dma_extdesc_t* terminal_desc;
+    minion_dma_extdesc_t* terminal_desc;
     dma_addr_t terminal_desc_phys;
 
     u16 sequence_no; // for us to track transfers.
@@ -179,7 +179,7 @@ struct altr_dma_dev {
     struct work_struct finishing_work;
 
     // DMA descriptor terminating the descriptor chain
-    minit_dma_extdesc_t* terminal_desc;
+    minion_dma_extdesc_t* terminal_desc;
     dma_addr_t terminal_desc_phys;
 
     // source of sequence-numbers, use hardware_lock when modifying

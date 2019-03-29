@@ -21,16 +21,16 @@
 #include <linux/spinlock.h>
 #include <linux/delay.h>
 
-#include "ont_minit1c.h"
-#include "ont_minit_ioctl.h"
-#include "ont_minit1c_reg.h"
+#include "minion_top.h"
+#include "minion_ioctl.h"
+#include "minion_reg.h"
 #include "dma.h"
 
 /**
  * @brief Dump a descriptor chain element
  * @param desc pointer to the descriptor
  */
-static void dump_descriptor(minit_dma_extdesc_t* desc)
+static void dump_descriptor(minion_dma_extdesc_t* desc)
 {
     u64 big_no;
     if (!desc) {
@@ -91,7 +91,7 @@ static void dump_descriptor(minit_dma_extdesc_t* desc)
  */
 static void dump_job(struct transfer_job_s* job)
 {
-    minit_dma_extdesc_t* desc;
+    minion_dma_extdesc_t* desc;
 
     if (!job) {
         printk(KERN_ERR"NULL!\n");
@@ -409,7 +409,7 @@ static void reset_dma_hardware(struct altr_dma_dev* adma)
 }
 
 // copies the descriptors, but makes sure to copy the control field last.
-static void desc_copy(minit_dma_extdesc_t* dst, const minit_dma_extdesc_t* src)
+static void desc_copy(minion_dma_extdesc_t* dst, const minion_dma_extdesc_t* src)
 {
     dst->read_lo_phys  = src->read_lo_phys;
     dst->write_lo_phys = src->write_lo_phys;
@@ -473,8 +473,8 @@ static void start_transfer_idle_nolocking(struct altr_dma_dev* adma, struct tran
 // if busy, then:
 static void add_transfer_busy_nolocking(struct altr_dma_dev* adma, struct transfer_job_s* job)
 {
-    minit_dma_extdesc_t* desc;
-    minit_dma_extdesc_t* first;
+    minion_dma_extdesc_t* desc;
+    minion_dma_extdesc_t* first;
     dma_addr_t desc_phys;
     dma_addr_t first_phys;
     VPRINTK("add to end of descriptor chain\n");
@@ -544,11 +544,11 @@ static void submit_transfer_to_hw_or_queue(struct altr_dma_dev* adma, struct tra
  */
 static void free_descriptor_list(struct altr_dma_dev* adma, struct transfer_job_s* job)
 {
-    minit_dma_extdesc_t* desc = job->descriptor;
+    minion_dma_extdesc_t* desc = job->descriptor;
     dma_addr_t desc_phys = job->descriptor_phys;
     VPRINTK("free desc list\n");
     while (desc && desc->driver_ref == job) {
-        minit_dma_extdesc_t* next = desc->next_desc_virt;
+        minion_dma_extdesc_t* next = desc->next_desc_virt;
         dma_addr_t next_phys = descriptor_get_phys(&desc->next_desc_hi_phys, &desc->next_desc_lo_phys);
         dma_pool_free(adma->descriptor_pool, desc, desc_phys);
         desc = next;
@@ -565,9 +565,9 @@ static void free_descriptor_list(struct altr_dma_dev* adma, struct transfer_job_
  * @param prev
  * @return
  */
-static long terminal_descriptor(struct altr_dma_dev* adma, struct transfer_job_s* job, minit_dma_extdesc_t* prev)
+static long terminal_descriptor(struct altr_dma_dev* adma, struct transfer_job_s* job, minion_dma_extdesc_t* prev)
 {
-    minit_dma_extdesc_t* desc;
+    minion_dma_extdesc_t* desc;
     dma_addr_t desc_phys;
     desc = dma_pool_alloc(adma->descriptor_pool, GFP_KERNEL, &desc_phys);
     if (!desc) {
@@ -575,7 +575,7 @@ static long terminal_descriptor(struct altr_dma_dev* adma, struct transfer_job_s
         return -ENOMEM;
     }
     VPRINTK("terminal descriptor allocated at %p\n",desc);
-    memset(desc, 0, sizeof(minit_dma_extdesc_t));
+    memset(desc, 0, sizeof(minion_dma_extdesc_t));
     job->terminal_desc = desc;
     job->terminal_desc_phys = desc_phys;
     prev->next_desc_virt = desc;
@@ -605,7 +605,7 @@ static long create_descriptor_list(struct altr_dma_dev* adma, struct transfer_jo
     int descriptor_no = 0;
     int rc;
 
-    minit_dma_extdesc_t* prev_desc = NULL;
+    minion_dma_extdesc_t* prev_desc = NULL;
 
     VPRINTK("create_descriptor_list\n");
     // allocate DMA descriptors for transfer from dma-pool
@@ -613,7 +613,7 @@ static long create_descriptor_list(struct altr_dma_dev* adma, struct transfer_jo
         unsigned int length = sg_dma_len(sg_elem);
         dma_addr_t dma_address = sg_dma_address(sg_elem);
         while (length) {
-            minit_dma_extdesc_t* desc;
+            minion_dma_extdesc_t* desc;
             dma_addr_t desc_phys;
             desc = dma_pool_alloc(adma->descriptor_pool, GFP_KERNEL, &desc_phys);
             VPRINTK("allocated memory for desciptor at %p (phys 0x%016llx)\n", desc, desc_phys);
@@ -683,7 +683,7 @@ err_free_descriptors:
  * in this function
  * @return < 0 if an error.
  */
-long queue_data_transfer(struct altr_dma_dev* adma, struct minit_data_transfer_s* transfer,struct file* file)
+long queue_data_transfer(struct altr_dma_dev* adma, struct minion_data_transfer_s* transfer,struct file* file)
 {
     long rc = 0;
     struct page** pages;
@@ -803,7 +803,7 @@ err:
  *
  * Returns details about completed transfers and frees resources associated with the transfer
  */
-u32 get_completed_data_transfers(struct altr_dma_dev* adma, u32 max_elem, struct minit_transfer_status_s* statuses)
+u32 get_completed_data_transfers(struct altr_dma_dev* adma, u32 max_elem, struct minion_transfer_status_s* statuses)
 {
     u32 i;
 
@@ -941,7 +941,7 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
     // length and > 0.
     list_for_each_entry_safe(job, temp, &adma->transfers_on_hardware, list) {
         u32 transferred_bytes = 0;
-        minit_dma_extdesc_t* desc;
+        minion_dma_extdesc_t* desc;
 
         VPRINTK("Job %p\n", job);
 
@@ -1025,7 +1025,7 @@ static void post_transfer(struct work_struct *work)
     }
 }
 
-int altera_sgdma_probe(struct minit_device_s* mdev) {
+int altera_sgdma_probe(struct minion_device_s* mdev) {
     /// @TODO confirm correct version of hardware
 
     // construct dma coordination structure and link with driver
@@ -1049,7 +1049,7 @@ int altera_sgdma_probe(struct minit_device_s* mdev) {
     adma->descriptor_pool = dmam_pool_create(
                 "MinION DMA",
                 &mdev->pci_device->dev,
-                sizeof(minit_dma_extdesc_t) * INITIAL_DESCRIPTOR_POOL_SIZE,
+                sizeof(minion_dma_extdesc_t) * INITIAL_DESCRIPTOR_POOL_SIZE,
                 4, // alignment
                 0);// boundary
     if (!adma->descriptor_pool) {
@@ -1058,7 +1058,7 @@ int altera_sgdma_probe(struct minit_device_s* mdev) {
     }
 
     // create workqueue and work to do the post-transfer unmapping and callbacks
-    adma->finishing_queue = create_singlethread_workqueue("minit-post-transfer");
+    adma->finishing_queue = create_singlethread_workqueue("minion-post-transfer");
     INIT_WORK(&adma->finishing_work, post_transfer);
 
     // allocate a terminal descriptor
@@ -1067,14 +1067,14 @@ int altera_sgdma_probe(struct minit_device_s* mdev) {
         DPRINTK("Unable to allocate a terminal dma descriptors\n");
         return -ENOMEM;
     }
-    memset(adma->terminal_desc, 0, sizeof(minit_dma_extdesc_t));
+    memset(adma->terminal_desc, 0, sizeof(minion_dma_extdesc_t));
 
     crazy_dump_debug(adma);
     return 0;
 }
 
 void altera_sgdma_remove(void* ptr) {
-    struct minit_device_s* mdev = (struct minit_device_s* )ptr;
+    struct minion_device_s* mdev = (struct minion_device_s* )ptr;
     struct altr_dma_dev* adma = mdev->dma_dev;
     DPRINTK("altera_sgdma_remove\n");
     if (!adma) {
