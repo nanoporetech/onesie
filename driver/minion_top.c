@@ -49,6 +49,7 @@ static void free_link(struct minion_device_s* , const struct historical_link_mod
  */
 static struct pci_device_id pci_ids[] = {
     { PCI_DEVICE(0x1ab0, 0x0010) }, // Altera development card
+    { PCI_DEVICE(0x1e59, 0x0001) }, // Nanopore Tech Hardware
     { 0 }
 };
 
