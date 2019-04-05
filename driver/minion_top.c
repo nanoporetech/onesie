@@ -252,7 +252,7 @@ static long minion_shift_register_access(
         const u8 start,
         const u8 enable,
         const u32 clk,
-        const u8 cmd_id)
+        u8* cmd_id)
 {
     struct historical_link_mode old_link_mode;
     long rc;
@@ -299,7 +299,9 @@ static long minion_shift_register_access(
     writeb(control, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
     wmb();
 
-    writeb(cmd_id, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CMD_ID);
+    if (to_dev) {
+        writeb(*cmd_id, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CMD_ID);
+    }
 
     if (from_dev) {
         int i;
@@ -311,6 +313,7 @@ static long minion_shift_register_access(
             from_dev[i] = readb(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
             VPRINTK("Shift from dev: 0x%02x <= %p\n",from_dev[i],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
         }
+        *cmd_id = readb(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CMD_ID);
     }
 
     free_link(mdev, &old_link_mode);
@@ -701,7 +704,7 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                         shift_reg_access.start,
                         shift_reg_access.enable,
                         shift_reg_access.clock_hz,
-                        shift_reg_access.command_id);
+                        &shift_reg_access.command_id);
             if (rc) {
                 DPRINTK("shift register operation failed\n");
                 return rc;
