@@ -66,6 +66,8 @@ struct minion_register_s {
  *                      requested
  * start    to-driver   Sets start-bit if non-zero
  * enable   to-driver   Sets enable-bit it non-zero
+ * command_id to-driver Appears in the DMA meta-data, helps associate commands
+ *                      with their effects
  */
 struct minion_shift_reg_s {
     __u64   to_device;
@@ -73,7 +75,8 @@ struct minion_shift_reg_s {
     __u32   clock_hz;
     __u8    start;
     __u8    enable;
-    __u16   padding; // must be zero
+    __u8    command_id;
+    __u8   padding; // must be zero
 } __attribute__(( packed ));
 #define MINION_SHIFT_REG_SIZE 24
 

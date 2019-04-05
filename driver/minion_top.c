@@ -242,6 +242,7 @@ static long minion_reg_access(struct minion_device_s* mdev, struct minion_regist
  * @param enable enable module
  * @param clk clockspeed in Hz, this will be achieved by integer division of
  * the 62.5 MHz PCIe clock
+ * @param cmd_id command-id
  * @return
  */
 static long minion_shift_register_access(
@@ -250,7 +251,8 @@ static long minion_shift_register_access(
         char* const from_dev,
         const u8 start,
         const u8 enable,
-        const u32 clk)
+        const u32 clk,
+        const u8 cmd_id)
 {
     struct historical_link_mode old_link_mode;
     long rc;
@@ -296,6 +298,8 @@ static long minion_shift_register_access(
     VPRINTK("shift reg control 0x%02x => %p\n", control, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
     writeb(control, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
     wmb();
+
+    writeb(cmd_id, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CMD_ID);
 
     if (from_dev) {
         int i;
@@ -696,7 +700,8 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                         shift_reg_access.from_device ? shift_reg : NULL,
                         shift_reg_access.start,
                         shift_reg_access.enable,
-                        shift_reg_access.clock_hz);
+                        shift_reg_access.clock_hz,
+                        shift_reg_access.command_id);
             if (rc) {
                 DPRINTK("shift register operation failed\n");
                 return rc;

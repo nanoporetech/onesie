@@ -63,6 +63,7 @@
 #define ASIC_SHIFT_OUTPUT_BUF   0
 #define ASIC_SHIFT_INPUT_BUF    0x180
 #define ASIC_SHIFT_CTRL         0x300
+#define ASIC_SHIFT_CMD_ID       0x301
 
 #define ASIC_SHIFT_CTRL_EN      (1 << 0)
 #define ASIC_SHIFT_CTRL_ST      (1 << 1)

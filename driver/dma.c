@@ -234,7 +234,7 @@ static void dump_dma_registers(struct altr_dma_dev* adma) {
     reg = readl(adma->prefetcher_base + PRE_NEXT_DESC_LO);
     printk(KERN_ERR"PRE_NEXT_DESC_LO = 0x%08x\n",reg);
     hi = readl(adma->prefetcher_base + PRE_NEXT_DESC_HI);
-    printk(KERN_ERR"PRE_NEXT_DESC_HI = 0x%08x\n",hi);
+    printk(KERN_ERR"PRE_NEXT_DESC_HI = 0x%08x\n",(u32)hi);
     printk(KERN_ERR" next descriptor address 0x%016llx\n", (hi << 32) + reg);
 
     reg = readl(adma->prefetcher_base + PRE_DESC_POLL_FREQ);
