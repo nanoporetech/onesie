@@ -52,6 +52,9 @@
 #define ASIC_HS_RECEIVER_BASE   0x05008000
 #define NUM_HS_REGISTERS 12
 
+#define ASIC_HS_RECEIVER_REMAP  0x400
+
+
 /* bitmask of HS Reveiver registers that can be written */
 #define ASIC_HS_REG_WRITE_MASK  0x00000001
 

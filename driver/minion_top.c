@@ -937,6 +937,34 @@ static irqreturn_t minion_isr(int irq, void* _dev)
     return IRQ_NONE;
 }
 
+void setup_channel_remapping_memory(struct minion_device_s* mdev)
+{
+    /* This code is based on an algorithm found in the USB MinION firmware in
+     * asicDataRecieverV1.v line 483 */
+    u16 physical, logical, masked_logical;
+    for (logical = 0; logical < 512; ++logical) {
+        masked_logical = logical & ~0x101;
+        switch (logical & 0x101) {
+        case 0x000: // Line 1 even channels: 0,2,4,6.. 254
+            physical = masked_logical | 0x000;
+            break;
+        case 0x001: // Line 2 even channels: 256, 258, 260 ... 510
+            physical = masked_logical | 0x100;
+            break;
+        case 0x100: // Line 1 odd channels: 1,3,5,7 ... 255
+            physical = masked_logical | 0x001;
+            break;
+        case 0x101: // Line 2 odd channels: 257, 259, 261 ... 511
+            physical = masked_logical | 0x101;
+            break;
+        }
+
+        // write the physical source for each logical channel into the remapper memory
+        writew(physical, (u16*)(mdev->ctrl_bar + ASIC_HS_RECEIVER_REMAP) + logical);
+    }
+}
+
+
 /**
  * This should:
  *  Verify that we're talking to usable minion hardware.
@@ -1079,6 +1107,8 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 
     // enable clock in ASIC control
     writeb(ASIC_CTRL_CLK_128, mdev->ctrl_bar + ASIC_CTRL_BASE);
+
+    setup_channel_remapping_memory(mdev);
 
     DPRINTK("probe finished successfully\n");
 err:
