@@ -25,6 +25,9 @@
 
 static_assert(sizeof(struct minion_data_transfer_s) == MINION_DATA_TRANSFER_SIZE , "ioctl size wrong");
 
+static const unsigned int frame_size = 1056;
+static const unsigned int max_frames_per_packet = 511;
+
 class transfer {
 public:
     typedef std::vector<char> buffer_t;
@@ -92,15 +95,18 @@ protected:
     static transfer_manager* _instance ;
     std::size_t _max_queue_size;
     std::size_t _transfer_size;
+    unsigned int _frames_per_packet;
     int _fd;
     std::deque< std::shared_ptr<transfer>> _transfers;
 private:
     transfer_manager(
             const int fd,
             const std::size_t size,
-            const std::size_t max_queue_size)
+            const std::size_t max_queue_size,
+            const unsigned int fpp)
         :_max_queue_size(max_queue_size)
         ,_transfer_size(size)
+        ,_frames_per_packet(fpp)
         ,_fd(fd)
     {
         // associate signals with a the signal_receiver() function
@@ -165,7 +171,7 @@ private:
      * @param enable set enable bit allowing data to be transferred
      * @param reset set reset bit resetting the hs-receiver core.
      */
-    void hs_receiver(const bool enable, const bool reset)
+    void hs_receiver(const bool enable, const bool reset, const unsigned int frames)
     {
 
         struct minion_hs_receiver_s hs_rx_ioctl;
@@ -173,13 +179,22 @@ private:
         hs_rx_ioctl.write = 1;
         hs_rx_ioctl.registers[0] |= enable ? 1 : 0;
         hs_rx_ioctl.registers[0] |= reset  ? 2 : 0;
+        hs_rx_ioctl.registers[11] = frames;
 
         std::cerr << " hs_rx "
                   << (enable ? "enable " : ". ")
                   << (reset  ? "reset " : ". ")
+                  << frames << " frames per packet"
                   << std::endl;
 
         const auto rc = ioctl(_instance->_fd, MINION_IOCTL_HS_RECIEVER, &hs_rx_ioctl);
+        if (rc < 0) {
+            throw std::runtime_error(strerror(rc));
+        }
+    }
+
+    void cancel_transfers() {
+        const auto rc = ioctl(_instance->_fd, MINION_IOCTL_CANCEL_TRANSFERS);
         if (rc < 0) {
             throw std::runtime_error(strerror(rc));
         }
@@ -188,12 +203,14 @@ public:
     static transfer_manager* setup(
         const int fd,
         const std::size_t size,
-        const std::size_t max_queue_size)
+        const std::size_t max_queue_size,
+        const unsigned int fpp)
     {
         if (_instance) {
             throw std::runtime_error("already setup");
         }
-        _instance = new transfer_manager(fd, size, max_queue_size);
+        const auto frames_per_packet = std::min(fpp, max_frames_per_packet);
+        _instance = new transfer_manager(fd, size, max_queue_size, frames_per_packet);
         return _instance;
     }
 
@@ -211,8 +228,9 @@ public:
 
         // if resetting put hs-receiver into reset
         if (reset) {
-            _instance->hs_receiver(false, true);
-            _instance->hs_receiver(true, true);
+            _instance->hs_receiver(false, false, _instance->_frames_per_packet);
+            _instance->hs_receiver(false, true, _instance->_frames_per_packet);
+            _instance->cancel_transfers();
             in_reset = true;
         }
 
@@ -233,7 +251,7 @@ public:
 
             // if in reset, take the hs-receiver out of reset
             if (in_reset) {
-                _instance->hs_receiver(true, false);
+                _instance->hs_receiver(false, false, _instance->_frames_per_packet);
                 in_reset = false;
             }
 
@@ -355,6 +373,16 @@ int main(int argc, char* argv[]) {
         usage();
     }
 
+    // warn if the transfer size is not a multiple of the frame-size
+    if (size % frame_size != 0) {
+        std::cerr << "Warning: transfer-size of " << size << " is not a multiple of the frame-size (" << frame_size << ")\n";
+    }
+
+    // warn if the transfer size is more than the max packet size
+    if (size > (frame_size * max_frames_per_packet)) {
+        std::cerr << "Warning: transfer-size is larger that the maximum number of frames per packet (512)\n";
+    }
+
     try {
         // open device file
         int fd = open(device.c_str(), O_RDWR);
@@ -362,7 +390,7 @@ int main(int argc, char* argv[]) {
             throw std::runtime_error("Failed to open device node");
         }
 
-        auto* manager = transfer_manager::setup(fd, size, max_queue_size);
+        auto* manager = transfer_manager::setup(fd, size, max_queue_size, size / frame_size);
         manager->stream_data(std::cout, no_transfers, stream, reset);
     } catch (std::runtime_error& e) {
         std::cerr << e.what() << std::endl;

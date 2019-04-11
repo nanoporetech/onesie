@@ -56,7 +56,7 @@
 
 
 /* bitmask of HS Reveiver registers that can be written */
-#define ASIC_HS_REG_WRITE_MASK  0x00000001
+#define ASIC_HS_REG_WRITE_MASK  ((1 << 0) | (1 << 0xb) | (1 << 0xc))
 
 
 /* ASIC shift register base, buffers and control register */

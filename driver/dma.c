@@ -298,7 +298,7 @@ static unsigned int get_max_transfer_size(struct altr_dma_dev* adma)
     u32 reg;
     reg = READL(adma->msgdma_base + MSGDMA_CONFIG_1);
     if (!reg) {
-        return 1044; // the frame size
+        return 2048;
     } else {
         // use the max transfer sizefrom the hardware config register
         return 1 << (((reg & 0xf8000000) >> 27) + 10);

@@ -8,8 +8,8 @@
 #include <array>
 #include <stdexcept>
 
-static const std::size_t frame_length = 522; //522 D-words
-typedef std::array<std::uint16_t, 522> frame_t;
+static const std::size_t frame_length = 528; //522 D-words
+typedef std::array<std::uint16_t, frame_length> frame_t;
 
 void byteswap(std::uint16_t& data)
 {
@@ -34,7 +34,7 @@ int main(int argc, char* argv[])
         std::uint16_t temp;
         std::uint16_t asic_config_id;
 
-        // check a 16-bit value in the frame matches an expected value
+        // check a 16-bit value in the frame matches an expected value, update if different
         const auto check_and_update_word = [&](const unsigned int index, std::uint16_t& value, const std::string& name)->void
         {
             if (frame[index] != value) {
@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
                 value = frame[index];
             }
         };
-        // check a 32-bit value in the frame matches an expected value
+        // check a 32-bit value in the frame matches an expected value, update if different
         const auto check_and_update_quad = [&](const unsigned int index, std::uint32_t& value, const std::string& name)->void
         {
             std::uint32_t quad = frame[index+1];
@@ -69,6 +69,21 @@ int main(int argc, char* argv[])
                 value = quad;
             }
         };
+
+        // check a 32-bit value in the frame matches an expected value
+        const auto check_quad = [&](const unsigned int index, std::uint32_t value, const std::string& name)->void
+        {
+            std::uint32_t quad = frame[index+1];
+            quad <<= 16;
+            quad |= frame[index];
+
+            if (quad != value) {
+                std::cout << name << " is incorrect (expected " << value
+                          << " now " << quad << ") index " << pos + (index * 2)
+                          << std::endl;
+            }
+        };
+
         std::cout << std::hex;
         while (!in.eof()) {
             in.read((char*)frame.data(), frame.size() * 2);
@@ -83,6 +98,7 @@ int main(int argc, char* argv[])
             check_and_update_word(519, bias_volt, "bias voltage");
             check_and_update_word(520, temp, "heatsink temp");
             check_and_update_word(521, asic_config_id, "asic_config_id");
+            check_quad(           526, 0xcafebabe, "end of frame marker");
 
             // increment within 24-bit limits
             ++frame_no;

@@ -44,22 +44,16 @@ void usage()
         << "usage minit-hsrx [-wx] <device>\n"
         << " -e, --enable     Set write enable bit\n"
         << " -r, --sync-reset Set the sync-reset bit\n"
-        << " -x, --hex        Output will be in hexadecimal csv\n";
+        << " -x, --hex        Output will be in hexadecimal csv\n"
+        << " -f, --frames     Number of frames in a packet (1-511)\n";
     exit(1);
 }
-
-
-/*
- * usage minit-hsrx [-erx] <device>
- * -e, --enable     set write enable bit
- * -r, --sync-reset set the sync-reset bit
- * -x, --hex input and output will be in hexadecimal csv
- */
 
 int main(int argc, char* argv[]) {
     bool enable = false;
     bool reset = false;
     bool hex = false;
+    unsigned int frames = 1;
     std::string device;
 
     // parse options
@@ -78,6 +72,23 @@ int main(int argc, char* argv[]) {
         }
         if (arg == "-r" || arg == "--sync-reset") {
             reset = true;
+            continue;
+        }
+        if (arg == "-f" || arg == "--frames") {
+            ++index;
+            std::string field(argv[index]);
+            try {
+                frames = (unsigned int)std::stoul(field,0,0);
+                if (frames> 511) {
+                    throw std::out_of_range("bigger than 511");
+                }
+            } catch(std::invalid_argument& e) {
+                std::cerr << "couldn't convert '" << field << "'to a number" << std::endl;
+                exit(1);
+            } catch(std::out_of_range& e) {
+                std::cerr << "'" << field << "'is " << e.what() << std::endl;
+                exit(1);
+            }
             continue;
         }
 
@@ -108,7 +119,7 @@ int main(int argc, char* argv[]) {
     std::array<std::uint16_t, MINION_IOCTL_HS_RECEIVER_REG_SIZE> regs{0};
     regs[0] |= enable ? 1 : 0;
     regs[0] |= reset  ? 2 : 0;
-
+    regs[11] = frames;
     try {
         hs_receiver_ioctl(device, regs);
     } catch (std::exception& e) {
