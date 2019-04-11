@@ -388,7 +388,7 @@ static int dma_busy(struct altr_dma_dev* adma)
 }
 
 /**
- * @brief reset dma hardware. Call holding hardware_lock
+ * @brief reset dma hardware. will sleep.
  * @param adma
  */
 static void reset_dma_hardware(struct altr_dma_dev* adma)
@@ -397,16 +397,32 @@ static void reset_dma_hardware(struct altr_dma_dev* adma)
     /// sort of error and mark the hardware as broken so user-space apps can
     /// save their data.
 
-    // reset prefetcher and wait for hardware to clear reset
+    // reset prefetcher
     WRITEL(PRE_CTRL_RESET, adma->prefetcher_base + PRE_CONTROL);
-    while(READL(adma->prefetcher_base + PRE_CONTROL) & PRE_CTRL_RESET)
-        ;
+    // wait for prefetcher to clear
+    while(READL(adma->prefetcher_base + PRE_CONTROL) & PRE_CTRL_RESET) {
+        set_current_state(TASK_INTERRUPTIBLE);
+        schedule();
+        set_current_state(TASK_RUNNING);
+        if (signal_pending(current)) {
+            printk(KERN_WARNING"prefetcher reset didn't finish");
+            return;
+        }
+    }
 
-    // reset mSGDMA/dispatcher core and wait for the hardware to clear reset
+    // reset dispatcher in msgdma core
     WRITEL(MSGDMA_CTRL_RESET_DISPATCH, adma->msgdma_base + MSGDMA_CONTROL);
-    while(READL(adma->msgdma_base + MSGDMA_STATUS) & MSGDMA_STATUS_RESETTING)
-        ;
 
+    // wait for mSGDMA/dispatcher clear reset
+    while(READL(adma->msgdma_base + MSGDMA_STATUS) & MSGDMA_STATUS_RESETTING) {
+        set_current_state(TASK_INTERRUPTIBLE);
+        schedule();
+        set_current_state(TASK_RUNNING);
+        if (signal_pending(current)) {
+            printk(KERN_WARNING"DMA core reset didn't finish");
+            return;
+        }
+    }
 }
 
 // copies the descriptors, but makes sure to copy the control field last.
@@ -848,8 +864,8 @@ long cancel_data_transfers(struct altr_dma_dev* adma)
     struct transfer_job_s* temp;
 
     // stop hardware
-    spin_lock_irqsave(&adma->hardware_lock, flags);
     reset_dma_hardware(adma);
+    spin_lock_irqsave(&adma->hardware_lock, flags);
 
     // dispose of all the jobs either on the hardware or associated with the descriptor chain
     list_for_each_entry_safe(job, temp, &adma->transfers_on_hardware, list) {
@@ -888,7 +904,7 @@ long cancel_data_transfers(struct altr_dma_dev* adma)
     spin_unlock_irqrestore(&adma->done_lock, flags);
 
     // not found
-    return -EINVAL;
+    return 0;
 }
 
 /**
