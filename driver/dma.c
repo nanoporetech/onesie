@@ -71,17 +71,18 @@ static void dump_descriptor(minion_dma_extdesc_t* desc)
     printk(KERN_ERR"        %s %s %s error-enable 0x%02x, %s %s %s %s %s %s %s transmit-channel %d\n",
            desc->control & (1<<31) ? "GO" : ".",
            desc->control & (1<<30) ? "HW" : ".",
-           desc->control & (1<<24) ? "EARLY DONE" : ".",
+           desc->control & (1<<24) ? "EARLY-DONE" : ".",
            (desc->control & 0x00ff0000) >> 16,
-           desc->control & (1<<15) ? "EARLY TERM IRQ" : ".",
-           desc->control & (1<<14) ? "TRANS DONE IRQ" : ".",
-           desc->control & (1<<12) ? "END EOP" : ".",
-           desc->control & (1<<11) ? "PARK WRITES" : ".",
-           desc->control & (1<<10) ? "PARK READS" : ".",
-           desc->control & (1<<9) ? "GEN EOP" : ".",
-           desc->control & (1<<8) ? "GEN SOP" : ".",
+           desc->control & (1<<15) ? "EARLY-TERM-IRQ" : ".",
+           desc->control & (1<<14) ? "TRANS-DONE-IRQ" : ".",
+           desc->control & (1<<12) ? "END-EOP" : ".",
+           desc->control & (1<<11) ? "PARK-WRITES" : ".",
+           desc->control & (1<<10) ? "PARK-READS" : ".",
+           desc->control & (1<<9) ? "GEN-EOP" : ".",
+           desc->control & (1<<8) ? "GEN-SOP" : ".",
            desc->control & 0x000000ff);
     printk(KERN_ERR"    driver_ref (job) %p\n",desc->driver_ref);
+    printk(KERN_ERR"    next desc phys 0x%016llx\n", ((u64)desc->next_desc_hi_phys << 32) | desc->next_desc_lo_phys);
     printk(KERN_ERR"    next desc virt %p\n",desc->next_desc_virt);
 }
 

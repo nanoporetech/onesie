@@ -26,8 +26,8 @@
 
     // optionally dump out the majority of register accesses
     #ifdef ONT_VERBOSE_DEBUG
-        #define WRITEL(VAL,ADDR) do{u32 val=(VAL); void* addr=(ADDR); printk(KERN_ERR"minion 0x%08x => %p\n",val,addr);writel(val,addr); } while(0)
-        static inline u32 myreadl(void* addr) {u32 r=readl(addr);printk(KERN_ERR"minion 0x%08x <= %p\n",r,addr);return r;}
+        #define WRITEL(VAL,ADDR) do{u32 val=(VAL); void* addr=(ADDR); printk(KERN_ERR"minion 0x%08x => [%p]\n",val,addr);writel(val,addr); } while(0)
+        static inline u32 myreadl(void* addr) {u32 r=readl(addr);printk(KERN_ERR"minion 0x%08x <= [%p]\n",r,addr);return r;}
         #define READL(ADDR) myreadl(ADDR)
 
         #define VPRINTK(ARGS...) do {printk(KERN_ERR __FILE__ ":" STRINGIFY(__LINE__)" :" ARGS);} while(0)
