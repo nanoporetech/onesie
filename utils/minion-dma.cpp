@@ -27,6 +27,7 @@ static_assert(sizeof(struct minion_data_transfer_s) == MINION_DATA_TRANSFER_SIZE
 
 static const unsigned int frame_size = 1056;
 static const unsigned int max_frames_per_packet = 511;
+static const unsigned int MAX_QUEUE_SIZE = 128;
 
 class transfer {
 public:
@@ -129,7 +130,7 @@ private:
         bool more;
         do {
             // get the status information for completed transfers
-            std::vector<minion_transfer_status_s> statuses(_instance->_max_queue_size);
+            std::array<minion_transfer_status_s, MAX_QUEUE_SIZE> statuses;
             minion_completed_transfers_s transfer_results;
             transfer_results.completed_transfers = reinterpret_cast<std::uintptr_t>(statuses.data());
             transfer_results.completed_transfers_size = statuses.size();
@@ -335,6 +336,10 @@ int main(int argc, char* argv[]) {
         if (arg == "-q" || arg == "--max-queue" ) {
             ++index;
             number_or_quit(argv[index], max_queue_size);
+            if (max_queue_size > MAX_QUEUE_SIZE) {
+                std::cerr << "maximum queue size supported is " << MAX_QUEUE_SIZE << std::endl;
+                exit(1);
+            }
             continue;
         }
         if (arg == "--stream") {
