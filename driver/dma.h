@@ -127,8 +127,7 @@ typedef struct __attribute__((__packed__, aligned(4) )) minion_dma_extdesc_s min
                                          ALTERA_DMA_DESC_CONTROL_HW_OWNED |\
                                          ALTERA_DMA_DESC_CONTROL_GO)
 
-#define ALTERA_DMA_DESC_CONTROL_END     (ALTERA_DMA_DESC_CONTROL_END_ON_EOP|\
-                                         ALTERA_DMA_DESC_CONTROL_EARLY |\
+#define ALTERA_DMA_DESC_CONTROL_END     (ALTERA_DMA_DESC_CONTROL_EARLY |\
                                          ALTERA_DMA_DESC_CONTROL_TX_IRQ |\
                                          ALTERA_DMA_DESC_CONTROL_HW_OWNED |\
                                          ALTERA_DMA_DESC_CONTROL_GO)
