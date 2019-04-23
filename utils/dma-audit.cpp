@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
             check_and_update_word(519, bias_volt, "bias voltage");
             check_and_update_word(520, temp, "heatsink temp");
             check_and_update_word(521, asic_config_id, "asic_config_id");
-            check_quad(           526, 0xcafebabe, "end of frame marker");
+            check_quad(           526, 0xbabecafe, "end of frame marker");
 
             // increment within 24-bit limits
             ++frame_no;
