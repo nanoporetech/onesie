@@ -755,6 +755,8 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minion_data_transfer_
         rc = -ENOMEM;
         goto err_free_pages;
     }
+    job->pages = pages;
+    job->no_pages = no_pages;
 
     // create scatterlist
     if (sg_alloc_table_from_pages(
@@ -797,16 +799,20 @@ err_free_scatterlist:
     sg_free_table(&job->sgt);
 err_free_pages:
     // release any allocated pages, no writing done yet.
-    while (actual_pages > 0) {
+    if (actual_pages > 0) {
         struct page* page;
-        --actual_pages;
-        page = pages[actual_pages];
-        VPRINTK("release page %d %p -> %p\n",actual_pages, page, page_address(page) );
+        unsigned int i;
+        for (i = 0; i < no_pages; ++i) {
+            page = pages[i];
+            VPRINTK("release page %d %p -> %p\n",i, page, page_address(page) );
 
-        // release it back into the wild
-        put_page(page);
+            // release it back into the wild
+            put_page(page);
+        }
     }
     kfree(pages);
+    job->pages = 0;
+    job->no_pages = 0;
 err:
     return rc;
 }
@@ -872,10 +878,19 @@ long cancel_data_transfers(struct altr_dma_dev* adma)
         DPRINTK("investigating job on hw %p\n",job);
 
         if (job) {
-            // free descriptors and unmap dma
+            // free descriptors and unmap dma, release pages
+            unsigned int i;
             list_del(&job->list);
             free_descriptor_list(adma, job);
             pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
+            // mark pages as dirty and release
+            for (i = 0; i < job->no_pages; ++i) {
+                 struct page* page = job->pages[i];
+                 put_page(page);
+            }
+            kfree(job->pages);
+            job->pages = 0;
+            job->no_pages = 0;
             kfree(job);
         }
     }
@@ -883,10 +898,20 @@ long cancel_data_transfers(struct altr_dma_dev* adma)
         DPRINTK("investigating job post hw %p\n",job);
 
         if (job) {
-            // free descriptors and unmap dma
+            // free descriptors and unmap dma, release pages
+            unsigned int i;
             list_del(&job->list);
             free_descriptor_list(adma, job);
             pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
+            // mark pages as dirty and release
+            for (i = 0; i < job->no_pages; ++i) {
+                 struct page* page = job->pages[i];
+                 SetPageDirty(page);
+                 put_page(page);
+            }
+            kfree(job->pages);
+            job->pages = 0;
+            job->no_pages = 0;
             kfree(job);
         }
     }
@@ -1032,9 +1057,20 @@ static void post_transfer(struct work_struct *work)
     VPRINTK("post_transfer\n");
 
     while ((job = pop_job(&adma->post_hardware, &adma->hardware_lock)) != NULL) {
+        unsigned int i;
         VPRINTK("post_transfer job %p\n",job);
         free_descriptor_list(adma,job);
         pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
+
+        // mark pages as dirty and release
+        for (i = 0; i < job->no_pages; ++i) {
+             struct page* page = job->pages[i];
+             SetPageDirty(page);
+             put_page(page);
+        }
+        kfree(job->pages);
+        job->pages = 0;
+        job->no_pages = 0;
 
         // move to done
         push_job(&adma->transfers_done, &adma->done_lock, job);

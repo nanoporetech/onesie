@@ -154,6 +154,9 @@ struct transfer_job_s {
     dma_addr_t terminal_desc_phys;
 
     u16 sequence_no; // for us to track transfers.
+
+    struct page** pages;
+    unsigned int no_pages;
 };
 
 
