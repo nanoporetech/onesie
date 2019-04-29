@@ -710,9 +710,22 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minion_data_transfer_
     unsigned long pg_start_offset;
     unsigned long pg_end;
     unsigned int no_pages;
+    struct transfer_job_s* job;
+
+    // check the buffer the user supplied has the correct alignment to avoid
+    // cache-coherency issues
+    if (transfer->buffer & (ARCH_DMA_MINALIGN-1)) {
+        printk(KERN_ERR"Start of DMA buffer not aligned on %d-byte boundary\n",ARCH_DMA_MINALIGN);
+        return -EINVAL;
+    }
+
+    if ((transfer->buffer + transfer->buffer_size) & (ARCH_DMA_MINALIGN-1)) {
+        printk(KERN_ERR"End of DMA buffer not aligned on %d-byte boundary\n",ARCH_DMA_MINALIGN);
+        return -EINVAL;
+    }
 
     // create job structure, freed in get_completed_data_transfers, or cancel_data_transfer
-    struct transfer_job_s* job = kzalloc(sizeof(struct transfer_job_s), GFP_KERNEL);
+    job = kzalloc(sizeof(struct transfer_job_s), GFP_KERNEL);
     if (!job) {
         DPRINTK("Failed to allocate memory for transfer_job\n");
         return -ENOMEM;
