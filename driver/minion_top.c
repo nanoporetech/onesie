@@ -272,7 +272,7 @@ static long minion_shift_register_access(
     if (to_dev) {
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; ++i) {
-            VPRINTK("Shift to dev  : 0x%02x => %p\n",from_dev[i],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
+            VPRINTK("Shift to dev  : 0x%02x => %p\n",to_dev[i],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
             writeb(to_dev[i], mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
         }
     }
