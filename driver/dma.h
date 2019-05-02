@@ -132,8 +132,6 @@ typedef struct __attribute__((__packed__, aligned(4) )) minion_dma_extdesc_s min
                                          ALTERA_DMA_DESC_CONTROL_HW_OWNED |\
                                          ALTERA_DMA_DESC_CONTROL_GO)
 
-#define INITIAL_DESCRIPTOR_POOL_SIZE 128
-
 struct transfer_job_s {
     struct list_head list;
     char __user* buffer;

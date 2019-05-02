@@ -1115,9 +1115,9 @@ int altera_sgdma_probe(struct minion_device_s* mdev) {
     adma->descriptor_pool = dmam_pool_create(
                 "MinION DMA",
                 &mdev->pci_device->dev,
-                sizeof(minion_dma_extdesc_t) * INITIAL_DESCRIPTOR_POOL_SIZE,
+                sizeof(minion_dma_extdesc_t),
                 4, // alignment
-                0);// boundary
+                256);// boundary
     if (!adma->descriptor_pool) {
         DPRINTK("Unable to allocate a pool of memory for dma descriptors\n");
         return -ENOMEM;
