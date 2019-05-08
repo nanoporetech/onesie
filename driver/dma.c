@@ -393,33 +393,40 @@ static int dma_busy(struct altr_dma_dev* adma)
  */
 static void reset_dma_hardware(struct altr_dma_dev* adma)
 {
-    /// @todo should not wait forever for resets to clear, timout with some
-    /// sort of error and mark the hardware as broken so user-space apps can
-    /// save their data.
+    unsigned int attempt;
+    static const unsigned long max_wait = HZ / 10;
 
-    // reset prefetcher
-    WRITEL(PRE_CTRL_RESET, adma->prefetcher_base + PRE_CONTROL);
-    // wait for prefetcher to clear
-    while(READL(adma->prefetcher_base + PRE_CONTROL) & PRE_CTRL_RESET) {
-        set_current_state(TASK_INTERRUPTIBLE);
-        schedule();
-        set_current_state(TASK_RUNNING);
-        if (signal_pending(current)) {
-            printk(KERN_WARNING"prefetcher reset didn't finish");
-            return;
+    // There seems to be a circular dependency between the two DMA cores.
+    // Resetting them both can sometimes take a couple of goes.
+    for (attempt = 0; attempt < 2; ++attempt) {
+        unsigned long time_out;
+        bool prefetch_reset_ok = false;
+        bool sgdma_reset_ok = false;
+
+        // reset prefetcher, then wait a limited time for it to clear
+        WRITEL(PRE_CTRL_RESET, adma->prefetcher_base + PRE_CONTROL);
+        time_out = jiffies + max_wait;
+        while(jiffies < time_out) {
+            // is prefetcher reset complete
+            if (!(READL(adma->prefetcher_base + PRE_CONTROL) & PRE_CTRL_RESET)) {
+                prefetch_reset_ok = true;
+                break;
+            }
+            msleep(1);
         }
-    }
 
-    // reset dispatcher in msgdma core
-    WRITEL(MSGDMA_CTRL_RESET_DISPATCH, adma->msgdma_base + MSGDMA_CONTROL);
-
-    // wait for mSGDMA/dispatcher clear reset
-    while(READL(adma->msgdma_base + MSGDMA_STATUS) & MSGDMA_STATUS_RESETTING) {
-        set_current_state(TASK_INTERRUPTIBLE);
-        schedule();
-        set_current_state(TASK_RUNNING);
-        if (signal_pending(current)) {
-            printk(KERN_WARNING"DMA core reset didn't finish");
+        // reset dispatcher in msgdma core then wait a limited time for it to clear
+        WRITEL(MSGDMA_CTRL_RESET_DISPATCH, adma->msgdma_base + MSGDMA_CONTROL);
+        time_out = jiffies + max_wait;
+        while(jiffies < time_out) {
+            // is mSGDMA/dispatcher reset complete
+            if (!(READL(adma->msgdma_base + MSGDMA_STATUS) & MSGDMA_STATUS_RESETTING)) {
+                sgdma_reset_ok = true;
+                break;
+            }
+            msleep(1);
+        }
+        if (prefetch_reset_ok && sgdma_reset_ok) {
             return;
         }
     }
