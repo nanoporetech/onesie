@@ -9,6 +9,9 @@
 #ifndef MINION_TOP_H
 #define MINION_TOP_H
 
+#include <linux/kobject.h>
+#include <linux/sysfs.h>
+
 #define ONT_DEBUG
 //#define ONT_VERBOSE_DEBUG
 
@@ -81,6 +84,28 @@ struct historical_link_mode {
     u8 reg;
 };
 
+// group an attribute with a pointer to the value it should communicate
+struct attribute_wrapper {
+    void* p_value;
+    struct kobj_attribute attribute;
+};
+
+struct thermal_control_sysfs {
+    struct attribute_group thermal_group;
+    struct attribute* attributes[12];
+    struct attribute_wrapper control;
+    struct attribute_wrapper error;
+    struct attribute_wrapper tec_override;
+    struct attribute_wrapper tec_dead_zone;
+    struct attribute_wrapper tec_voltage;
+    struct attribute_wrapper tec_current;
+    struct attribute_wrapper data_log;
+    struct attribute_wrapper threshold_1;
+    struct attribute_wrapper threshold_2;
+    struct attribute_wrapper threshold_3;
+    struct attribute_wrapper pid_settings;
+};
+
 struct minion_device_s {
     struct pci_dev* pci_device;
 
@@ -106,6 +131,8 @@ struct minion_device_s {
     void __iomem* ctrl_bar;
     void __iomem* spi_bar;
     void __iomem* pci_bar;
+
+    struct thermal_control_sysfs tc_attr ;
 
     int minor_dev_no;
 };

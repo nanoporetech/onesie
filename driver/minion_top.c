@@ -868,6 +868,7 @@ static void cleanup_device(void* data) {
     struct minion_device_s* mdev = pci_get_drvdata(dev);
     VPRINTK("cleanup_device\n");
     if (mdev) {
+        sysfs_remove_group(&mdev->pci_device->dev.kobj, &mdev->tc_attr.thermal_group );
         device_table_remove(mdev);
         device_destroy(minion_class, MKDEV(minion_major, mdev->minor_dev_no));
     }
@@ -966,12 +967,6 @@ void setup_channel_remapping_memory(struct minion_device_s* mdev)
     }
 }
 
-// group an attribute with a pointer to the value it should communicate
-struct attribute_wrapper {
-    void* p_value;
-    struct kobj_attribute attribute;
-};
-
 static ssize_t data_log_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
     int i;
@@ -1048,8 +1043,7 @@ static ssize_t pid_settings_store(struct kobject *kobj, struct kobj_attribute *a
     static ssize_t ATTR_NAME##_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {\
         struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);\
         return sprintf(buf,"%d", readw(wrapper->p_value) );\
-    }\
-    static struct attribute_wrapper ATTR_NAME##_attribute = {NULL, __ATTR_RO(ATTR_NAME) };
+    }
 
 /// Declare the attribute and create functions to read and write it
 #define DECLARE_ATTRIBUTE_READ_WRITE(ATTR_NAME) \
@@ -1063,52 +1057,58 @@ static ssize_t pid_settings_store(struct kobject *kobj, struct kobj_attribute *a
         sscanf(buf,"%u",&tmp);\
         writew(tmp, wrapper->p_value);\
         return count;\
-    }\
-    static struct attribute_wrapper ATTR_NAME##_attribute = {NULL, __ATTR_RW(ATTR_NAME) };
+    }
 
-
-/// TODO dynamically allocate these per minion_device
+// Declare functions to read and write common attributes
 DECLARE_ATTRIBUTE_READ_WRITE(control);
 DECLARE_ATTRIBUTE_READ(error);
 DECLARE_ATTRIBUTE_READ_WRITE(tec_override);
 DECLARE_ATTRIBUTE_READ_WRITE(tec_dead_zone);
 DECLARE_ATTRIBUTE_READ(tec_voltage);
 DECLARE_ATTRIBUTE_READ(tec_current);
-static struct attribute_wrapper data_log = {NULL, __ATTR_RO(data_log) };
 DECLARE_ATTRIBUTE_READ_WRITE(threshold_1);
 DECLARE_ATTRIBUTE_READ_WRITE(threshold_2);
 DECLARE_ATTRIBUTE_READ_WRITE(threshold_3);
-static struct attribute_wrapper pid_settings = {NULL, __ATTR_RW(pid_settings) };
 
 int setup_sysfs_entries(struct minion_device_s* mdev)
 {
-    struct attribute* attributes[] = {
-        &control_attribute.attribute.attr,
-        &error_attribute.attribute.attr,
-        &tec_override_attribute.attribute.attr,
-        &tec_dead_zone_attribute.attribute.attr,
-        &tec_voltage_attribute.attribute.attr,
-        &tec_current_attribute.attribute.attr,
-        &data_log.attribute.attr,
-        &threshold_1_attribute.attribute.attr,
-        &threshold_2_attribute.attribute.attr,
-        &threshold_3_attribute.attribute.attr,
-        &pid_settings.attribute.attr,
-        NULL
-    };
-
-    struct attribute_group thermal_group = {
-        .name = "thermal_control",
-        .attrs = attributes,
-    };
-
     // create subdir
     struct kobject* parent = &mdev->pci_device->dev.kobj;
 
     // associate attribute_wrappers with their data
-    error_attribute.p_value = NULL;
+    struct message_struct* message = (struct message_struct*)(mdev->ctrl_bar + MESSAGE_RAM_BASE);
 
-    return sysfs_create_group(parent, &thermal_group);
+    mdev->tc_attr = (struct thermal_control_sysfs){
+        { .name = "thermal_control", .attrs = mdev->tc_attr.attributes },
+        {
+            &mdev->tc_attr.control.attribute.attr,
+            &mdev->tc_attr.error.attribute.attr,
+            &mdev->tc_attr.tec_override.attribute.attr,
+            &mdev->tc_attr.tec_dead_zone.attribute.attr,
+            &mdev->tc_attr.tec_voltage.attribute.attr,
+            &mdev->tc_attr.tec_current.attribute.attr,
+            &mdev->tc_attr.data_log.attribute.attr,
+            &mdev->tc_attr.threshold_1.attribute.attr,
+            &mdev->tc_attr.threshold_2.attribute.attr,
+            &mdev->tc_attr.threshold_3.attribute.attr,
+            &mdev->tc_attr.pid_settings.attribute.attr,
+            NULL
+        },
+        // pointer to data, attribute-defn
+        { &message->control_word, __ATTR_RW(control) },
+        { &message->error_word, __ATTR_RO(error) },
+        { &message->tec_override, __ATTR_RW(tec_override) },
+        { &message->tec_dead_zone, __ATTR_RW(tec_dead_zone) },
+        { &message->tec_v, __ATTR_RO(tec_voltage)},
+        { &message->tec_i, __ATTR_RO(tec_current)},
+        { &message, __ATTR_RO(data_log)},
+        { &message->profile_thresh_1, __ATTR_RW(threshold_1)},
+        { &message->profile_thresh_2, __ATTR_RW(threshold_2)},
+        { &message->profile_thresh_3, __ATTR_RW(threshold_3)},
+        { &message, __ATTR_RW(pid_settings)}
+    };
+
+    return sysfs_create_group(parent, &mdev->tc_attr.thermal_group);
 }
 
 /**
