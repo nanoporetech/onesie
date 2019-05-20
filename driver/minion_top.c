@@ -28,10 +28,12 @@
 #include <linux/mutex.h>
 #include <linux/delay.h>
 #include <linux/bug.h>
+#include <linux/sysfs.h>
 
 #include "minion_top.h"
 #include "minion_reg.h"
 #include "minion_ioctl.h"
+#include "thermal_interface.h"
 
 /*
  * PROTOTYPES
@@ -964,6 +966,150 @@ void setup_channel_remapping_memory(struct minion_device_s* mdev)
     }
 }
 
+// group an attribute with a pointer to the value it should communicate
+struct attribute_wrapper {
+    void* p_value;
+    struct kobj_attribute attribute;
+};
+
+static ssize_t data_log_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+    int i;
+    struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
+    struct message_struct* message = wrapper->p_value;
+    ssize_t len = 0;
+    len += sprintf(buf+len, "tec_value fc_temp hsink_temp\n");
+    for (i=0; i < TEST_LEN; ++i) {
+        len += sprintf(buf+len, "%d %d %d\n",
+                       readw(&message->data_log[i].tec_value),
+                       readw(&message->data_log[i].fc_temp),
+                       readw(&message->data_log[i].hsink_temp));
+    }
+    return len;
+}
+
+static ssize_t pid_settings_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+    int i;
+    struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
+    struct message_struct* message = wrapper->p_value;
+    ssize_t len = 0;
+    len += sprintf(buf+len, "kp_gain ki_gain kd_gain ni_len sample_t fc_therm_weight asic_therm_weight");
+    for( i=0; i < 4; ++i) {
+        len += sprintf(buf+len, "%d %d %d %d %d %d %d",
+                       readl(&message->pid_profile[i].kp_gain),
+                       readl(&message->pid_profile[i].ki_gain),
+                       readl(&message->pid_profile[i].kd_gain),
+                       readw(&message->pid_profile[i].ni_len),
+                       readl(&message->pid_profile[i].sample_t),
+                       readw(&message->pid_profile[i].fc_therm_weight),
+                       readw(&message->pid_profile[i].ch514_weight));
+    }
+
+    return len;
+}
+
+static ssize_t pid_settings_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+    int i;
+    struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
+    struct message_struct* message = wrapper->p_value;
+    int start = 0;
+    for (i=0; i < 4; ++i) {
+        unsigned int kp_gain, ki_gain, kd_gain, ni_len, sample_t, fc_therm_weight, ch514_weight;
+        unsigned int entries;
+        int len;
+        entries = sscanf(buf+start,"%d %d %d %d %d %d %d%n",
+                         &kp_gain,
+                         &ki_gain,
+                         &kd_gain,
+                         &ni_len,
+                         &sample_t,
+                         &fc_therm_weight,
+                         &ch514_weight,
+                         &len);
+        if (entries != 8) {
+            return -EINVAL;
+        }
+        start += len;
+        writel(kp_gain, &message->pid_profile[i].kp_gain);
+        writel(kp_gain, &message->pid_profile[i].ki_gain);
+        writel(kp_gain, &message->pid_profile[i].kd_gain);
+        writew(kp_gain, &message->pid_profile[i].ni_len);
+        writel(kp_gain, &message->pid_profile[i].sample_t);
+        writew(kp_gain, &message->pid_profile[i].fc_therm_weight);
+        writew(kp_gain, &message->pid_profile[i].ch514_weight);
+    }
+    return (ssize_t)count;
+}
+
+/// Declare the attribute and create a function to read it.
+#define DECLARE_ATTRIBUTE_READ(ATTR_NAME) \
+    static ssize_t ATTR_NAME##_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {\
+        struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);\
+        return sprintf(buf,"%d", readw(wrapper->p_value) );\
+    }\
+    static struct attribute_wrapper ATTR_NAME##_attribute = {NULL, __ATTR_RO(ATTR_NAME) };
+
+/// Declare the attribute and create functions to read and write it
+#define DECLARE_ATTRIBUTE_READ_WRITE(ATTR_NAME) \
+    static ssize_t ATTR_NAME##_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {\
+        struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);\
+        return sprintf(buf,"%d", readw(wrapper->p_value) );\
+    }\
+    static ssize_t ATTR_NAME##_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count) {\
+        unsigned int tmp;\
+        struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);\
+        sscanf(buf,"%u",&tmp);\
+        writew(tmp, wrapper->p_value);\
+        return count;\
+    }\
+    static struct attribute_wrapper ATTR_NAME##_attribute = {NULL, __ATTR_RW(ATTR_NAME) };
+
+
+/// TODO dynamically allocate these per minion_device
+DECLARE_ATTRIBUTE_READ_WRITE(control);
+DECLARE_ATTRIBUTE_READ(error);
+DECLARE_ATTRIBUTE_READ_WRITE(tec_override);
+DECLARE_ATTRIBUTE_READ_WRITE(tec_dead_zone);
+DECLARE_ATTRIBUTE_READ(tec_voltage);
+DECLARE_ATTRIBUTE_READ(tec_current);
+static struct attribute_wrapper data_log = {NULL, __ATTR_RO(data_log) };
+DECLARE_ATTRIBUTE_READ_WRITE(threshold_1);
+DECLARE_ATTRIBUTE_READ_WRITE(threshold_2);
+DECLARE_ATTRIBUTE_READ_WRITE(threshold_3);
+static struct attribute_wrapper pid_settings = {NULL, __ATTR_RW(pid_settings) };
+
+int setup_sysfs_entries(struct minion_device_s* mdev)
+{
+    struct attribute* attributes[] = {
+        &control_attribute.attribute.attr,
+        &error_attribute.attribute.attr,
+        &tec_override_attribute.attribute.attr,
+        &tec_dead_zone_attribute.attribute.attr,
+        &tec_voltage_attribute.attribute.attr,
+        &tec_current_attribute.attribute.attr,
+        &data_log.attribute.attr,
+        &threshold_1_attribute.attribute.attr,
+        &threshold_2_attribute.attribute.attr,
+        &threshold_3_attribute.attribute.attr,
+        &pid_settings.attribute.attr,
+        NULL
+    };
+
+    struct attribute_group thermal_group = {
+        .name = "thermal_control",
+        .attrs = attributes,
+    };
+
+    // create subdir
+    struct kobject* parent = &mdev->pci_device->dev.kobj;
+
+    // associate attribute_wrappers with their data
+    error_attribute.p_value = NULL;
+
+    return sysfs_create_group(parent, &thermal_group);
+}
 
 /**
  * This should:
@@ -1109,6 +1255,8 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     writeb(ASIC_CTRL_CLK_128, mdev->ctrl_bar + ASIC_CTRL_BASE);
 
     setup_channel_remapping_memory(mdev);
+
+    setup_sysfs_entries(mdev);
 
     DPRINTK("probe finished successfully\n");
 err:
