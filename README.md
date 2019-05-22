@@ -153,8 +153,140 @@ The last descriptor for a job is prepared with the Transfer Complete IRQ Enable 
 
 The user-space application (MinKNOW) sends the `MINION_IOCTL_WHATS_COMPLETED` ioctl to enquire which jobs are complete. The transfer id and status of the jobs in the `transfers_done` list are copied into the buffer for the ioctl and the job structure is destroyed.
 
-The `cancel_data_transfer` function will reset the DMA hardware, and dispose of all the jobs in the various queues. It requires that new jobs shall not be submitted when in the reset code.
+The `cancel_data_transfer` function will reset the DMA hardware, and dispose of all the jobs in the various queues. It requires that new jobs shall not be submitted when in the reset code. Note that closing the device-node file will have the same effect as sending the ioctl `MINION_IOCTL_CANCEL_TRANSFERS`. This is to prevent the DMA writing into memory that has been freed and reassigned.
 
 ## Tools
+The utils director contains a number of tools for debugging the driver and firmware:
+
+*  minion-dma
+*  minion-eeprom
+*  minion-hsrx
+*  minion-reg
+*  minion-shift
+*  dma-audit
+
+### minion-reg
+
+`minion-reg` performs read and write accesses to registers in the firmware via an ioctl. It provides an option to read all the registers in a BAR.
+
+Usage:
+
+1.  `minion-reg <device> <bar>`
+
+    Read all registers in the specified bar
+
+2.  `minion-reg <device> <bar> <offset> [value]`
+
+    Read or when value is provided, write the 32-bit register at specified byte-offset
+
+3.  `minion-reg <device> <bar> <offset> [read8/16/32/64]`
+
+    Read the register at specified byte-offset with the optionally specified length. If the length is not specified then it defaults into usage 2
+
+4.  `minion-reg <device> <bar> <offset> [write8/16/32/64] <value>`
+
+    Write the register at specified byte-offset with the specified length. If the length is not specified then it defaults into usage 2
+
+`<device>` is the device-node
+
+To read multiple registers, but not all the registers in a bar, use a `bash` for-loop, for example to read 10 32-bit registers starting at address 0x04000400 in BAR 2:
+
+`for offset in {0..9}; do minion-reg /dev/flowcell0 2 $(( 0x04000400 + ${offset} * 4 )) ; done`
+
+### minion-eeprom
+
+`minion-eeprom` is used to read or write part or the whole of the EEPROM on the MinION flow-cell. The contents of the flow-cell will be written to standard output when reading and read from standard input when writing.
+
+Usage: `minit-eeprom [-rw] [-s start] [-l length] <device>`
+
+| `-r`, `--read` | read from EEPROM to standard output|
+| `-w`, `--write` | write data from standard input to EEPROM |
+| `-s`, `--start <offset bytes>` | start address in decimal or hex if starting with 0x. defaults to 0 |
+| `-l`, `--length <size bytes>` | length of transfer in decimal or hex if starting with 0x. defaults to max length |
+
+The EEPROM contents will be written to standard output as a byte-stream so it is recommended to pipe the data into a hex-viewer such as `hexdump` or `xxd`.
+
+For example, to read the EEPROM serial number:
+
+`minit-eeprom -r -s 0xfc -l 4 /dev/flowcell0 | hexdump -C`
+
+To write the entire EEPROM from a file:
+
+`minit-eeprom -w /dev/flowcell0 < my-eeprom-contents`
+
+### minion-hsrx
+
+`minion-hsrx` sends ioctls to read and optionally write parts-of the registers in the high-speed receiver core. The values read from the registers are written to standard output as either a byte-stream (needing a hex-viewer to read)  or optionally as hexadecimal.
+
+Usage: `minit-hsrx [-erxf] <device>`
+
+| `-e`, `--enable` | set the enable-bit in hs-rx word-0 |
+| `-r`, `--sync-reset` | set the reset-bit in hs-rx word-0 |
+| `-x`, `--hex` | output registers read as hexadecimal rather than a byte-stream |
+| `-f`, `--frames <no-frames>` | set the number of frames of data between "End-of-Packet" signals |
+
+`<device>` is the device-node
+
+### minion-shift
+
+`minion-shift` performs a read and optionally a write of the 2259-bit ASIC command via the SPI link. Before using this command it is recommended to enable analogue-power to the ASIC.
+
+Usage: `minion-shift [-x] [-e] [-s] [-f frequency ] <device>`
+
+| `-x`, `--hex` | Output will be in hexadecimal csv |
+| `-e`, `--enable` | Set the enable bit |
+| `-s`, `--start` | Set the start-bit |
+| `-f`, `--frequency <frequency>` | Set the interface clock-frequency in Hz (default approx 1 MHz) |
+| `-w`, `--write` | Write comma separated bytes from standard-input |
+
+`<device>` is the device-node
+
+Command-data read from the ASIC is sent to standard-output as either a byte-stream, or if the `-x`/`--hex` option is enabled, comma separated hexadecimal data. The comma-separated hexadecimal data output is the correct format for using as input with the `-w` option. The clock-frequency defaults to 1-MHz any frequency specified is subject to the resolution of the clock-divider and should be in the range of 62.5-MHz to 1-MHz. Where possible, unachievable clock-frequencies will be adjusted rather than rejected. 
+
+In almost all scenarios, the `--enable` and `--start` options should be selected.
+
+### minion-dma
+
+`minion-dma` performs DMA transfers of acquisition data from the flow-cell and sends any data received to standard out as a bytes-stream.
+
+`minion-dma [-s size] [-n number of transfers] [-q max queue size ] [-spr] <device>`
+
+| `-s`, `--size <size>`      Size of each transfer, defaults to 514*2-bytes, see below! |
+| `-n`, `--no-transfers <no transfers>` | Number of transfers, (default 1) |
+| `--stream` | Transfer data repeatedly until further notice. If this is set `--no-transfers` will be ignored. |
+| `-q`, `--max-queue <max queue-size>` | Maximum number of transfers to queue at once (default 8) |
+| `-p`, `--poll` | Use polling rather than signals to detect when transfers have completed |
+| `-r`, `--reset` | Reset the High-Speed receiver when starting |
+
+The `--size` option controls the size of the buffers used for transfers. The driver will reject any buffers that do not both start and end on a cache-line boundary (128-bytes on aarch64.) To enable buffers to start and end in the right place, their length must be a multiple of the cache-line size. In addition to the cache-line size requirement, it is recommended that the buffers be a multiple of the frame-size (1056-bytes.) The smallest buffer that meets both these requirements is 4224-bytes, four frames. The default size doesn't meet any of these requirements.
+
+Prior to running minion-dma, it is recommended to:
+
+1.  Enable analogue-power and set a bus frequency
+2.  Assert and de-assert reset on the high-speed receiver core.
+
+The number of buffers transferred is specified by the `--no-transfers` option. After all buffers have been transferred, `minion-dma` will exit. If you wish to continuously transfer data use the `--stream` option.
+
+Data is output as a bytes-stream, not normally intelligible with out a some other tool such as `hexdump`, eg:
+
+`minion-dma -s 4224 -r | hexdump -C` read four frames and use `hexdump` to make readable.
+
+`minion-dma -s 135168 -r --stream > captured-data` stream 128-frame buffers to a file.
+
+### dma-audit
+
+`dma-audit` accepts the byte-stream from `minion-dma` through standard input and does some basic auditing on the meta-data to verify that the DMA is operating correctly, eg:
+
+`dma-audit < captured-data` Audit a file containing previously captured data.
+
+`minion-dma -s 84480 -r --stream | dma-audit` Audit data as it is being acquired from the hardware.
+
+`dma-audit` checks for:
+
+*  correctly incrementing frame-numbers
+*  0xcafebabe end-of-frame marker
+*  changes in sampling-frequency, ASIC-id, bias-voltage, heat-sink temperature and ASIC configuration-id (aka command-id.)
 
 ## Packaging and Distribution
+
+
