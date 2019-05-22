@@ -989,9 +989,9 @@ static ssize_t pid_settings_show(struct kobject *kobj, struct kobj_attribute *at
     struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
     struct message_struct* message = wrapper->p_value;
     ssize_t len = 0;
-    len += sprintf(buf+len, "kp_gain ki_gain kd_gain ni_len sample_t fc_therm_weight asic_therm_weight");
+    len += sprintf(buf+len, "kp_gain ki_gain kd_gain ni_len sample_t fc_therm_weight asic_therm_weight\n");
     for( i=0; i < 4; ++i) {
-        len += sprintf(buf+len, "%d %d %d %d %d %d %d",
+        len += sprintf(buf+len, "%d %d %d %d %d %d %d\n",
                        readl(&message->pid_profile[i].kp_gain),
                        readl(&message->pid_profile[i].ki_gain),
                        readl(&message->pid_profile[i].kd_gain),
@@ -1023,17 +1023,17 @@ static ssize_t pid_settings_store(struct kobject *kobj, struct kobj_attribute *a
                          &fc_therm_weight,
                          &ch514_weight,
                          &len);
-        if (entries != 8) {
+        if (entries != 7) {
             return -EINVAL;
         }
         start += len;
         writel(kp_gain, &message->pid_profile[i].kp_gain);
-        writel(kp_gain, &message->pid_profile[i].ki_gain);
-        writel(kp_gain, &message->pid_profile[i].kd_gain);
-        writew(kp_gain, &message->pid_profile[i].ni_len);
-        writel(kp_gain, &message->pid_profile[i].sample_t);
-        writew(kp_gain, &message->pid_profile[i].fc_therm_weight);
-        writew(kp_gain, &message->pid_profile[i].ch514_weight);
+        writel(ki_gain, &message->pid_profile[i].ki_gain);
+        writel(kd_gain, &message->pid_profile[i].kd_gain);
+        writew(ni_len, &message->pid_profile[i].ni_len);
+        writel(sample_t, &message->pid_profile[i].sample_t);
+        writew(fc_therm_weight, &message->pid_profile[i].fc_therm_weight);
+        writew(ch514_weight, &message->pid_profile[i].ch514_weight);
     }
     return (ssize_t)count;
 }
@@ -1077,10 +1077,14 @@ int setup_sysfs_entries(struct minion_device_s* mdev)
 
     // associate attribute_wrappers with their data
     struct message_struct* message = (struct message_struct*)(mdev->ctrl_bar + MESSAGE_RAM_BASE);
+    VPRINTK("message ram base %p",message);
 
     mdev->tc_attr = (struct thermal_control_sysfs){
-        { .name = "thermal_control", .attrs = mdev->tc_attr.attributes },
-        {
+        .thermal_group = {
+            .name = "thermal_control",
+            .attrs = mdev->tc_attr.attributes
+        },
+        .attributes = {
             &mdev->tc_attr.control.attribute.attr,
             &mdev->tc_attr.error.attribute.attr,
             &mdev->tc_attr.tec_override.attribute.attr,
@@ -1095,17 +1099,17 @@ int setup_sysfs_entries(struct minion_device_s* mdev)
             NULL
         },
         // pointer to data, attribute-defn
-        { &message->control_word, __ATTR_RW(control) },
-        { &message->error_word, __ATTR_RO(error) },
-        { &message->tec_override, __ATTR_RW(tec_override) },
-        { &message->tec_dead_zone, __ATTR_RW(tec_dead_zone) },
-        { &message->tec_v, __ATTR_RO(tec_voltage)},
-        { &message->tec_i, __ATTR_RO(tec_current)},
-        { &message, __ATTR_RO(data_log)},
-        { &message->profile_thresh_1, __ATTR_RW(threshold_1)},
-        { &message->profile_thresh_2, __ATTR_RW(threshold_2)},
-        { &message->profile_thresh_3, __ATTR_RW(threshold_3)},
-        { &message, __ATTR_RW(pid_settings)}
+        .control = { &message->control_word, __ATTR_RW(control) },
+        .error = { &message->error_word, __ATTR_RO(error) },
+        .tec_override = { &message->tec_override, __ATTR_RW(tec_override) },
+        .tec_dead_zone = { &message->tec_dead_zone, __ATTR_RW(tec_dead_zone) },
+        .tec_voltage = { &message->tec_v, __ATTR_RO(tec_voltage)},
+        .tec_current = { &message->tec_i, __ATTR_RO(tec_current)},
+        .data_log = { message, __ATTR_RO(data_log)},
+        .threshold_1 = { &message->profile_thresh_1, __ATTR_RW(threshold_1)},
+        .threshold_2 = { &message->profile_thresh_2, __ATTR_RW(threshold_2)},
+        .threshold_3 = { &message->profile_thresh_3, __ATTR_RW(threshold_3)},
+        .pid_settings = { message, __ATTR_RW(pid_settings)}
     };
 
     return sysfs_create_group(parent, &mdev->tc_attr.thermal_group);
