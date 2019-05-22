@@ -1081,7 +1081,7 @@ static void post_transfer(struct work_struct *work)
         VPRINTK("post_transfer job %p\n",job);
         free_descriptor_list(adma,job);
         pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
-
+        sg_free_table(&job->sgt);
         // mark pages as dirty and release
         for (i = 0; i < job->no_pages; ++i) {
              struct page* page = job->pages[i];
