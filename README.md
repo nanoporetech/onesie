@@ -107,40 +107,53 @@ Sequencing current-measurement data is produced by ADCs in the ASIC and communic
 The API for the transfer, as seen from the perspective of a user-space client is:
 
 1.  Submit one or multiple transfer(s) with buffer location, size, transfer-id, signal-number and process-id (to receive the signal)
-1.  (Optionally) Wait for a signal
-1.  Enquire as to what's completed
+2.  (Optionally) Wait for a signal
+3.  Enquire as to what's completed
 
-The use of signals is optional, they can interrupt some system-calls, though none of the driver IOCTLs are interruptible. Buffers *must* be aligned on a cache-line boundary at both start and end, they will be rejected by the driver if not.
+The use of signals is optional as they can interrupt some system-calls (though none of the driver IOCTLs are interruptible.) Buffers *must* be aligned on a cache-line boundary at both start and end, they will be rejected by the driver if not.
 
 Though there is a driver for the modular scatter-gather DMA core in the kernel, this has not been used as it doesn't support the pre-fetcher core. The DMA code in this driver is an original work.
 
-The ioctl calls 'queue_data_transfer' with the parameters for the transfer copied from user-space.
+The ioctl calls `queue_data_transfer` with the parameters for the transfer copied from user-space.
 ioctl. This:
+
 1.  checks buffer alignment
-1.  allocates and populates a "Job" structure used for managing the transfer in the driver
-1.  allocates a list of pages associated with the buffer and attaches it to the job structure
-1.  locks the pages in memory, so they can't be swapped out to disk during the DMA transfer
-1.  creates a scatter-list for the pages, with adjacent pages merged.
-1.  maps the scatter-list so the virtual-addresses in transfers are converted to physical-addresses, caches are invalidated and IOMMUs programmed appropriately
+2.  allocates and populates a "job" structure used for managing the transfer in the driver
+3.  allocates a list of pages associated with the buffer and attaches it to the job structure
+4.  locks the pages in memory, so they can't be swapped out to disk during the DMA transfer
+5.  creates a scatter-list for the pages, with adjacent pages merged.
+6.  maps the scatter-list so the virtual-addresses in transfers are converted to physical-addresses, caches are invalidated and IOMMUs programmed appropriately
 
-This then calls 'create_descriptor_list' this converts the scatter-list into a chain of DMA descriptors stored in coherent memory and allocated from a dma-descriptor-pool. This will split scatter-gather entries when they are too large for the firmware (greater than 2048 bytes.)
+This then calls `create_descriptor_list` this converts the scatter-list into a chain of DMA descriptors stored in coherent memory and allocated from a DMA-descriptor-pool. This will split scatter-gather entries when they are too large for the firmware (greater than 2048 bytes.)
 
-DMA descriptors used by the Altera pre-fetcher core contain an "ownership" bit that assigns ownership of each descriptor in the chain to either hardware or software. When the pre-fetcher core encounters a descriptor owned by software it pauses, polling at intervals until the descriptor is owned by hardware. setting a descriptor to be owned by software terminates a DMA descriptor chain.
+DMA descriptors used by the Altera pre-fetcher core contain an "ownership" bit that assigns ownership of each descriptor in the chain to either hardware or software. When the pre-fetcher core encounters a descriptor owned by software it pauses, polling at intervals until the descriptor is owned by hardware. Setting a descriptor to be owned by software terminates a DMA descriptor chain. `create_descriptor` will allocate a terminal descriptor to finish the chain.
 
+Next the code moves into `submit_transfer_to_hw_or_queue`. This looks at the state of the DMA cores, if they're idle, it will stop the pre-fetcher core. Free the terminal descriptor that the pre-fetcher is stopped on polling, program the pre-fetcher with the address of the first descriptor in the DMA chain. To aid attaching jobs to the end of the descriptor chain, the address of the terminal-descriptor is recorded in the device structure. Should the DMA core be found to be busy, the driver must "tack" the additional DMA descriptors onto the end of the chain. The chain ends with the terminal-descriptor this cannot be replaced as there is the chance of a race between deciding to replace it and the pre-fetcher core reading it. To join the chains, the first descriptor in the new chain is copied into the terminal descriptor, with the word containing the ownership-bit copied last. This changes the ownership to of that descriptor to hardware and the transfer should be performed. The driver's link to the terminal descriptor is updated and the original first-descriptor for the new job that is no-longer needed is freed.
 
-ready for hardware queue
+Jobs are tracked in the driver by moving them between three lists:
 
-on hardware and isr(s)
+*  `transfers_on_hardware`: jobs that are in the descriptor chain either running on or waiting to run on the DMA cores. They will also be in this list for a brief while after the transfer is complete.
+*  `post_hardware`: after the transfer has finished, the bottom-half interrupt handler will identify which jobs are complete and move them to this queue
+*  `transfers_done`: when all of the operating-system housekeeping is complete, transfers will be placed in this list waiting for user-space to enquire what's done.
 
-post hardware queue
+These lists are protected with spin-locks the hardware_lock acts as a mutex for accesses to the DMA cores, the `transfers_on_hardware` and the `post_hardware` lists. The `done_lock` guards the `transfers_done` list.
 
-signals
+The last descriptor for a job is prepared with the Transfer Complete IRQ Enable bit set. The interrupt is shared with the I2C hardware, so a handler in minion_top.c, `minion_isr_quick` will call handlers in both the I2C and DMA code to establish the source of the interrupt. `dma_isr_quick` will only establish the need to run the bottom-half interrupt handler `dma_isr`. `dma_isr` will iterate through the list of jobs on the hardware. As the hardware finishes each descriptor, it will flip the ownership bit from hardware to software. `dma_isr` checks that all the descriptors for the job in the list it is examining are now "owned" by software and that all the data for the job has been transferred. This will identify the job as "finished" and it will be moved onto the `post_hardware` list. A work-queue task, `post_transfer`.
 
-done queue
+`post_transfer` largely does the reverse of the tasks performed by `queue_data_transfer`, for each job in the `post_hardware` queue:
 
-whats done ioctl
+1.  free the descriptor list entries
+2.  un-map the scatter-list, performing further cache operations and free-up IOMMU resources.
+3.  free the scatter-list as it is no-longer needed.
+4.  mark pages as "dirty" so any (now incorrect) copies in swap are discarded
+5.  release the pages so once again, they can be swapped out to disk if memory is low
+6.  free the list of pages that represent the buffer (not the pages themselves, just a list of them).
+7.  move the job from the `post_hardware` queue to the `transfers_done` list
+8.  if required, send the required signal to the nominated process.
 
-cancelling
+The user-space application (MinKNOW) sends the `MINION_IOCTL_WHATS_COMPLETED` ioctl to enquire which jobs are complete. The transfer id and status of the jobs in the `transfers_done` list are copied into the buffer for the ioctl and the job structure is destroyed.
+
+The `cancel_data_transfer` function will reset the DMA hardware, and dispose of all the jobs in the various queues. It requires that new jobs shall not be submitted when in the reset code.
 
 ## Tools
 
