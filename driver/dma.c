@@ -903,6 +903,7 @@ long cancel_data_transfers(struct altr_dma_dev* adma)
             list_del(&job->list);
             free_descriptor_list(adma, job);
             pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
+            sg_free_table(&job->sgt);
             // mark pages as dirty and release
             for (i = 0; i < job->no_pages; ++i) {
                  struct page* page = job->pages[i];
@@ -923,6 +924,7 @@ long cancel_data_transfers(struct altr_dma_dev* adma)
             list_del(&job->list);
             free_descriptor_list(adma, job);
             pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
+            sg_free_table(&job->sgt);
             // mark pages as dirty and release
             for (i = 0; i < job->no_pages; ++i) {
                  struct page* page = job->pages[i];
