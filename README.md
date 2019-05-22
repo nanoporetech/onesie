@@ -88,8 +88,6 @@ accessing the driver through its file interfaces) to the `minion_device_s`
 structure. These are created, removed and accessed through the `device_table_add`,
 `device_table_remove` and `device_table_lookup` functions respectively.
 
-*  TODO: how it should be started and how it should create device nodes
-
 ### MinION EEPROM Access
 
 The EEPROM on the MinION flow-cell is accessed over a I2C bus. There is only one
