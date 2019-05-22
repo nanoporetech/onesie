@@ -996,7 +996,7 @@ static ssize_t pid_settings_show(struct kobject *kobj, struct kobj_attribute *at
                        readl(&message->pid_profile[i].ki_gain),
                        readl(&message->pid_profile[i].kd_gain),
                        readw(&message->pid_profile[i].ni_len),
-                       readl(&message->pid_profile[i].sample_t),
+                       readw(&message->pid_profile[i].sample_t),
                        readw(&message->pid_profile[i].fc_therm_weight),
                        readw(&message->pid_profile[i].ch514_weight));
     }
@@ -1031,7 +1031,7 @@ static ssize_t pid_settings_store(struct kobject *kobj, struct kobj_attribute *a
         writel(ki_gain, &message->pid_profile[i].ki_gain);
         writel(kd_gain, &message->pid_profile[i].kd_gain);
         writew(ni_len, &message->pid_profile[i].ni_len);
-        writel(sample_t, &message->pid_profile[i].sample_t);
+        writew(sample_t, &message->pid_profile[i].sample_t);
         writew(fc_therm_weight, &message->pid_profile[i].fc_therm_weight);
         writew(ch514_weight, &message->pid_profile[i].ch514_weight);
     }

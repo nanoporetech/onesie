@@ -10,7 +10,6 @@ struct data_log_point
         u16	tec_value;	//Raw value driven to TEC driver
         u16 fc_temp;		//Calculated process side temperature - -16°C offset, 128°C range
         u16 hsink_temp;	//Calculated heatsink temperature
-        u16 padding;
 } __attribute__(( packed ));
 
 struct pid_profile_struct
@@ -19,8 +18,7 @@ struct pid_profile_struct
         u32	ki_gain;	//Integral gain
         u32	kd_gain;	//Differential gain
         u16	ni_len;		//Length of integrator
-        u16 padding;
-        u32	sample_t;	//Sampling period in us - min 33334 for LTC2460
+        u16	sample_t;	//Sampling period in us - min 33334 for LTC2460
         u16	fc_therm_weight;	//Weighting of thermistor input to temperature estimate
         u16	ch514_weight;		//Weighting of ASIC channel input to temperature esitimate
 } __attribute__(( packed ));
