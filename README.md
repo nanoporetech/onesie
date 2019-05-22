@@ -1,11 +1,29 @@
-# MinIT-1C Linux device-driver
+# MinION-mk1C Linux device-driver
 
-This projoct contains a Linux device-driver for the FPGA firmware that enables interaction with a
+This project contains a Linux device-driver for the FPGA firmware that enables interaction with a
 MinION flowcell over a PCIe link.
 
 ## Getting Started
 
-Build with `make all` and start with `insmod driver/minion.ko`
+Building is more complicated than `make all` due to the need to access the MinIT kernel include files, these are not installed in the MinIT/MinION-1C by defaults and there are no packages available for them. At the moment, the driver has to be cross-compiled and the utilities compiled natively.
+
+### Build Driver
+
+Set-up a bash shell with a compilation environment. Follow the [MinIT BSP Build / Install instructions](https://wiki.oxfordnanolabs.local/pages/viewpage.action?pageId=82990823), but after the "Set up environment for Kbuild" step, stop and modify `linux-minit-build/make_all.sh` and comment out the last two lines that delete the "source" and "build" directories. Continue with the `source $BASE/linux-minit-build/make_all.sh` step. After this has been done once, subsequently, you just need to set the `BASE` environment variable and run `linux-minit-build/build_env.sh`
+
+Using the shell environment set-up above, cd to the `onesie/driver` directory and run
+
+`KERNELRELEASE=4.4.38-minit KERNELDIR=~/code/minit-kernel/linux_build/kernel_module/lib/modules/4.4.38-minit make`
+
+A `minion.ko` file should be built.
+
+### Build Utils
+
+Clone this repository on the minion-1c, cd to `onesie/utils`, run `make`.
+
+### Use on MinION-1C
+
+scp the driver onto the minion-1c and start with `insmod minion.ko`
 
 Check the kernel logs (`dmesg`) to see if the driver has found hardware. Currently the
 driver doesn't create a device-node so you have to run through a couple of steps to
@@ -14,14 +32,14 @@ do that manually
 Look through the list of devices in `/proc/devices` for `ont-minit1c` you need the
 number associated with it, that is the major device-number.
 
-Create the device node wherever you feel comfortable
+You can create the device node wherever you feel comfortable and call it whatever you want, but MinKNOW looks for it as `/dev/flowcell0`. If you do create the device node in `/dev` you will have to recreate it every time you boot the minion-1c as that file-system is not persistent.
 
-`sudo mknod onsie c <major-no> 0`
+`sudo mknod /dev/flowcell0 c <major-no> 0`
 
-If this works there should be a file called "onesie" owned by root. For convenience,
+If this works there should be a file called `/dev/flowcell0` owned by root. For convenience,
 change it to be owned by you.
 
-`sudo chown <username> onesie`
+`sudo chown <username> /dev/flowcell0`
 
 Warning: The major number that the driver uses _can_ change each time driver is
 loaded. Though the file will still be there. If the driver stops working check
@@ -199,6 +217,8 @@ To read multiple registers, but not all the registers in a bar, use a `bash` for
 
 Usage: `minit-eeprom [-rw] [-s start] [-l length] <device>`
 
+| | |
+| --- | --- |
 | `-r`, `--read` | read from EEPROM to standard output|
 | `-w`, `--write` | write data from standard input to EEPROM |
 | `-s`, `--start <offset bytes>` | start address in decimal or hex if starting with 0x. defaults to 0 |
@@ -220,6 +240,8 @@ To write the entire EEPROM from a file:
 
 Usage: `minit-hsrx [-erxf] <device>`
 
+| | |
+| --- | --- |
 | `-e`, `--enable` | set the enable-bit in hs-rx word-0 |
 | `-r`, `--sync-reset` | set the reset-bit in hs-rx word-0 |
 | `-x`, `--hex` | output registers read as hexadecimal rather than a byte-stream |
@@ -233,6 +255,8 @@ Usage: `minit-hsrx [-erxf] <device>`
 
 Usage: `minion-shift [-x] [-e] [-s] [-f frequency ] <device>`
 
+| | |
+| --- | --- |
 | `-x`, `--hex` | Output will be in hexadecimal csv |
 | `-e`, `--enable` | Set the enable bit |
 | `-s`, `--start` | Set the start-bit |
@@ -251,7 +275,9 @@ In almost all scenarios, the `--enable` and `--start` options should be selected
 
 `minion-dma [-s size] [-n number of transfers] [-q max queue size ] [-spr] <device>`
 
-| `-s`, `--size <size>`      Size of each transfer, defaults to 514*2-bytes, see below! |
+| | |
+| --- | --- |
+| `-s`, `--size <size>` | Size of each transfer, defaults to 514*2-bytes, see below! |
 | `-n`, `--no-transfers <no transfers>` | Number of transfers, (default 1) |
 | `--stream` | Transfer data repeatedly until further notice. If this is set `--no-transfers` will be ignored. |
 | `-q`, `--max-queue <max queue-size>` | Maximum number of transfers to queue at once (default 8) |
@@ -269,9 +295,9 @@ The number of buffers transferred is specified by the `--no-transfers` option. A
 
 Data is output as a bytes-stream, not normally intelligible with out a some other tool such as `hexdump`, eg:
 
-`minion-dma -s 4224 -r | hexdump -C` read four frames and use `hexdump` to make readable.
+`minion-dma /dev/flowcell0 -s 4224 -r | hexdump -C` read four frames and use `hexdump` to make readable.
 
-`minion-dma -s 135168 -r --stream > captured-data` stream 128-frame buffers to a file.
+`minion-dma /dev/flowcell0 -s 135168 -r --stream > captured-data` stream 128-frame buffers to a file.
 
 ### dma-audit
 
@@ -279,7 +305,7 @@ Data is output as a bytes-stream, not normally intelligible with out a some othe
 
 `dma-audit < captured-data` Audit a file containing previously captured data.
 
-`minion-dma -s 84480 -r --stream | dma-audit` Audit data as it is being acquired from the hardware.
+`minion-dma /dev/flowcell0 -s 84480 -r --stream | dma-audit` Audit data as it is being acquired from the hardware.
 
 `dma-audit` checks for:
 
