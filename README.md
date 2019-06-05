@@ -313,4 +313,15 @@ Data is output as a bytes-stream, not normally intelligible with out a some othe
 
 ## Packaging and Distribution
 
+Three (or four) Debian packages are produces by the Makefile:
 
+| Package | Contents |
+| --- | --- |
+| ont-minion1c-driver-4.4.38-minit_0.0.1-1~xenial_amd64.deb | Binary package containing the driver and rules for creating device nodes. |
+| ont-minion1c-driver-utils_0.0.1-1~xenial_amd64.deb | Binaries for the executables described in the Tools section above. **This package will not be produced correctly when cross-compiling.** |
+| ont-minion1c-driver-dev_0.0.1-1~xenial_all.deb | Sources for driver development. |
+| ont-minion1c-driver-dkms_0.0.1-1~xenial_all.deb | Sources and rules for building the driver under the DKMS system. **Due to the lack of suitable packages and tools for the MinIT/MinION-mk1C Kernel it is not recommended to distribute this package.** |
+
+These are built by the Makefile when run with the target `dist-deb`. The binary driver package is only produced when setting the environment variable `COMPILED_DRIVER_PACKAGE=1`.
+
+The GitLab CI system is set-up to produce these packages in a build artefact.
