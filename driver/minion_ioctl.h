@@ -62,6 +62,21 @@ struct minion_register_s {
  *                      with their effects. This will be written to hardware
  *                      if to_device is set and will be updated with the value
  *                      from the register if from_device is set.
+ * waveform_frame_count to/from-driver
+ *                      How many frames each sample in the waveform will be
+ *                      applied for.
+ * waveform_table_length to/from-driver
+ *                      How many frames are in the waveform table. A value of 0
+ *                      indicates that the waveform should not be enabled
+ *                      Note: this does't specify how big the storage for the
+ *                      waveform is. If specified, it should always be
+ *                      MINION_WAVEFORM_SIZE 16-bit entries.
+ * waveform_table       to-driver
+ *                      A pointer to the waveform storage, if null or if
+ *                      to_device is null then waveforms will not be applied.
+ *                      This will be updated with the current waveform by the
+ *                      time the call returns if not null and from_device is
+ *                      not null.
  */
 struct minion_shift_reg_s {
     __u64   to_device;
@@ -70,14 +85,19 @@ struct minion_shift_reg_s {
     __u8    start;
     __u8    enable;
     __u8    command_id;
-    __u8    padding; // must be zero
+    __u8    waveform_frame_count;
+    __u16   waveform_table_length;
+    __u16   padding2; // 2 so as not confused with padding that's been removed
+    __u64   waveform_table;
 } __attribute__(( packed ));
-#define MINION_SHIFT_REG_SIZE 24
+#define MINION_SHIFT_REG_SIZE 36
+
+#define MINION_WAVEFORM_SIZE 1024
 
 #define MINION_IOCTL_SHIFT_REG _IOWR('b', 65, struct minion_shift_reg_s)
 
 
-#define MINION_IOCTL_HS_RECEIVER_REG_SIZE 12
+#define MINION_IOCTL_HS_RECEIVER_REG_SIZE 13
 /**
  * @brief Optionally write data, then read the contents of the HS Receiver core
  * registers to/from-driver If write is set then the writable registers will be
@@ -90,7 +110,7 @@ struct minion_shift_reg_s {
 struct  minion_hs_receiver_s {
    __u16    registers[MINION_IOCTL_HS_RECEIVER_REG_SIZE];
    __u8     write;
-   __u8     padding[3]; // pad to multiple of 64 bytes (MUST BE ZERO)
+   __u8     padding[1]; // pad to multiple of 64 bytes (MUST BE ZERO)
 } __attribute__(( packed ));
 #define MINION_HS_RECEIVER_SIZE 28
 
@@ -200,6 +220,22 @@ struct minion_completed_transfers_s {
 
 /** Cancel all transfers */
 #define MINION_IOCTL_CANCEL_TRANSFERS  _IO('b', 71)
+
+/**
+ * @brief Firmware version info
+ *
+ * major, minor and patch are the firmware version
+ * timestamp is in seconds since Jan 1 1970 for firmware production date
+ */
+struct minion_firmware_info_s {
+    __u16 major;
+    __u8  minor;
+    __u8  patch;
+    __u32 timestamp; // seconds since epoch
+} __attribute__(( packed ));
+
+#define MINON_IOCTL_FIRMWARE_INFO _IOR('b', 72, struct minion_firmware_info_s)
+
 
 #ifdef __cplusplus
 }
