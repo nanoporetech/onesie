@@ -276,9 +276,11 @@ static long minion_shift_register_access(
     if (to_dev) {
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; i += 2) {
+            u16 tmp;
             VPRINTK("Shift to dev  : 0x%02x => %p\n",to_dev[i],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
             VPRINTK("Shift to dev  : 0x%02x => %p\n",to_dev[i+1],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i + 1);
-            writew(to_dev[i], mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
+            tmp = to_dev[i+1] << 8 | to_dev[i];
+            writew(tmp, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
         }
 
         if (wavetable) {
@@ -324,7 +326,10 @@ static long minion_shift_register_access(
         msleep(delay_ms);
 
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; i += 2) {
-            from_dev[i] = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
+            u16 tmp;
+            tmp = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
+            from_dev[i] = tmp & 0xff;
+            from_dev[i+1] = tmp >> 8;
             VPRINTK("Shift from dev: 0x%02x <= %p\n",from_dev[i],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
             VPRINTK("Shift from dev: 0x%02x <= %p\n",from_dev[i+1],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i + 1);
 
@@ -637,7 +642,14 @@ static void get_fw_info(struct minion_device_s* mdev,
     fw_info->timestamp = readl(mdev->ctrl_bar + SYSTEM_ID_CORE + SYS_ID_TIMESTAMP);
 }
 
-
+static void dump_firmware_info(struct minion_firmware_info_s* fw_info)
+{
+    printk(KERN_INFO"MinION-mk1C firmware version %d.%d.%d timestamp %u\n",
+           fw_info->major,
+           fw_info->minor,
+           fw_info->patch,
+           fw_info->timestamp);
+}
 
 /*
  * File OPs
@@ -1092,6 +1104,12 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     DPRINTK("Control bar mapped to %p\n", mdev->ctrl_bar);
     DPRINTK("SPI bar mapped to %p\n", mdev->spi_bar);
     DPRINTK("PCI bar mapped to %p\n", mdev->pci_bar);
+
+    {
+        struct minion_firmware_info_s fw_info;
+        get_fw_info(mdev,&fw_info);
+        dump_firmware_info(&fw_info);
+    }
 
     // Use the existance of a define as indication that we're compiling on a new
     // kernel with the simpler way of setting up interrupts for PCIe
