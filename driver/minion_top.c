@@ -250,9 +250,9 @@ static long minion_shift_register_access(
         char* const to_dev,
         char* const from_dev,
         u16* wavetable,
-        const u16 waveform_len,
-        const u8 waveform_enable,
-        const u8 waveform_frames,
+        u16* waveform_len,
+        u8* waveform_enable,
+        u8* waveform_frames,
         const u8 start,
         const u8 enable,
         const u32 clk,
@@ -285,16 +285,17 @@ static long minion_shift_register_access(
 
         if (wavetable) {
             for (i = 0; i < MINION_WAVEFORM_SIZE; ++i) {
-                writew(wavetable[i], mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_TABLE + i);
+                writew(wavetable[i], mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_TABLE + (i*2));
             }
         }
+
+        // waveform controls
+        writew( (*waveform_len & ASIC_SHIFT_LUT_LEN_MASK) | (*waveform_enable ? ASIC_SHIFT_LUT_ENABLE : 0),
+                mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL1 );
+        writew( (*waveform_frames & ASIC_SHIFT_WAVE_FRAMES_MASK),
+                mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL2 );
     }
 
-    // waveform controls
-    writew( (waveform_len & ASIC_SHIFT_LUT_LEN_MASK) | (waveform_enable ? ASIC_SHIFT_LUT_ENABLE : 0),
-            mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL1 );
-    writew( (waveform_frames & ASIC_SHIFT_WAVE_FRAMES_MASK),
-            mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL2 );
     wmb();
 
     if (clk > PCIe_LANE_CLOCK) {
@@ -321,24 +322,33 @@ static long minion_shift_register_access(
 
     if (from_dev) {
         int i;
+        u16 tmp;
         // wait for the data to move
         VPRINTK("sleeping for %d ms\n",delay_ms);
         msleep(delay_ms);
 
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; i += 2) {
-            u16 tmp;
             tmp = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
             from_dev[i] = tmp & 0xff;
             from_dev[i+1] = tmp >> 8;
             VPRINTK("Shift from dev: 0x%02x <= %p\n",from_dev[i],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
             VPRINTK("Shift from dev: 0x%02x <= %p\n",from_dev[i+1],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i + 1);
+        }
 
-            if (wavetable) {
-                for (i = 0; i < MINION_WAVEFORM_SIZE; ++i) {
-                    wavetable[i] = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_TABLE + i);
-                }
+        if (wavetable) {
+            for (i = 0; i < MINION_WAVEFORM_SIZE; ++i) {
+                wavetable[i] = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_TABLE + (i*2));
             }
         }
+
+        // waveform controls
+        tmp = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL1);
+        *waveform_len = tmp & ASIC_SHIFT_LUT_LEN_MASK;
+        *waveform_enable = (tmp & ASIC_SHIFT_LUT_ENABLE) ? 1 : 0;
+
+        tmp = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL2);
+        *waveform_frames  = tmp & ASIC_SHIFT_WAVE_FRAMES_MASK;
+
         *cmd_id = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL) >> ASIC_SHIFT_CTRL_CMDID_SHIFT;
     }
 
@@ -724,6 +734,8 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             struct minion_shift_reg_s shift_reg_access = {};
             char shift_reg[ASIC_SHIFT_REG_SIZE];
             u16* wavetable = kzalloc(MINION_WAVEFORM_SIZE * sizeof(u16), GFP_KERNEL);
+            u16 wavetable_length;
+            u8 wavetable_enable;
 
             BUILD_BUG_ON(sizeof(struct minion_shift_reg_s) != MINION_SHIFT_REG_SIZE);
             VPRINTK("MINION_IOCTL_SHIFT_REG\n");
@@ -756,18 +768,21 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             }
 
             // do access
+            wavetable_length = shift_reg_access.waveform_table_length - 1;
+            wavetable_enable = shift_reg_access.waveform_table_length ? 1 : 0;
             rc = minion_shift_register_access(
                         mdev,
                         shift_reg_access.to_device ? shift_reg : NULL,
                         shift_reg_access.from_device ? shift_reg : NULL,
                         shift_reg_access.waveform_table ? wavetable : NULL,
-                        shift_reg_access.waveform_table_length - 1,
-                        shift_reg_access.waveform_table_length ? 1 : 0,
-                        shift_reg_access.waveform_frame_count,
+                        &wavetable_length,
+                        &wavetable_enable,
+                        &shift_reg_access.waveform_frame_count,
                         shift_reg_access.start,
                         shift_reg_access.enable,
                         shift_reg_access.clock_hz,
                         &shift_reg_access.command_id);
+            shift_reg_access.waveform_table_length = wavetable_enable ? (wavetable_length + 1) : 0;
             if (rc) {
                 DPRINTK("shift register operation failed\n");
                 goto ioctl_shift_reg_out;

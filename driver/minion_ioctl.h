@@ -5,7 +5,7 @@
  *
  * Author: <info@nanoporetech.com>
  *
- * These are the IOCTL definition for interacting with the Oxford Nanopore 
+ * These are the IOCTL definitions for interacting with the Oxford Nanopore
  * Technologies MinION-1C firmware and hardware.
  *
  */
