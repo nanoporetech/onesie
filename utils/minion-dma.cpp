@@ -51,7 +51,6 @@ struct AlignedAllocator {
     T* allocate (std::size_t n) {
         // allocate space for n objects, a pointer and wiggle-room
         T* mem = reinterpret_cast<T*>(::operator new(n*sizeof(T) + sizeof(std::uintptr_t) + alignment));
-
         // pointer will always be first, so introduce an offset for that
         std::uintptr_t p_mem = reinterpret_cast<std::uintptr_t>(mem) + sizeof(std::uintptr_t);
 
@@ -59,17 +58,17 @@ struct AlignedAllocator {
         if (p_mem & (alignment-1)) {
             p_mem += alignment - (p_mem & (alignment-1));
         }
-
         // a pointer to the original memory is placed before the buffer we return
         T** orig_mem =  reinterpret_cast<T**>(p_mem - sizeof(std::uintptr_t));
+
         *orig_mem = mem;
         return reinterpret_cast<T*>(p_mem);
     }
     void deallocate (T* p, std::size_t n) {
         auto mem = reinterpret_cast<std::uintptr_t>(p);
         // get a pointer to the original memory and free that
-        auto orig_mem = reinterpret_cast<T*>(p - sizeof(std::uintptr_t));
-        ::delete(orig_mem);
+        auto orig_mem = reinterpret_cast<T**>(p - sizeof(std::uintptr_t));
+        ::delete(*orig_mem);
     }
 };
 
