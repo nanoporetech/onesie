@@ -274,9 +274,9 @@ static long minion_shift_register_access(
 
     // write to data into shift register
     if (to_dev) {
+        u16 tmp;
         int i;
         for (i = 0; i < ASIC_SHIFT_REG_SIZE; i += 2) {
-            u16 tmp;
             VPRINTK("Shift to dev  : 0x%02x => %p\n",to_dev[i],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
             VPRINTK("Shift to dev  : 0x%02x => %p\n",to_dev[i+1],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i + 1);
             tmp = to_dev[i+1] << 8 | to_dev[i];
@@ -290,10 +290,11 @@ static long minion_shift_register_access(
         }
 
         // waveform controls
-        writew( (*waveform_len & ASIC_SHIFT_LUT_LEN_MASK) | (*waveform_enable ? ASIC_SHIFT_LUT_ENABLE : 0),
-                mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL1 );
-        writew( (*waveform_frames & ASIC_SHIFT_WAVE_FRAMES_MASK),
-                mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL2 );
+        tmp = (*waveform_len & ASIC_SHIFT_LUT_LEN_MASK) | (*waveform_enable ? ASIC_SHIFT_LUT_ENABLE : 0);
+        writew( tmp, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL1 );
+
+        tmp = (*waveform_frames & ASIC_SHIFT_WAVE_FRAMES_MASK);
+        writew( tmp, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL2 );
     }
 
     wmb();
@@ -361,7 +362,7 @@ static void minion_hs_reg_access(struct minion_device_s* mdev, struct minion_hs_
 {
     unsigned int i;
 
-    DPRINTK("minion_hs_reg_access\n");
+    VPRINTK("minion_hs_reg_access\n");
     if (minion_hs_reg->write) {
         for (i = 0; i < NUM_HS_REGISTERS;++i) {
             if (((ASIC_HS_REG_WRITE_MASK >> i) & 1) == 1) {
@@ -734,7 +735,7 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             struct minion_shift_reg_s shift_reg_access = {};
             char shift_reg[ASIC_SHIFT_REG_SIZE];
             u16* wavetable = kzalloc(MINION_WAVEFORM_SIZE * sizeof(u16), GFP_KERNEL);
-            u16 wavetable_length;
+            u8 wavetable_frames;
             u8 wavetable_enable;
 
             BUILD_BUG_ON(sizeof(struct minion_shift_reg_s) != MINION_SHIFT_REG_SIZE);
@@ -768,21 +769,21 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             }
 
             // do access
-            wavetable_length = shift_reg_access.waveform_table_length - 1;
-            wavetable_enable = shift_reg_access.waveform_table_length ? 1 : 0;
+            wavetable_frames = shift_reg_access.waveform_frame_count - 1;
+            wavetable_enable = shift_reg_access.waveform_frame_count ? 1 : 0;
             rc = minion_shift_register_access(
                         mdev,
                         shift_reg_access.to_device ? shift_reg : NULL,
                         shift_reg_access.from_device ? shift_reg : NULL,
                         shift_reg_access.waveform_table ? wavetable : NULL,
-                        &wavetable_length,
+                        &shift_reg_access.waveform_table_length,
                         &wavetable_enable,
-                        &shift_reg_access.waveform_frame_count,
+                        &wavetable_frames,
                         shift_reg_access.start,
                         shift_reg_access.enable,
                         shift_reg_access.clock_hz,
                         &shift_reg_access.command_id);
-            shift_reg_access.waveform_table_length = wavetable_enable ? (wavetable_length + 1) : 0;
+            shift_reg_access.waveform_frame_count = wavetable_enable ? (wavetable_frames - 1) : 0;
             if (rc) {
                 DPRINTK("shift register operation failed\n");
                 goto ioctl_shift_reg_out;
@@ -794,9 +795,9 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                     goto ioctl_shift_reg_out;
                 }
                 if (shift_reg_access.waveform_table) {
-                    rc = copy_from_user(
-                        wavetable,
+                    rc = copy_to_user(
                         (void __user*)shift_reg_access.waveform_table,
+                        wavetable,
                         MINION_WAVEFORM_SIZE * sizeof(u16));
                     if (rc) {
                         DPRINTK("copy_from_user failed for wavetable\n");

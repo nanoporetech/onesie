@@ -64,10 +64,10 @@ struct minion_register_s {
  *                      from the register if from_device is set.
  * waveform_frame_count to/from-driver
  *                      How many frames each sample in the waveform will be
- *                      applied for.
+ *                      applied for. A value of 0 dictates that the waveform
+ *                      will not be enabled
  * waveform_table_length to/from-driver
- *                      How many frames are in the waveform table. A value of 0
- *                      indicates that the waveform should not be enabled
+ *                      How many frames are in the waveform table.
  *                      Note: this does't specify how big the storage for the
  *                      waveform is. If specified, it should always be
  *                      MINION_WAVEFORM_SIZE 16-bit entries.
@@ -92,7 +92,7 @@ struct minion_shift_reg_s {
 } __attribute__(( packed ));
 #define MINION_SHIFT_REG_SIZE 36
 
-#define MINION_WAVEFORM_SIZE 1024
+#define MINION_WAVEFORM_SIZE 512
 
 #define MINION_IOCTL_SHIFT_REG _IOWR('b', 65, struct minion_shift_reg_s)
 
