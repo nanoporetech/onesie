@@ -233,6 +233,7 @@ struct minion_firmware_info_s {
     __u8  patch;
     __u32 timestamp; // seconds since epoch
 } __attribute__(( packed ));
+#define MINION_FIRMWARE_INFO_SIZE 8
 
 #define MINON_IOCTL_FIRMWARE_INFO _IOR('b', 72, struct minion_firmware_info_s)
 

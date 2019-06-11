@@ -238,6 +238,11 @@ static long minion_reg_access(struct minion_device_s* mdev, struct minion_regist
  * @param mdev pointer do driver structure
  * @param to_dev 282 byte buffer to send to ASIC
  * @param from_dev 282 byte buffer to receive data from ASIC
+ * @param wavetable 512 waveform-table entries
+ * @param waveform_len length of the waveform
+ * @param waveform_enable Non-zero if the waveform should be emmitted
+ * @param waveform_frames number of frames - 1 each entry in the waveform table
+ *        should be emitted, ie 7 = eight frames, 0 = one frame, etc.
  * @param start  start transfer
  * @param enable enable module
  * @param clk clockspeed in Hz, this will be achieved by integer division of
