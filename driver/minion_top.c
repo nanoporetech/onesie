@@ -265,7 +265,7 @@ static long minion_shift_register_access(
 {
     struct historical_link_mode old_link_mode;
     long rc;
-    u32 clockdiv;
+    u32 clockdiv2; // clockdiv2 is the clock-divider * 2
     u32 actual_clock;
     u16 control;
     unsigned int delay_ms = 1+((1000 * ASIC_SHIFT_REG_SIZE) / clk);
@@ -305,20 +305,20 @@ static long minion_shift_register_access(
     wmb();
 
     if (clk > PCIe_LANE_CLOCK) {
-        clockdiv = 0;
+        clockdiv2 = 0;
     } else {
-        clockdiv = ((PCIe_LANE_CLOCK/clk) - 1) / 2;
+        clockdiv2 = (PCIe_LANE_CLOCK/clk) - 1;
     }
-    if (clockdiv > ASIC_SHIFT_CTRL_DIV_MAX) {
-        clockdiv = ASIC_SHIFT_CTRL_DIV_MAX;
+    if (clockdiv2 > ASIC_SHIFT_CTRL_DIV_MAX) {
+        clockdiv2 = ASIC_SHIFT_CTRL_DIV_MAX;
     }
-    actual_clock = PCIe_LANE_CLOCK / ((2*clockdiv) + 1);
+    actual_clock = PCIe_LANE_CLOCK / (clockdiv2 + 1);
     if (actual_clock != clk) {
         DPRINTK("Requested SPI Clock of %d couldn't be achieved, best effort %d\n",
                 clk, actual_clock);
     }
 
-    control = (clockdiv << ASIC_SHIFT_CTRL_DIV_SHIFT) |
+    control = ((clockdiv2/2) << ASIC_SHIFT_CTRL_DIV_SHIFT) |
               (start ? ASIC_SHIFT_CTRL_ST : 0) |
               (enable ? ASIC_SHIFT_CTRL_EN :0) |
               (*cmd_id << ASIC_SHIFT_CTRL_CMDID_SHIFT);
