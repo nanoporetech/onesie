@@ -742,6 +742,7 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             u16* wavetable = kzalloc(MINION_WAVEFORM_SIZE * sizeof(u16), GFP_KERNEL);
             u8 wavetable_frames;
             u8 wavetable_enable;
+            u16 wavetable_length;
 
             BUILD_BUG_ON(sizeof(struct minion_shift_reg_s) != MINION_SHIFT_REG_SIZE);
             VPRINTK("MINION_IOCTL_SHIFT_REG\n");
@@ -776,12 +777,13 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             // do access
             wavetable_frames = shift_reg_access.waveform_frame_count - 1;
             wavetable_enable = shift_reg_access.waveform_frame_count ? 1 : 0;
+            wavetable_length = shift_reg_access.waveform_table_length - 1;
             rc = minion_shift_register_access(
                         mdev,
                         shift_reg_access.to_device ? shift_reg : NULL,
                         shift_reg_access.from_device ? shift_reg : NULL,
                         shift_reg_access.waveform_table ? wavetable : NULL,
-                        &shift_reg_access.waveform_table_length,
+                        &wavetable_length,
                         &wavetable_enable,
                         &wavetable_frames,
                         shift_reg_access.start,
@@ -789,6 +791,7 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                         shift_reg_access.clock_hz,
                         &shift_reg_access.command_id);
             shift_reg_access.waveform_frame_count = wavetable_enable ? (wavetable_frames - 1) : 0;
+            shift_reg_access.waveform_table_length = wavetable_length + 1;
             if (rc) {
                 DPRINTK("shift register operation failed\n");
                 goto ioctl_shift_reg_out;
