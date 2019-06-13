@@ -74,9 +74,9 @@ struct minion_register_s {
  * waveform_table       to-driver
  *                      A pointer to the waveform storage, if null or if
  *                      to_device is null then waveforms will not be applied.
- *                      This will be updated with the current waveform by the
- *                      time the call returns if not null and from_device is
- *                      not null.
+ *                      The store this points to will be updated with the
+ *                      current waveform by the time the call returns (if not
+ *                      null and from_device is also not null.)
  */
 struct minion_shift_reg_s {
     __u64   to_device;
