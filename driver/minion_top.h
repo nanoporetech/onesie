@@ -81,6 +81,19 @@ struct historical_link_mode {
     u8 reg;
 };
 
+struct shift_reg_access_parameters_s {
+    char* to_dev;
+    char* from_dev;
+    u16* wavetable;
+    u16 waveform_length;
+    u8 waveform_enable;
+    u8 waveform_frames;
+    const u8 start;
+    const u8 enable;
+    const u32 clk;
+    u8 cmd_id;
+};
+
 struct minion_device_s {
     struct pci_dev* pci_device;
 

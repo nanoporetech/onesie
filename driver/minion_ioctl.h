@@ -67,7 +67,7 @@ struct minion_register_s {
  *                      applied for. A value of 0 dictates that the waveform
  *                      will not be enabled
  * waveform_table_length to/from-driver
- *                      How many frames are in the waveform table.
+ *                      How many samples are in the waveform table.
  *                      Note: this does't specify how big the storage for the
  *                      waveform is. If specified, it should always be
  *                      MINION_WAVEFORM_SIZE 16-bit entries.
@@ -87,7 +87,7 @@ struct minion_shift_reg_s {
     __u8    command_id;
     __u8    waveform_frame_count;
     __u16   waveform_table_length;
-    __u16   padding2; // 2 so as not confused with padding that's been removed
+    __u16   padding;
     __u64   waveform_table;
 } __attribute__(( packed ));
 #define MINION_SHIFT_REG_SIZE 36
