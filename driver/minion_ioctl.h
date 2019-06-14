@@ -49,9 +49,14 @@ struct minion_register_s {
  *                      to the ASIC shift-register. If null existing hardware
  *                      buffer contents will be re-sent.
  * from_device to-driver Pointer to a 283-byte buffer for data read from the
- *                      ASIC shift-register. This can be the same buffer as the
- *                      one pointed to by to_device. If null any data read from
- *                      the hardware will be discarded.
+ *                      ASIC shift-register. This is read at the same time as
+ *                      writing the to_device buffer to the ASIC. Due to FIFOs
+ *                      within the ASIC, this will likely contain what was
+ *                      written to the ASIC during a previous call to this
+ *                      IOCTL, but with OTP bits set.
+ *                      This can be the same buffer as the one pointed to by
+ *                      to_device. If null any data read from the hardware will
+ *                      be discarded.
  * clock_hz to-driver   Clock speed in Hz for the transfer. Due to hardware
  *                      limitations the actual clock speed may differ from that
  *                      requested
@@ -65,9 +70,10 @@ struct minion_register_s {
  * waveform_frame_count to/from-driver
  *                      How many frames each sample in the waveform will be
  *                      applied for. A value of 0 dictates that the waveform
- *                      will not be enabled
+ *                      will not be enabled. Maximum 128 frames.
  * waveform_table_length to/from-driver
- *                      How many samples are in the waveform table.
+ *                      How many samples are in the waveform table. Maximum
+ *                      length is MINION_WAVEFORM_SIZE.
  *                      Note: this does't specify how big the storage for the
  *                      waveform is. If specified, it should always be
  *                      MINION_WAVEFORM_SIZE 16-bit entries.

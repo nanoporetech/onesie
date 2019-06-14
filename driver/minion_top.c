@@ -241,13 +241,12 @@ static u32 calculate_shift_reg_clock_divider(const u32 clk)
 {
     u32 clockdiv;
     u32 actual_clock;
-    if (clk > PCIe_LANE_CLOCK) {
+    if (clk > ASIC_SHIFT_MAX_CLOCK) {
         clockdiv = 0;
+    } else if (clk < ASIC_SHIFT_MIN_CLOCK) {
+        clockdiv = ASIC_SHIFT_CTRL_DIV_MAX;
     } else {
         clockdiv = ((PCIe_LANE_CLOCK/(2*clk)) - 1) / 2;
-    }
-    if (clockdiv > ASIC_SHIFT_CTRL_DIV_MAX) {
-        clockdiv = ASIC_SHIFT_CTRL_DIV_MAX;
     }
     actual_clock = PCIe_LANE_CLOCK / ((4*clockdiv) + 2);
     if (actual_clock != clk) {
@@ -274,8 +273,8 @@ static void write_shift_reg_hw(
     }
 
     for (i = 0; i < ASIC_SHIFT_REG_SIZE; i += 2) {
-        VPRINTK("Shift to dev  : 0x%02x => %p\n",param->to_dev[i],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
-        VPRINTK("Shift to dev  : 0x%02x => %p\n",param->to_dev[i+1],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i + 1);
+        VPRINTK("Shift to dev  : 0x%02x => [%p]\n", param->to_dev[i], mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
+        VPRINTK("Shift to dev  : 0x%02x => [%p]\n", param->to_dev[i+1], mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i + 1);
         tmp = (param->to_dev[i+1] << 8u) | param->to_dev[i];
         writew(tmp, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
     }
@@ -286,13 +285,16 @@ static void write_shift_reg_hw(
         }
     }
 
-    // waveform controls
-    tmp = (param->waveform_length & ASIC_SHIFT_LUT_LEN_MASK) |
-          (param->waveform_enable ? ASIC_SHIFT_LUT_ENABLE : 0);
-    writew( tmp, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL1 );
+    // waveform controls. The length and frames components of these registers
+    // hold "value - 1" so a register-value of 0 encodes a length or frame-count
+    // of 1. waveform-frames controls if the waveform is enabled with non-zero
+    // values enabing the bias-voltage waveform.
+    tmp = ((param->waveform_length-1) & ASIC_SHIFT_LUT_LEN_MASK) |
+          (param->waveform_frames ? ASIC_SHIFT_LUT_ENABLE : 0);
+    writew(tmp, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL1 );
 
-    tmp = (param->waveform_frames & ASIC_SHIFT_WAVE_FRAMES_MASK);
-    writew( tmp, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL2 );
+    tmp = ((param->waveform_frames-1) & ASIC_SHIFT_WAVE_FRAMES_MASK);
+    writew(tmp, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL2 );
 }
 
 /**
@@ -321,8 +323,8 @@ static void read_shift_reg_hw(
         tmp = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
         param->from_dev[i] = tmp & 0xff;
         param->from_dev[i+1] = tmp >> 8;
-        VPRINTK("Shift from dev: 0x%02x <= %p\n",param->from_dev[i],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
-        VPRINTK("Shift from dev: 0x%02x <= %p\n",param->from_dev[i+1],mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i + 1);
+        VPRINTK("Shift from dev: 0x%02x <= [%p]\n", param->from_dev[i], mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
+        VPRINTK("Shift from dev: 0x%02x <= [%p]\n", param->from_dev[i+1], mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i + 1);
     }
 
     if (param->wavetable) {
@@ -331,13 +333,15 @@ static void read_shift_reg_hw(
         }
     }
 
-    // waveform controls
+    // waveform controls. The length and frames components of these registers
+    // hold "value - 1" so a register-value of 0 encodes a length or frame-count
+    // of 1
     tmp = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL1);
-    param->waveform_length = tmp & ASIC_SHIFT_LUT_LEN_MASK;
-    param->waveform_enable = (tmp & ASIC_SHIFT_LUT_ENABLE) ? 1 : 0;
+    param->waveform_length = (tmp & ASIC_SHIFT_LUT_LEN_MASK) + 1;
 
     tmp = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL2);
-    param->waveform_frames  = tmp & ASIC_SHIFT_WAVE_FRAMES_MASK;
+    // waveform frame-count encodes if the waveform is enabled.
+    param->waveform_frames  = (tmp & ASIC_SHIFT_LUT_ENABLE) ? (tmp & ASIC_SHIFT_WAVE_FRAMES_MASK) + 1 : 0;
 
     // read command-id / ASIC-config id
     param->cmd_id = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL) >> ASIC_SHIFT_CTRL_CMDID_SHIFT;
@@ -414,9 +418,8 @@ static long minion_shift_reg_access_wrapper(struct minion_device_s* mdev, struct
         .to_dev   = shift_reg_access->to_device ? shift_reg : NULL,
         .from_dev = shift_reg_access->from_device ? shift_reg : NULL,
         .wavetable = shift_reg_access->waveform_table ? wavetable : NULL,
-        .waveform_length = shift_reg_access->waveform_table_length - 1,
-        .waveform_enable = shift_reg_access->waveform_frame_count ? 1 : 0,
-        .waveform_frames = shift_reg_access->waveform_frame_count - 1,
+        .waveform_length = shift_reg_access->waveform_table_length,
+        .waveform_frames = shift_reg_access->waveform_frame_count,
         .start = shift_reg_access->start,
         .enable = shift_reg_access->enable,
         .clk = shift_reg_access->clock_hz,
@@ -455,8 +458,8 @@ static long minion_shift_reg_access_wrapper(struct minion_device_s* mdev, struct
 
     // recover output parameters
     shift_reg_access->command_id = parameters.cmd_id;
-    shift_reg_access->waveform_frame_count = parameters.waveform_enable ? (parameters.waveform_frames - 1) : 0;
-    shift_reg_access->waveform_table_length = parameters.waveform_length + 1;
+    shift_reg_access->waveform_frame_count = parameters.waveform_frames;
+    shift_reg_access->waveform_table_length = parameters.waveform_length;
     if (shift_reg_access->from_device) {
         rc = copy_to_user((void __user*)shift_reg_access->from_device, shift_reg, ASIC_SHIFT_REG_SIZE);
         if (rc) {
