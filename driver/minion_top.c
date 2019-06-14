@@ -248,7 +248,7 @@ static u32 calculate_shift_reg_clock_divider(const u32 clk)
     } else {
         clockdiv = ((PCIe_LANE_CLOCK/(2*clk)) - 1) / 2;
     }
-    actual_clock = PCIe_LANE_CLOCK / ((4*clockdiv) + 2);
+    actual_clock = ASIC_SHIFT_DIV_TO_CLOCK(clockdiv);
     if (actual_clock != clk) {
         DPRINTK("Requested SPI Clock of %d couldn't be achieved, best effort %d\n",
                 clk, actual_clock);
