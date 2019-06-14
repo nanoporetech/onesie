@@ -1,23 +1,23 @@
-Source: ont-minit1c-driver
+Source: ont-minion1c-driver
 Section: misc
 Priority: optional
 Maintainer: Oxford Nanopore Technologies <info@nanoporetech.com>
 
-Package: ont-minit1c-driver-utils
+Package: ont-minion1c-driver-utils
 Architecture: _ARCH_
 Depends: ${misc:Depends}
-Recommends: ont-minit1c-driver-dkms
-Suggests: ont-minit1c-driver-dkms
+Recommends: ont-minion1c-driver-dkms
+Suggests: ont-minion1c-driver-dkms
 Description: MinIT-1C acquisition hardware device-driver debug utilities
 
-Package: ont-minit1c-driver-dev
+Package: ont-minion1c-driver-dev
 Section: kernel
 Architecture: all
 Depends: ${misc:Depends}
-Recommends: ont-minit1c-driver-dkms
+Recommends: ont-minion1c-driver-dkms
 Description: Headers for the MinIT-1C acquisition-hardware device-driver kernel module
 
-Package: ont-minit1c-driver-dkms
+Package: ont-minion1c-driver-dkms
 Section: kernel
 Architecture: all
 Depends: ${misc:Depends}, build-essential, dkms

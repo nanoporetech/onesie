@@ -1,5 +1,5 @@
-PACKAGE_NAME="ont-minit1c-driver"
+PACKAGE_NAME="ont-minion1c-driver"
 PACKAGE_VERSION="_VERSION_"
 DEST_MODULE_LOCATION[0]="/updates"
 AUTOINSTALL="yes"
-BUILT_MODULE_NAME[0]="minit1c"
+BUILT_MODULE_NAME[0]="minion1c"

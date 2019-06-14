@@ -1,4 +1,4 @@
-Package: ont-minit1c-driver-_KVERS_
+Package: ont-minion1c-driver-_KVERS_
 Section: kernel
 Architecture: _ARCH_
 Depends: ${misc:Depends}
