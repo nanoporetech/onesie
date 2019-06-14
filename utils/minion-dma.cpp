@@ -29,9 +29,59 @@ static const unsigned int frame_size = 1056;
 static const unsigned int max_frames_per_packet = 511;
 static const unsigned int MAX_QUEUE_SIZE = 128;
 
+template<class T, std::size_t alignment>
+struct AlignedAllocator {
+    typedef std::size_t size_type;
+    typedef std::ptrdiff_t difference_type;
+    typedef T* pointer;
+    typedef const T* const_pointer;
+    typedef T& reference;
+    typedef const T& const_reference;
+    typedef T value_type;
+
+    template <class U>
+    struct rebind
+    {
+        typedef AlignedAllocator<U, alignment> other;
+    };
+
+    AlignedAllocator() noexcept {}
+    template<class U, std::size_t x> AlignedAllocator( const AlignedAllocator<U,x>&) noexcept {}
+
+    T* allocate (std::size_t n) {
+        // allocate space for n objects, a pointer and wiggle-room
+        T* mem = reinterpret_cast<T*>(::operator new(n*sizeof(T) + sizeof(std::uintptr_t) + alignment));
+        // pointer will always be first, so introduce an offset for that
+        std::uintptr_t p_mem = reinterpret_cast<std::uintptr_t>(mem) + sizeof(std::uintptr_t);
+
+        // align the buffer
+        if (p_mem & (alignment-1)) {
+            p_mem += alignment - (p_mem & (alignment-1));
+        }
+        // a pointer to the original memory is placed before the buffer we return
+        T** orig_mem =  reinterpret_cast<T**>(p_mem - sizeof(std::uintptr_t));
+
+        *orig_mem = mem;
+        return reinterpret_cast<T*>(p_mem);
+    }
+    void deallocate (T* p, std::size_t n) {
+        auto mem = reinterpret_cast<std::uintptr_t>(p);
+        // get a pointer to the original memory and free that
+        auto orig_mem = reinterpret_cast<T**>(p - sizeof(std::uintptr_t));
+        ::delete(*orig_mem);
+    }
+};
+
+template <class T, class U, std::size_t a1, std::size_t a2>
+constexpr bool operator== (const AlignedAllocator<T,a1>&, const AlignedAllocator<U,a2>&) noexcept
+{return true;}
+
+template <class T, class U, std::size_t a1, std::size_t a2>
+constexpr bool operator!= (const AlignedAllocator<T,a1>&, const AlignedAllocator<U,a2>&) noexcept
+{return false;}
 class transfer {
 public:
-    typedef std::vector<char> buffer_t;
+    typedef std::vector<char,AlignedAllocator<char,128>> buffer_t;
 protected:
     std::size_t _size;
     buffer_t _buffer;
@@ -283,7 +333,7 @@ transfer_manager* transfer_manager::_instance(nullptr);
 
 void usage()
 {
-    std::cerr << "usage: minit-dma [-s size] [-n number of transfers] [-q max queue size ] <device>\n"
+    std::cerr << "usage: minion-dma [-s size] [-n number of transfers] [-q max queue size ] <device>\n"
               << " -s, --size size      Size of each transfer, defaults to 514*2-bytes\n"
               << " -n, --no-transfers   Number of transfers, (default 1)\n"
               << "     --stream         Transfer data repeatedly until further notice\n"
