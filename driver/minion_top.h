@@ -92,7 +92,7 @@ struct attribute_wrapper {
 
 struct thermal_control_sysfs {
     struct attribute_group thermal_group;
-    struct attribute* attributes[12];
+    struct attribute* attributes[13];
     struct attribute_wrapper control;
     struct attribute_wrapper error;
     struct attribute_wrapper tec_override;
@@ -100,6 +100,7 @@ struct thermal_control_sysfs {
     struct attribute_wrapper tec_voltage;
     struct attribute_wrapper tec_current;
     struct attribute_wrapper data_log;
+    struct attribute_wrapper latest_data_log;
     struct attribute_wrapper threshold_1;
     struct attribute_wrapper threshold_2;
     struct attribute_wrapper threshold_3;

@@ -1136,15 +1136,42 @@ static ssize_t data_log_show(struct kobject *kobj, struct kobj_attribute *attr, 
     struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
     struct message_struct* message = wrapper->p_value;
     ssize_t len = 0;
-    len += sprintf(buf+len, "tec_value fc_temp hsink_temp\n");
-    for (i=0; i < TEST_LEN; ++i) {
-        len += sprintf(buf+len, "%d %d %d\n",
-                       readw(&message->data_log[i].tec_value),
-                       readw(&message->data_log[i].fc_temp),
-                       readw(&message->data_log[i].hsink_temp));
+    len += sprintf(buf+len, "tec_value\tfc_temp\thsink_temp\terr_prop\n");
+    for (i=0; i < LOG_LEN; ++i) {
+        // Make sure we don't overflow the buffer...
+        while (len < PAGE_SIZE - 128) {
+            len += sprintf(buf+len, "%u\t%u\t%u\t%d\n",
+                        readw(&message->data_log[i].tec_value),
+                        readw(&message->data_log[i].fc_temp),
+                        readw(&message->data_log[i].hsink_temp),
+                        readw(&message->data_log[i].err_prop));
+        }
     }
     return len;
 }
+
+static ssize_t latest_data_log_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+    struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
+    struct message_struct* message = wrapper->p_value;
+    ssize_t len = 0;
+    int i = readw(&message->data_log_pointer);  // Index of latest log entry
+    if (i < LOG_LEN)
+    {
+        len = sprintf(buf, "tec_value:  %u\n"
+                           "fc_temp:    %u\n"
+                           "hsink_temp: %u\n"
+                           "err_prop:   %d\n",
+                           readw(&message->data_log[i].tec_value),
+                           readw(&message->data_log[i].fc_temp),
+                           readw(&message->data_log[i].hsink_temp),
+                           readw(&message->data_log[i].err_prop));
+    } else {
+        len = sprintf(buf, "Invalid data_log_pointer: %d", i);
+    }
+    return len;
+}
+
 
 static ssize_t pid_settings_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
@@ -1153,8 +1180,8 @@ static ssize_t pid_settings_show(struct kobject *kobj, struct kobj_attribute *at
     struct message_struct* message = wrapper->p_value;
     ssize_t len = 0;
     len += sprintf(buf+len, "kp_gain ki_gain kd_gain ni_len sample_t fc_therm_weight asic_therm_weight\n");
-    for( i=0; i < 4; ++i) {
-        len += sprintf(buf+len, "%d %d %d %d %d %d %d\n",
+    for( i=0; i < NUM_PROFILES; ++i) {
+        len += sprintf(buf+len, "%u %u %u %u %u %u %u\n",
                        readl(&message->pid_profile[i].kp_gain),
                        readl(&message->pid_profile[i].ki_gain),
                        readl(&message->pid_profile[i].kd_gain),
@@ -1173,11 +1200,11 @@ static ssize_t pid_settings_store(struct kobject *kobj, struct kobj_attribute *a
     struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
     struct message_struct* message = wrapper->p_value;
     int start = 0;
-    for (i=0; i < 4; ++i) {
+    for (i=0; i < NUM_PROFILES; ++i) {
         unsigned int kp_gain, ki_gain, kd_gain, ni_len, sample_t, fc_therm_weight, ch514_weight;
         unsigned int entries;
         int len;
-        entries = sscanf(buf+start,"%d %d %d %d %d %d %d%n",
+        entries = sscanf(buf+start,"%u %u %u %u %u %u %d%n",
                          &kp_gain,
                          &ki_gain,
                          &kd_gain,
@@ -1201,26 +1228,40 @@ static ssize_t pid_settings_store(struct kobject *kobj, struct kobj_attribute *a
     return (ssize_t)count;
 }
 
+static ssize_t show_value(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {
+    struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);\
+    return sprintf(buf,"%u\n", readw(wrapper->p_value) );\
+}
+
+static ssize_t store_value(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+    struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
+    long value;
+    ssize_t status = kstrtol(buf, 10, &value);
+    if (status == 0) {
+        // value valid
+        writew(value, wrapper->p_value);
+        status = count;
+    }
+    return status;
+}
+
 /// Declare the attribute and create a function to read it.
 #define DECLARE_ATTRIBUTE_READ(ATTR_NAME) \
     static ssize_t ATTR_NAME##_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {\
-        struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);\
-        return sprintf(buf,"%d", readw(wrapper->p_value) );\
+        return show_value(kobj, attr, buf);\
     }
 
 /// Declare the attribute and create functions to read and write it
 #define DECLARE_ATTRIBUTE_READ_WRITE(ATTR_NAME) \
     static ssize_t ATTR_NAME##_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {\
-        struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);\
-        return sprintf(buf,"%d", readw(wrapper->p_value) );\
+        return show_value(kobj, attr, buf);\
     }\
     static ssize_t ATTR_NAME##_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count) {\
-        unsigned int tmp;\
-        struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);\
-        sscanf(buf,"%u",&tmp);\
-        writew(tmp, wrapper->p_value);\
-        return count;\
+        return store_value(kobj, attr, buf, count);\
     }
+
+
 
 // Declare functions to read and write common attributes
 DECLARE_ATTRIBUTE_READ_WRITE(control);
@@ -1255,6 +1296,7 @@ int setup_sysfs_entries(struct minion_device_s* mdev)
             &mdev->tc_attr.tec_voltage.attribute.attr,
             &mdev->tc_attr.tec_current.attribute.attr,
             &mdev->tc_attr.data_log.attribute.attr,
+            &mdev->tc_attr.latest_data_log.attribute.attr,
             &mdev->tc_attr.threshold_1.attribute.attr,
             &mdev->tc_attr.threshold_2.attribute.attr,
             &mdev->tc_attr.threshold_3.attribute.attr,
@@ -1269,9 +1311,10 @@ int setup_sysfs_entries(struct minion_device_s* mdev)
         .tec_voltage = { &message->tec_v, __ATTR_RO(tec_voltage)},
         .tec_current = { &message->tec_i, __ATTR_RO(tec_current)},
         .data_log = { message, __ATTR_RO(data_log)},
-        .threshold_1 = { &message->profile_thresh_1, __ATTR_RW(threshold_1)},
-        .threshold_2 = { &message->profile_thresh_2, __ATTR_RW(threshold_2)},
-        .threshold_3 = { &message->profile_thresh_3, __ATTR_RW(threshold_3)},
+        .latest_data_log = {message, __ATTR_RO(latest_data_log)},
+        .threshold_1 = { &message->profile_thresh[0], __ATTR_RW(threshold_1)},
+        .threshold_2 = { &message->profile_thresh[1], __ATTR_RW(threshold_2)},
+        .threshold_3 = { &message->profile_thresh[2], __ATTR_RW(threshold_3)},
         .pid_settings = { message, __ATTR_RW(pid_settings)}
     };
 
