@@ -1,1 +1,1 @@
-SUBSYSTEM=="flowcell", MODE:="0666", OWNER="minit", GROUP="minit"
+SUBSYSTEM=="ont-minion1c", SYMLINK:="flowcell%n", MODE:="0666", OWNER:="minit", GROUP:="minit"
