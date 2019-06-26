@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+#DEBHELPER#
+
+# for situations when /boot/System.map doesn't exist
+if [ ! -e /boot/System.map-_KVERS_ -a $(uname -r) = "_KVERS_" ]; then
+	depmod -a || true
+fi
