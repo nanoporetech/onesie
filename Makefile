@@ -49,8 +49,8 @@ clean:
 	$(RM) -r package
 	$(RM) ont-minion1c-driver-dev_$(VERSION)-1~$(shell lsb_release -cs)_all.deb
 	$(RM) ont-minion1c-driver-dkms_$(VERSION)-1~$(shell lsb_release -cs)_all.deb
-	$(RM) ont-minion1c-driver-utils_$(VERSION)-1~$(shell lsb_release -cs)_arm64.deb
-	$(RM) ont-minion1c-driver-$(KVERS)_$(VERSION)-1~$(shell lsb_release -cs)_arm64.deb
+	$(RM) ont-minion1c-driver-utils_$(VERSION)-1~$(shell lsb_release -cs)_$(DEB_ARCH).deb
+	$(RM) ont-minion1c-driver-$(KVERS)_$(VERSION)-1~$(shell lsb_release -cs)_$(DEB_ARCH).deb
 
 dist-deb:
 	# assmeble all the files under package
@@ -60,7 +60,7 @@ dist-deb:
 	cp debian/control package/debian/control
 	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then\
 		sed -e "s/_KVERS_/$(KVERS)/g" debian/control.modules.in >> package/debian/control;\
-		sed -e "s/_KVERS_/$(KVERS)/g" debian/postinst.modules > package/debian/ont-minion1c-driver-$(KVERS).postinst;\
+		sed -e "s/_KVERS_/$(KVERS)/g" debian/postinst.modules.in > package/debian/ont-minion1c-driver-$(KVERS).postinst;\
 	fi
 	sed -i -e "s/_ARCH_/$(DEB_ARCH)/g" package/debian/control
 	# debhelper version-9, changelog is just version number
