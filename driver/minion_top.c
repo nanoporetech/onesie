@@ -28,10 +28,12 @@
 #include <linux/mutex.h>
 #include <linux/delay.h>
 #include <linux/bug.h>
+#include <linux/sysfs.h>
 
 #include "minion_top.h"
 #include "minion_reg.h"
 #include "minion_ioctl.h"
+#include "thermal_interface.h"
 
 /*
  * PROTOTYPES
@@ -1029,6 +1031,7 @@ static void cleanup_device(void* data) {
     struct minion_device_s* mdev = pci_get_drvdata(dev);
     VPRINTK("cleanup_device\n");
     if (mdev) {
+        sysfs_remove_group(&mdev->pci_device->dev.kobj, &mdev->tc_attr.thermal_group );
         device_table_remove(mdev);
         device_destroy(minion_class, MKDEV(minion_major, mdev->minor_dev_no));
     }
@@ -1125,6 +1128,197 @@ static void setup_channel_remapping_memory(struct minion_device_s* mdev)
         // write the physical source for each logical channel into the remapper memory
         writew(physical, (u16*)(mdev->ctrl_bar + ASIC_HS_RECEIVER_REMAP) + logical);
     }
+}
+
+static ssize_t data_log_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+    int i;
+    struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
+    struct message_struct* message = wrapper->p_value;
+    ssize_t len = 0;
+    len += sprintf(buf+len, "tec_value\tfc_temp\thsink_temp\terr_prop\n");
+    for (i=0; i < LOG_LEN; ++i) {
+        // Make sure we don't overflow the buffer...
+        while (len < PAGE_SIZE - 128) {
+            len += sprintf(buf+len, "%u\t%u\t%u\t%d\n",
+                        readw(&message->data_log[i].tec_value),
+                        readw(&message->data_log[i].fc_temp),
+                        readw(&message->data_log[i].hsink_temp),
+                        readw(&message->data_log[i].err_prop));
+        }
+    }
+    return len;
+}
+
+static ssize_t latest_data_log_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+    struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
+    struct message_struct* message = wrapper->p_value;
+    ssize_t len = 0;
+    int i = readw(&message->data_log_pointer);  // Index of latest log entry
+    if (i < LOG_LEN)
+    {
+        len = sprintf(buf, "tec_value:  %u\n"
+                           "fc_temp:    %u\n"
+                           "hsink_temp: %u\n"
+                           "err_prop:   %d\n",
+                           readw(&message->data_log[i].tec_value),
+                           readw(&message->data_log[i].fc_temp),
+                           readw(&message->data_log[i].hsink_temp),
+                           readw(&message->data_log[i].err_prop));
+    } else {
+        len = sprintf(buf, "Invalid data_log_pointer: %d", i);
+    }
+    return len;
+}
+
+
+static ssize_t pid_settings_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+    int i;
+    struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
+    struct message_struct* message = wrapper->p_value;
+    ssize_t len = 0;
+    len += sprintf(buf+len, "kp_gain ki_gain kd_gain ni_len sample_t fc_therm_weight asic_therm_weight\n");
+    for( i=0; i < NUM_PROFILES; ++i) {
+        len += sprintf(buf+len, "%u %u %u %u %u %u %u\n",
+                       readl(&message->pid_profile[i].kp_gain),
+                       readl(&message->pid_profile[i].ki_gain),
+                       readl(&message->pid_profile[i].kd_gain),
+                       readw(&message->pid_profile[i].ni_len),
+                       readw(&message->pid_profile[i].sample_t),
+                       readw(&message->pid_profile[i].fc_therm_weight),
+                       readw(&message->pid_profile[i].ch514_weight));
+    }
+
+    return len;
+}
+
+static ssize_t pid_settings_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+    int i;
+    struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
+    struct message_struct* message = wrapper->p_value;
+    int start = 0;
+    for (i=0; i < NUM_PROFILES; ++i) {
+        unsigned int kp_gain, ki_gain, kd_gain, ni_len, sample_t, fc_therm_weight, ch514_weight;
+        unsigned int entries;
+        int len;
+        entries = sscanf(buf+start,"%u %u %u %u %u %u %d%n",
+                         &kp_gain,
+                         &ki_gain,
+                         &kd_gain,
+                         &ni_len,
+                         &sample_t,
+                         &fc_therm_weight,
+                         &ch514_weight,
+                         &len);
+        if (entries != 7) {
+            return -EINVAL;
+        }
+        start += len;
+        writel(kp_gain, &message->pid_profile[i].kp_gain);
+        writel(ki_gain, &message->pid_profile[i].ki_gain);
+        writel(kd_gain, &message->pid_profile[i].kd_gain);
+        writew(ni_len, &message->pid_profile[i].ni_len);
+        writew(sample_t, &message->pid_profile[i].sample_t);
+        writew(fc_therm_weight, &message->pid_profile[i].fc_therm_weight);
+        writew(ch514_weight, &message->pid_profile[i].ch514_weight);
+    }
+    return (ssize_t)count;
+}
+
+static ssize_t show_value(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {
+    struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);\
+    return sprintf(buf,"%u\n", readw(wrapper->p_value) );\
+}
+
+static ssize_t store_value(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+    struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
+    long value;
+    ssize_t status = kstrtol(buf, 10, &value);
+    if (status == 0) {
+        // value valid
+        writew(value, wrapper->p_value);
+        status = count;
+    }
+    return status;
+}
+
+/// Declare the attribute and create a function to read it.
+#define DECLARE_ATTRIBUTE_READ(ATTR_NAME) \
+    static ssize_t ATTR_NAME##_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {\
+        return show_value(kobj, attr, buf);\
+    }
+
+/// Declare the attribute and create functions to read and write it
+#define DECLARE_ATTRIBUTE_READ_WRITE(ATTR_NAME) \
+    static ssize_t ATTR_NAME##_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {\
+        return show_value(kobj, attr, buf);\
+    }\
+    static ssize_t ATTR_NAME##_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count) {\
+        return store_value(kobj, attr, buf, count);\
+    }
+
+
+
+// Declare functions to read and write common attributes
+DECLARE_ATTRIBUTE_READ_WRITE(control);
+DECLARE_ATTRIBUTE_READ(error);
+DECLARE_ATTRIBUTE_READ_WRITE(tec_override);
+DECLARE_ATTRIBUTE_READ_WRITE(tec_dead_zone);
+DECLARE_ATTRIBUTE_READ(tec_voltage);
+DECLARE_ATTRIBUTE_READ(tec_current);
+DECLARE_ATTRIBUTE_READ_WRITE(threshold_1);
+DECLARE_ATTRIBUTE_READ_WRITE(threshold_2);
+DECLARE_ATTRIBUTE_READ_WRITE(threshold_3);
+
+int setup_sysfs_entries(struct minion_device_s* mdev)
+{
+    // create subdir
+    struct kobject* parent = &mdev->pci_device->dev.kobj;
+
+    // associate attribute_wrappers with their data
+    struct message_struct* message = (struct message_struct*)(mdev->ctrl_bar + NIOS_MESSAGE_RAM_BASE);
+    VPRINTK("message ram base %p",message);
+
+    mdev->tc_attr = (struct thermal_control_sysfs){
+        .thermal_group = {
+            .name = "thermal_control",
+            .attrs = mdev->tc_attr.attributes
+        },
+        .attributes = {
+            &mdev->tc_attr.control.attribute.attr,
+            &mdev->tc_attr.error.attribute.attr,
+            &mdev->tc_attr.tec_override.attribute.attr,
+            &mdev->tc_attr.tec_dead_zone.attribute.attr,
+            &mdev->tc_attr.tec_voltage.attribute.attr,
+            &mdev->tc_attr.tec_current.attribute.attr,
+            &mdev->tc_attr.data_log.attribute.attr,
+            &mdev->tc_attr.latest_data_log.attribute.attr,
+            &mdev->tc_attr.threshold_1.attribute.attr,
+            &mdev->tc_attr.threshold_2.attribute.attr,
+            &mdev->tc_attr.threshold_3.attribute.attr,
+            &mdev->tc_attr.pid_settings.attribute.attr,
+            NULL
+        },
+        // pointer to data, attribute-defn
+        .control = { &message->control_word, __ATTR_RW(control) },
+        .error = { &message->error_word, __ATTR_RO(error) },
+        .tec_override = { &message->tec_override, __ATTR_RW(tec_override) },
+        .tec_dead_zone = { &message->tec_dead_zone, __ATTR_RW(tec_dead_zone) },
+        .tec_voltage = { &message->tec_v, __ATTR_RO(tec_voltage)},
+        .tec_current = { &message->tec_i, __ATTR_RO(tec_current)},
+        .data_log = { message, __ATTR_RO(data_log)},
+        .latest_data_log = {message, __ATTR_RO(latest_data_log)},
+        .threshold_1 = { &message->profile_thresh[0], __ATTR_RW(threshold_1)},
+        .threshold_2 = { &message->profile_thresh[1], __ATTR_RW(threshold_2)},
+        .threshold_3 = { &message->profile_thresh[2], __ATTR_RW(threshold_3)},
+        .pid_settings = { message, __ATTR_RW(pid_settings)}
+    };
+
+    return sysfs_create_group(parent, &mdev->tc_attr.thermal_group);
 }
 
 /**
@@ -1277,6 +1471,8 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     writeb(ASIC_CTRL_CLK_128, mdev->ctrl_bar + ASIC_CTRL_BASE);
 
     setup_channel_remapping_memory(mdev);
+
+    setup_sysfs_entries(mdev);
 
     DPRINTK("probe finished successfully\n");
 err:
