@@ -55,8 +55,14 @@
 #define ASIC_CTRL_CLK_128   (1 << 2)
 #define ASIC_CTRL_CLK_64    (2 << 2)
 #define ASIC_CTRL_CLK_32    (3 << 2)
+#define ASIC_CTRL_CLK_SHIFT     2
 #define ASIC_CTRL_BUS_MODE  (1 << 4)
-#define ASIC_CTRL_MASK      0x0000001f /* all the above */
+#define ASIC_CTRL_DETECT    (1 << 5)
+#define ASIC_CTRL_GOOD_POWER (1 << 7)
+#define ASIC_CTRL_CLK_FBK_SHIFT 8
+#define ASIC_CTRL_CLK_FBK_MASK 0x3f00
+
+#define ASIC_CTRL_MASK      0x00003fbf /* all the above */
 
 /* ASIC shift register; buffers and control register */
 #define ASIC_SHIFT_REG_SIZE     0x11b

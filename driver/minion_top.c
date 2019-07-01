@@ -502,6 +502,31 @@ static void minion_hs_reg_access(struct minion_device_s* mdev, struct minion_hs_
     }
 }
 
+static void read_asic_control(struct minion_device_s* mdev, struct minion_asic_control_s* val)
+{
+    u16 reg = readw(mdev->ctrl_bar + ASIC_CTRL_BASE);
+
+    val->reset = !!(reg & ASIC_CTRL_RESET);
+    val->analogue_power = !!(reg & ASIC_CTRL_ALG_POWER);
+    val->clock_speed = (reg & ASIC_CTRL_CLK_MASK) >> ASIC_CTRL_CLK_SHIFT;
+    val->eeprom_enable = !!(reg & ASIC_CTRL_BUS_MODE);
+    val->asic_detect = !!(reg & ASIC_CTRL_DETECT);
+    val->analogue_power_good = !!(reg & ASIC_CTRL_GOOD_POWER);
+    val->asic_clocks_detected = (reg & ASIC_CTRL_CLK_FBK_MASK) >> ASIC_CTRL_CLK_FBK_SHIFT;
+}
+
+static void write_asic_control(struct minion_device_s* mdev, struct minion_asic_control_s* val)
+{
+    u16 reg = 0;
+
+    reg |= val->reset ? ASIC_CTRL_RESET : 0;
+    reg |= val->analogue_power ? ASIC_CTRL_ALG_POWER : 0;
+    reg |= val->eeprom_enable ? ASIC_CTRL_BUS_MODE : 0;
+    reg |= (val->clock_speed << ASIC_CTRL_CLK_SHIFT) & ASIC_CTRL_CLK_MASK;
+
+    writew(reg, mdev->ctrl_bar + ASIC_CTRL_BASE);
+}
+
 
 /*
  * want to lock-out other modes until done, but allow re-entrance for things running the same mode
@@ -1015,6 +1040,26 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             VPRINTK("MINON_IOCTL_FIRMWARE_INFO\n");
             get_fw_info(mdev,&fw_info);
             return copy_to_user((void __user*)arg, &fw_info, sizeof(fw_info));
+        }
+        break;
+    case MINION_IOCTL_ASIC_CONTROL_READ: {
+            struct minion_asic_control_s asic_control;
+            read_asic_control(mdev, &asic_control);
+            return copy_to_user((void __user*)arg, &asic_control, sizeof(asic_control));
+        }
+        break;
+    case MINION_IOCTL_ASIC_CONTROL_WRITE: {
+            struct minion_asic_control_s asic_control;
+            rc = copy_from_user(&asic_control, (void __user*)arg, sizeof(asic_control));
+            if (rc < 0) {
+                return rc;
+            }
+            if (asic_control.padding != 0) {
+                dev_err(&mdev->pci_device->dev, "Padding in IOCTL not zero");
+                return -EINVAL;
+            }
+            write_asic_control(mdev, &asic_control);
+            return 0;
         }
         break;
     default:

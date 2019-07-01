@@ -243,6 +243,40 @@ struct minion_firmware_info_s {
 
 #define MINON_IOCTL_FIRMWARE_INFO _IOR('b', 72, struct minion_firmware_info_s)
 
+/**
+ * For read and write operations on the ASIC control register. All read and
+ * write fields can be read with MINION_IOCTL_ASIC_CONTROL_READ. Read fields
+ * will not be written and values in them when calling
+ * MINION_IOCTL_ASIC_CONTROL_WRITE will have no effect.
+ *
+ * reset                write
+ * analogue_power       write
+ * analogue_power_good  read
+ * clock_speed          write
+ * eeprom_enable        write
+ * asic_detect          read
+ * asic_clocks_detected read
+ */
+struct minion_asic_control_s {
+    __u8 reset;
+    __u8 analogue_power;
+    __u8 analogue_power_good;
+    __u8 clock_speed;
+    __u8 eeprom_enable;
+    __u8 asic_detect;
+    __u8 asic_clocks_detected;
+    __u8 padding; // must be zero
+} __attribute__(( packed ));
+
+/** for use with minion_asic_control_s.clock_speed */
+#define MINION_IOCTL_ASIC_CONTROL_128MHZ    1
+#define MINION_IOCTL_ASIC_CONTROL_64MHZ     2
+#define MINION_IOCTL_ASIC_CONTROL_32MHZ     3
+
+#define MINION_IOCTL_ASIC_CONTROL_SIZE 8
+
+#define MINION_IOCTL_ASIC_CONTROL_READ _IOR('b', 73, struct minion_firmware_info_s)
+#define MINION_IOCTL_ASIC_CONTROL_WRITE _IOW('b', 73, struct minion_firmware_info_s)
 
 #ifdef __cplusplus
 }
