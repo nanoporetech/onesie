@@ -32,7 +32,7 @@ struct data_log_point
     u16 fc_temp;    //Calculated process side temperature - -16C offset, 128C range
     u16 hsink_temp; //Calculated heatsink temperature
     s16 err_prop;   //Error signal used in control loop
-};
+} __attribute__((packed));
 
 /*NB 3 parameters make up integral gain:
  * gain = ki_gain * ni_len / 2 ^ ki_shift
@@ -50,7 +50,7 @@ struct pid_profile_struct
     u16	sample_t;           //Sampling period in ms - min 33 for LTC2460
     u16	fc_therm_weight;    //Weighting of thermistor input to temperature estimate
     u16	ch514_weight;       //Weighting of ASIC channel input to temperature estimate
-};
+} __attribute__((packed));
 
 struct message_struct
 {
@@ -67,7 +67,7 @@ struct message_struct
     u16 profile_thresh[(NUM_PROFILES - 1)];
     struct pid_profile_struct pid_profile[NUM_PROFILES];
     u16 data_log_pointer;   //Index into data log
-};
+} __attribute__((packed));
 
 
 #endif

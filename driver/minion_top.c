@@ -1182,9 +1182,9 @@ static ssize_t pid_settings_show(struct kobject *kobj, struct kobj_attribute *at
     len += sprintf(buf+len, "kp_gain ki_gain kd_gain ni_len sample_t fc_therm_weight asic_therm_weight\n");
     for( i=0; i < NUM_PROFILES; ++i) {
         len += sprintf(buf+len, "%u %u %u %u %u %u %u\n",
-                       readl(&message->pid_profile[i].kp_gain),
-                       readl(&message->pid_profile[i].ki_gain),
-                       readl(&message->pid_profile[i].kd_gain),
+                       readw(&message->pid_profile[i].kp_gain),
+                       readw(&message->pid_profile[i].ki_gain),
+                       readw(&message->pid_profile[i].kd_gain),
                        readw(&message->pid_profile[i].ni_len),
                        readw(&message->pid_profile[i].sample_t),
                        readw(&message->pid_profile[i].fc_therm_weight),
@@ -1217,9 +1217,9 @@ static ssize_t pid_settings_store(struct kobject *kobj, struct kobj_attribute *a
             return -EINVAL;
         }
         start += len;
-        writel(kp_gain, &message->pid_profile[i].kp_gain);
-        writel(ki_gain, &message->pid_profile[i].ki_gain);
-        writel(kd_gain, &message->pid_profile[i].kd_gain);
+        writew(kp_gain, &message->pid_profile[i].kp_gain);
+        writew(ki_gain, &message->pid_profile[i].ki_gain);
+        writew(kd_gain, &message->pid_profile[i].kd_gain);
         writew(ni_len, &message->pid_profile[i].ni_len);
         writew(sample_t, &message->pid_profile[i].sample_t);
         writew(fc_therm_weight, &message->pid_profile[i].fc_therm_weight);
