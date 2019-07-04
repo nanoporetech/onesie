@@ -30,16 +30,16 @@ compile:
   script:
    - eval $(ssh-agent -s)
    - ssh-add <(echo "$DEB_REPO_KEY")
-   #- scp -o StrictHostKeyChecking=no ont-minion1c-driver*.deb hudson@deb-repo.oxfordnanolabs.local:/var/www/apt/${UBUNTU_VERSION}-${STABILITY}
+   - scp -o StrictHostKeyChecking=no ont-minion1c-driver*.deb hudson@deb-repo.oxfordnanolabs.local:/var/www/apt/${UBUNTU_VERSION}-${CHANNEL}-minit
 
 publish_unstable:
   <<: *publish
   stage: deploy
   variables:
-    STABILITY: unstable
+    CHANNEL: unstable
 
 publish_stable:
   <<: *publish
   stage: deploy
   variables:
-    STABILITY: stable
+    CHANNEL: stable
