@@ -853,10 +853,12 @@ static long apply_temp_cmd(struct minion_device_s* mdev, struct minion_temperatu
     }
 
     // set temperatures and control-word
-    writew(fixedpoint_to_temperature(tmp_cmd->desired_temperature), &temp_message->set_point);
-    wmb();
-    writew(tmp_cmd->control_word, &temp_message->control_word);
-    wmb();
+    if (write) {
+        writew(fixedpoint_to_temperature(tmp_cmd->desired_temperature), &temp_message->set_point);
+        wmb();
+        writew(tmp_cmd->control_word, &temp_message->control_word);
+        wmb();
+    }
 
     // read control, error and temperatures
     tmp_cmd->control_word = readw(&temp_message->control_word);
@@ -1109,27 +1111,10 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             return copy_to_user((void __user*)arg, &fw_info, sizeof(fw_info));
         }
         break;
-    case MINION_IOCTL_TEMP_CMD_READ: {
-            struct minion_temperature_command_s temp_cmd;
-            VPRINTK("READ TEMPERATURE_COMMAND\n");
-            rc = copy_from_user(&temp_cmd, (void __user*)arg, sizeof(temp_cmd));
-            if (rc < 0) {
-                return rc;
-            }
-            if (temp_cmd.padding) {
-                dev_err(&mdev->pci_device->dev, "Padding in IOCTL not zero");
-                return -EINVAL;
-            }
-            rc = apply_temp_cmd(mdev, &temp_cmd, false);
-            if (rc < 0) {
-                return rc;
-            }
-            return copy_to_user((void __user*)arg, &temp_cmd, sizeof(temp_cmd));
-        }
-        break;
+    case MINION_IOCTL_TEMP_CMD_READ:
     case MINION_IOCTL_TEMP_CMD_WRITE: {
             struct minion_temperature_command_s temp_cmd;
-            VPRINTK("WRITE TEMPERATURE_COMMAND\n");
+            VPRINTK("READ/WRITE TEMPERATURE_COMMAND\n");
             rc = copy_from_user(&temp_cmd, (void __user*)arg, sizeof(temp_cmd));
             if (rc < 0) {
                 return rc;
@@ -1138,7 +1123,7 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                 dev_err(&mdev->pci_device->dev, "Padding in IOCTL not zero");
                 return -EINVAL;
             }
-            rc = apply_temp_cmd(mdev, &temp_cmd, true);
+            rc = apply_temp_cmd(mdev, &temp_cmd,  MINION_IOCTL_TEMP_CMD_WRITE == cmd);
             if (rc < 0) {
                 return rc;
             }

@@ -70,7 +70,7 @@ int main(int argc, char* argv [])
             ++index;
             std::string field(argv[index]);
             try {
-                temperature = (unsigned int)std::stod(field,0);
+                temperature = std::stod(field,0);
             } catch(std::invalid_argument& e) {
                 std::cerr << "couldn't convert '" << field << "'to a number" << std::endl;
                 exit(1);
@@ -107,9 +107,9 @@ int main(int argc, char* argv [])
 
 
     try {
-        struct minion_temperature_command_s temp_command;
+        struct minion_temperature_command_s temp_command = {};
         if (set) {
-            temp_command.desired_temperature = temperature;
+            temp_command.desired_temperature = temperature * 256.0;
             temp_command.control_word = CTRL_EN_MASK;
 
             write_temp_ioctl(device, temp_command);
