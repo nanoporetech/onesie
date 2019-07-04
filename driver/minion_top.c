@@ -788,6 +788,96 @@ static void dump_firmware_info(struct minion_firmware_info_s* fw_info)
            fw_info->timestamp);
 }
 
+/**
+ * Convert from the temperaturen used by the NIOS firmware to 8.8 fixed point
+ */
+static inline u16 temperature_to_fixedpoint(const u16 temp)
+{
+    return (temp / 2) - 4096;
+}
+
+static inline u16 fixedpoint_to_temperature(const u16 fixed)
+{
+    return 2 * (fixed + 4096);
+}
+
+static long apply_temp_cmd(struct minion_device_s* mdev, struct minion_temperature_command_s* tmp_cmd, bool write)
+{
+    long rc;
+    u16 latest_data_log_index;
+    u16* binary_command = NULL;
+    u16* nios_message_ram_base = mdev->ctrl_bar + NIOS_MESSAGE_RAM_BASE;
+    struct message_struct* temp_message = (struct message_struct*)nios_message_ram_base;
+
+    // if required, check and allocate space for command
+    if (tmp_cmd->binary_length > 0) {
+        unsigned int length_words;
+        unsigned int i;
+        if (tmp_cmd->binary_length > sizeof(struct message_struct)) {
+            rc = -EINVAL;
+            goto exit;
+        }
+
+        // allocate kernel-space memory for the binary temperature command
+        binary_command = kzalloc(tmp_cmd->binary_length, GFP_KERNEL);
+        if (!binary_command) {
+            rc = -ENOMEM;
+            goto exit;
+        }
+
+        // copy the binary command from userspace if writing
+        if (write) {
+            rc = copy_from_user(binary_command, (void __user*)tmp_cmd->binary_data_pointer, tmp_cmd->binary_length);
+            if (rc < 0) {
+                goto exit;
+            }
+        }
+
+        // read or write the command
+        length_words = tmp_cmd->binary_length / sizeof(u16);
+        for (i=0; i < length_words; ++i) {
+            if (write) {
+                writew(binary_command[i], nios_message_ram_base + i);
+            } else {
+                binary_command[i] = readw(nios_message_ram_base + i);
+            }
+        }
+
+        // copy the binary command to userspace if reading
+        if (!write) {
+            rc = copy_to_user((void __user*)tmp_cmd->binary_data_pointer, binary_command, tmp_cmd->binary_length);
+            if (rc < 0) {
+                goto exit;
+            }
+        }
+    }
+
+    // set temperatures and control-word
+    writew(fixedpoint_to_temperature(tmp_cmd->desired_temperature), &temp_message->set_point);
+    wmb();
+    writew(tmp_cmd->control_word, &temp_message->control_word);
+    wmb();
+
+    // read control, error and temperatures
+    tmp_cmd->control_word = readw(&temp_message->control_word);
+    tmp_cmd->error_word = readw(&temp_message->error_word);
+
+    latest_data_log_index = min(readw(&temp_message->data_log_pointer), (u16)LOG_LEN);
+
+    tmp_cmd->desired_temperature = temperature_to_fixedpoint(readw(&temp_message->set_point));
+    tmp_cmd->flowcell_temperature = temperature_to_fixedpoint(
+                readw(&temp_message->data_log[latest_data_log_index].fc_temp));
+    tmp_cmd->heatsink_temperature = temperature_to_fixedpoint(
+                readw(&temp_message->data_log[latest_data_log_index].hsink_temp));
+
+exit:
+    kfree(binary_command);
+
+    return 0;
+}
+
+
+
 /*
  * File OPs
  */
@@ -1012,11 +1102,47 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             return cancel_data_transfers(mdev->dma_dev);
         }
         break;
-    case MINON_IOCTL_FIRMWARE_INFO: {
+    case MINION_IOCTL_FIRMWARE_INFO: {
             struct minion_firmware_info_s fw_info;
             VPRINTK("MINON_IOCTL_FIRMWARE_INFO\n");
             get_fw_info(mdev,&fw_info);
             return copy_to_user((void __user*)arg, &fw_info, sizeof(fw_info));
+        }
+        break;
+    case MINION_IOCTL_TEMP_CMD_READ: {
+            struct minion_temperature_command_s temp_cmd;
+            VPRINTK("READ TEMPERATURE_COMMAND\n");
+            rc = copy_from_user(&temp_cmd, (void __user*)arg, sizeof(temp_cmd));
+            if (rc < 0) {
+                return rc;
+            }
+            if (temp_cmd.padding) {
+                dev_err(&mdev->pci_device->dev, "Padding in IOCTL not zero");
+                return -EINVAL;
+            }
+            rc = apply_temp_cmd(mdev, &temp_cmd, false);
+            if (rc < 0) {
+                return rc;
+            }
+            return copy_to_user((void __user*)arg, &temp_cmd, sizeof(temp_cmd));
+        }
+        break;
+    case MINION_IOCTL_TEMP_CMD_WRITE: {
+            struct minion_temperature_command_s temp_cmd;
+            VPRINTK("WRITE TEMPERATURE_COMMAND\n");
+            rc = copy_from_user(&temp_cmd, (void __user*)arg, sizeof(temp_cmd));
+            if (rc < 0) {
+                return rc;
+            }
+            if (temp_cmd.padding) {
+                dev_err(&mdev->pci_device->dev, "Padding in IOCTL not zero");
+                return -EINVAL;
+            }
+            rc = apply_temp_cmd(mdev, &temp_cmd, true);
+            if (rc < 0) {
+                return rc;
+            }
+            return copy_to_user((void __user*)arg, &temp_cmd, sizeof(temp_cmd));
         }
         break;
     default:

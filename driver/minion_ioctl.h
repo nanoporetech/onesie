@@ -241,8 +241,41 @@ struct minion_firmware_info_s {
 } __attribute__(( packed ));
 #define MINION_FIRMWARE_INFO_SIZE 8
 
-#define MINON_IOCTL_FIRMWARE_INFO _IOR('b', 72, struct minion_firmware_info_s)
+#define MINION_IOCTL_FIRMWARE_INFO _IOR('b', 72, struct minion_firmware_info_s)
 
+/**
+ * When reading, will read the binary data, then the other values
+ * When writing, will write the binary data, then apply desired temperature and
+ * control-word, then read temperatures and error.
+ */
+struct minion_temperature_command_s {
+    __u16 control_word;
+    __u16 error_word;
+    __u16 desired_temperature; // Celsius in 8.8 fixed point format
+    __u16 heatsink_temperature;
+    __u16 flowcell_temperature;
+    __u32 padding;
+    __u16 binary_length;
+    __u64 binary_data_pointer;
+};
+
+#define MINION_TEMPERATURE_COMMAND_SIZE 20
+
+//Defines for control word
+#define CTRL_EN_MASK 1
+#define CTRL_TEC_OVERRIDE_MASK 2
+
+//Defines for error word
+//Thermistors are used on P1.  I2C digital sensors will be fitted on P2.
+#define FC_THERM_OPEN 1
+#define FC_THERM_SHORT 2
+#define FC_THERM_RANGE 4
+#define HSINK_THERM_OPEN 8
+#define HSINK_THERM_SHORT 0x10
+#define HSINK_THERM_RANGE 0x12
+
+#define MINION_IOCTL_TEMP_CMD_READ _IOR('b', 75, struct minion_temperature_command_s)
+#define MINION_IOCTL_TEMP_CMD_WRITE _IOW('b', 76, struct minion_temperature_command_s)
 
 #ifdef __cplusplus
 }
