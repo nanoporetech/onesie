@@ -49,13 +49,15 @@ void usage()
 {
     std::cerr
         << "usage minion-temp [-s <temp>] <device>\n"
-        << " -s, --set      Set the desired temperature\n";
+        << " -s, --set      Set the desired temperature\n"
+        << " -f, --off      Disable temperature control\n";
     exit(1);
 }
 
 int main(int argc, char* argv [])
 {
     bool set = false;
+    bool enable = false;
     double temperature;
     std::string device;
 
@@ -67,6 +69,7 @@ int main(int argc, char* argv [])
         std::string arg(argv[index]);
         if (arg == "-s" || arg == "--set") {
             set = true;
+            enable = true;
             ++index;
             std::string field(argv[index]);
             try {
@@ -78,6 +81,11 @@ int main(int argc, char* argv [])
                 std::cerr << "'" << field << "'is too big" << std::endl;
                 exit(1);
             }
+            continue;
+        }
+        if (arg == "-f" || arg == "--off") {
+            set = true;
+            enable = false;
             continue;
         }
 
@@ -109,15 +117,18 @@ int main(int argc, char* argv [])
     try {
         struct minion_temperature_command_s temp_command = {};
         if (set) {
-            temp_command.desired_temperature = temperature * 256.0;
-            temp_command.control_word = CTRL_EN_MASK;
+            if (enable) {
+                temp_command.desired_temperature = temperature * 256.0;
+                temp_command.control_word = CTRL_EN_MASK;
+            }
 
             write_temp_ioctl(device, temp_command);
         } else {
             read_temp_ioctl(device, temp_command);
         }
 
-        std::cout << "desired temperature  : " << double(temp_command.desired_temperature) / 256.0 << "\n"
+        std::cout << "desired temperature  : " << double(temp_command.desired_temperature) / 256.0
+                  << (temp_command.control_word & CTRL_EN_MASK ? " (temperature control enabled)\n": " (temperature control disabled)\n")
                   << "heatsink temperature : " << double(temp_command.heatsink_temperature) / 256.0 << "\n"
                   << "flow-cell temperature: " << double(temp_command.flowcell_temperature) / 256.0 << std::endl;
 
