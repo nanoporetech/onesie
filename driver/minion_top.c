@@ -789,13 +789,16 @@ static void dump_firmware_info(struct minion_firmware_info_s* fw_info)
 }
 
 /**
- * Convert from the temperaturen used by the NIOS firmware to 8.8 fixed point
+ * Convert from the temperatures used by the NIOS firmware to 8.8 fixed point
  */
 static inline u16 temperature_to_fixedpoint(const u16 temp)
 {
     return (temp / 2) - 4096;
 }
 
+/**
+ * Convert to the temperatures used by the NIOS firmware from 8.8 fixed point
+ */
 static inline u16 fixedpoint_to_temperature(const u16 fixed)
 {
     return 2 * (fixed + 4096);
