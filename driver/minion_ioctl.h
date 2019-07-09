@@ -268,16 +268,16 @@ struct minion_temperature_command_s {
 #define MINION_TEMPERATURE_COMMAND_SIZE 20
 
 //Defines for control word
-#define CTRL_EN_MASK 1
-#define CTRL_TEC_OVERRIDE_MASK 2
+#define CTRL_EN_MASK      0x0001
+#define CTRL_TEC_OVERRIDE_MASK 0x0002
 
 //Defines for error word
-#define FC_THERM_OPEN 1
-#define FC_THERM_SHORT 2
-#define FC_THERM_RANGE 4
-#define HSINK_THERM_OPEN 8
-#define HSINK_THERM_SHORT 0x10
-#define HSINK_THERM_RANGE 0x12
+#define FC_THERM_OPEN     0x0001
+#define FC_THERM_SHORT    0x0002
+#define FC_THERM_RANGE    0x0004
+#define HSINK_THERM_OPEN  0x0008
+#define HSINK_THERM_SHORT 0x0010
+#define HSINK_THERM_RANGE 0x0020
 
 #define MINION_IOCTL_TEMP_CMD_READ _IOR('b', 75, struct minion_temperature_command_s)
 #define MINION_IOCTL_TEMP_CMD_WRITE _IOW('b', 76, struct minion_temperature_command_s)

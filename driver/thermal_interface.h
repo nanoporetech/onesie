@@ -5,17 +5,17 @@
 #define LOG_LEN 240 //Maximum 6400 for test proj and 240 for real system
 
 //Defines for control word
-#define CTRL_EN_MASK 1
-#define CTRL_TEC_OVERRIDE_MASK 2
+#define CTRL_EN_MASK 0x0001
+#define CTRL_TEC_OVERRIDE_MASK 0x0002
 
 //Defines for error word
 //Thermistors are used on P1.  I2C digital sensors will be fitted on P2.
-#define FC_THERM_OPEN 1
-#define FC_THERM_SHORT 2
-#define FC_THERM_RANGE 4
-#define HSINK_THERM_OPEN 8
-#define HSINK_THERM_SHORT 0x10
-#define HSINK_THERM_RANGE 0x12
+#define FC_THERM_OPEN 0x0001
+#define FC_THERM_SHORT 0x0002
+#define FC_THERM_RANGE 0x0004
+#define HSINK_THERM_OPEN 0x0008
+#define HSINK_THERM_SHORT 0x0010
+#define HSINK_THERM_RANGE 0x0020
 
 //Defines for res_conv error
 #define THERM_OPEN -1
