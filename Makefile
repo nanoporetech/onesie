@@ -75,7 +75,7 @@ dist-deb:
 	# copy the source and packaging information, make the source package
 	mkdir $(PACKAGE_BASE_NAME)-$(VERSION)
 	cp -r package/debian $(PACKAGE_BASE_NAME)-$(VERSION)
-	cp -r driver utils test Makefile $(PACKAGE_BASE_NAME)-$(VERSION)
+	cp -r driver utils Makefile $(PACKAGE_BASE_NAME)-$(VERSION)
 	dpkg-source -b $(PACKAGE_BASE_NAME)-$(VERSION)
 	$(RM) -r $(PACKAGE_BASE_NAME)-$(VERSION)
 
