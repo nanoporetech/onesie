@@ -791,26 +791,36 @@ static void dump_firmware_info(struct minion_firmware_info_s* fw_info)
 /**
  * Convert from the temperatures used by the NIOS firmware to 8.8 fixed point
  */
-static inline u16 temperature_to_fixedpoint(const u16 temp)
+static inline u16 temperature_to_fixedpoint(u16 temp)
 {
+    // limit to min 0C
+    temp = max(temp, MIN_TEMPERATURE);
     return (temp / 2) - 4096;
 }
 
 /**
  * Convert to the temperatures used by the NIOS firmware from 8.8 fixed point
  */
-static inline u16 fixedpoint_to_temperature(const u16 fixed)
+static inline u16 fixedpoint_to_temperature(u16 fixed)
 {
+    // limit to a maximum of 1-bit under 112C
+    fixed = min(fixed, MAX_TEMPREATURE);
     return 2 * (fixed + 4096);
 }
 
 static long apply_temp_cmd(struct minion_device_s* mdev, struct minion_temperature_command_s* tmp_cmd, bool write)
 {
-    long rc;
-    u16 latest_data_log_index;
+    long rc = 0;
+    u16 latest_data_log_index = 0;
     u16* binary_command = NULL;
     u16* nios_message_ram_base = mdev->ctrl_bar + NIOS_MESSAGE_RAM_BASE;
     struct message_struct* temp_message = (struct message_struct*)nios_message_ram_base;
+
+    // limit desired temperature to range [0C,50C]
+    if (write && tmp_cmd->desired_temperature > MAX_SET_POINT) {
+        rc = -EINVAL;
+        goto exit;
+    }
 
     // if required, check and allocate space for command
     if (tmp_cmd->binary_length > 0) {
@@ -858,9 +868,7 @@ static long apply_temp_cmd(struct minion_device_s* mdev, struct minion_temperatu
     // set temperatures and control-word
     if (write) {
         writew(fixedpoint_to_temperature(tmp_cmd->desired_temperature), &temp_message->set_point);
-        wmb();
         writew(tmp_cmd->control_word, &temp_message->control_word);
-        wmb();
     }
 
     // read control, error and temperatures
@@ -878,10 +886,20 @@ static long apply_temp_cmd(struct minion_device_s* mdev, struct minion_temperatu
 exit:
     kfree(binary_command);
 
-    return 0;
+    return rc;
 }
 
+/**
+ * disable temperature-control when the driver shuts down
+ */
+static void disable_temperature_control(void* ptr)
+{
+    struct minion_device_s* mdev = (struct minion_device_s*)ptr;
+    u16* nios_message_ram_base = mdev->ctrl_bar + NIOS_MESSAGE_RAM_BASE;
+    struct message_struct* temp_message = (struct message_struct*)nios_message_ram_base;
 
+    writew(0, &temp_message->control_word);
+}
 
 /*
  * File OPs
@@ -1587,6 +1605,7 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     setup_channel_remapping_memory(mdev);
 
     setup_sysfs_entries(mdev);
+    devm_add_action(&dev->dev, disable_temperature_control, mdev);
 
     DPRINTK("probe finished successfully\n");
 err:

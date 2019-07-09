@@ -48,9 +48,13 @@ void write_temp_ioctl(
 void usage()
 {
     std::cerr
-        << "usage minion-temp [-s <temp>] <device>\n"
+        << "usage: minion-temp [-s <temp>] [-f] <device>\n"
         << " -s, --set      Set the desired temperature\n"
-        << " -f, --off      Disable temperature control\n";
+        << " -f, --off      Disable temperature control\n\n"
+        << "Examples:\n"
+        << "    minion-temp <device>           -- read current state of TEC\n"
+        << "    minion-temp -s <temp> <device> -- enable temperature control, with a specified target temperature\n"
+        << "    minion-temp -f <device>        -- disable temperature control\n";
     exit(1);
 }
 
