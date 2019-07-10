@@ -5,17 +5,17 @@
 #define LOG_LEN 240 //Maximum 6400 for test proj and 240 for real system
 
 //Defines for control word
-#define CTRL_EN_MASK 1
-#define CTRL_TEC_OVERRIDE_MASK 2
+#define CTRL_EN_MASK 0x0001
+#define CTRL_TEC_OVERRIDE_MASK 0x0002
 
 //Defines for error word
 //Thermistors are used on P1.  I2C digital sensors will be fitted on P2.
-#define FC_THERM_OPEN 1
-#define FC_THERM_SHORT 2
-#define FC_THERM_RANGE 4
-#define HSINK_THERM_OPEN 8
-#define HSINK_THERM_SHORT 0x10
-#define HSINK_THERM_RANGE 0x12
+#define FC_THERM_OPEN 0x0001
+#define FC_THERM_SHORT 0x0002
+#define FC_THERM_RANGE 0x0004
+#define HSINK_THERM_OPEN 0x0008
+#define HSINK_THERM_SHORT 0x0010
+#define HSINK_THERM_RANGE 0x0020
 
 //Defines for res_conv error
 #define THERM_OPEN -1
@@ -32,7 +32,7 @@ struct data_log_point
     u16 fc_temp;    //Calculated process side temperature - -16C offset, 128C range
     u16 hsink_temp; //Calculated heatsink temperature
     s16 err_prop;   //Error signal used in control loop
-};
+} __attribute__((packed));
 
 /*NB 3 parameters make up integral gain:
  * gain = ki_gain * ni_len / 2 ^ ki_shift
@@ -50,7 +50,7 @@ struct pid_profile_struct
     u16	sample_t;           //Sampling period in ms - min 33 for LTC2460
     u16	fc_therm_weight;    //Weighting of thermistor input to temperature estimate
     u16	ch514_weight;       //Weighting of ASIC channel input to temperature estimate
-};
+} __attribute__((packed));
 
 struct message_struct
 {
@@ -67,7 +67,7 @@ struct message_struct
     u16 profile_thresh[(NUM_PROFILES - 1)];
     struct pid_profile_struct pid_profile[NUM_PROFILES];
     u16 data_log_pointer;   //Index into data log
-};
+} __attribute__((packed));
 
 
 #endif

@@ -48,7 +48,7 @@
 #define ONT_DRIVER_NAME     "ont-minion1c"
 
 /* version is major.minor.patch */
-#define ONT_DRIVER_VERSION  "0.0.1"
+#define ONT_DRIVER_VERSION  "0.1.0"
 
 #define ONT_FIRST_MINOR 0
 
@@ -66,6 +66,11 @@
 
 #define PCI_BAR_EXPECTED_SIZE   0x3b20
 
+// limits that define the intersecting range of two temperature formats used in
+// the driver and firmware.
+#define MIN_TEMPERATURE ((u16)8192)   // 0C in NIOS firmware temperature format
+#define MAX_TEMPERATURE ((u16)0x6fff) // Just under 112C in 8.8 fixed-point
+#define MAX_SET_POINT   ((u16)0x3200) // 50C in 8.8 fixed-point
 
 struct altr_i2c_dev;
 struct altr_dma_dev;

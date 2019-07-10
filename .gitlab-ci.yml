@@ -4,7 +4,7 @@ stages:
 
 variables:
   KERNEL_RELEASE: "4.4.38-minit"
-  DRIVER_VERSION: "0.0.1-1"
+  DRIVER_VERSION: "0.1.0-1"
   UBUNTU_VERSION: "xenial"
 
 compile:
@@ -29,6 +29,7 @@ compile:
     - linux
   only:
     - master
+    - tags
   script:
    - eval $(ssh-agent -s)
    - ssh-add <(echo "$DEB_REPO_KEY")
