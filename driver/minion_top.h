@@ -9,7 +9,10 @@
 #ifndef MINION_TOP_H
 #define MINION_TOP_H
 
-#define ONT_DEBUG
+#include <linux/kobject.h>
+#include <linux/sysfs.h>
+
+//#define ONT_DEBUG
 //#define ONT_VERBOSE_DEBUG
 
 // debug macros
@@ -63,6 +66,11 @@
 
 #define PCI_BAR_EXPECTED_SIZE   0x3b20
 
+// limits that define the intersecting range of two temperature formats used in
+// the driver and firmware.
+#define MIN_TEMPERATURE ((u16)8192)   // 0C in NIOS firmware temperature format
+#define MAX_TEMPERATURE ((u16)0x6fff) // Just under 112C in 8.8 fixed-point
+#define MAX_SET_POINT   ((u16)0x3200) // 50C in 8.8 fixed-point
 
 struct altr_i2c_dev;
 struct altr_dma_dev;
@@ -79,6 +87,29 @@ enum link_mode_e {
 struct historical_link_mode {
     enum link_mode_e mode;
     u8 reg;
+};
+
+// group an attribute with a pointer to the value it should communicate
+struct attribute_wrapper {
+    void* p_value;
+    struct kobj_attribute attribute;
+};
+
+struct thermal_control_sysfs {
+    struct attribute_group thermal_group;
+    struct attribute* attributes[13];
+    struct attribute_wrapper control;
+    struct attribute_wrapper error;
+    struct attribute_wrapper tec_override;
+    struct attribute_wrapper tec_dead_zone;
+    struct attribute_wrapper tec_voltage;
+    struct attribute_wrapper tec_current;
+    struct attribute_wrapper data_log;
+    struct attribute_wrapper latest_data_log;
+    struct attribute_wrapper threshold_1;
+    struct attribute_wrapper threshold_2;
+    struct attribute_wrapper threshold_3;
+    struct attribute_wrapper pid_settings;
 };
 
 struct shift_reg_access_parameters_s {
@@ -118,6 +149,8 @@ struct minion_device_s {
     void __iomem* ctrl_bar;
     void __iomem* spi_bar;
     void __iomem* pci_bar;
+
+    struct thermal_control_sysfs tc_attr ;
 
     int minor_dev_no;
 };

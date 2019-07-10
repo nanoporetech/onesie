@@ -252,7 +252,7 @@ static void dump_dma_registers(struct altr_dma_dev* adma) {
 /**
  * @brief dump the altr_dma_dev structure and its children
  */
-static void crazy_dump_debug(struct altr_dma_dev* adma)
+__attribute__(( unused )) static void crazy_dump_debug(struct altr_dma_dev* adma)
 {
     struct transfer_job_s* job;
 
@@ -1144,7 +1144,6 @@ int altera_sgdma_probe(struct minion_device_s* mdev) {
     }
     memset(adma->terminal_desc, 0, sizeof(minion_dma_extdesc_t));
 
-    crazy_dump_debug(adma);
     return 0;
 }
 

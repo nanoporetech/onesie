@@ -18,7 +18,7 @@ RM        := rm -f
 
 # source file groups
 SHARED_HEADERS := minion_ioctl.h
-KERNEL_SRCS    := minion_top.h dma.h minion_reg.h $(minion-objs:.o=.c)
+KERNEL_SRCS    := minion_top.h dma.h minion_reg.h $(minion-objs:.o=.c) thermal_interface.h
 UDEV_RULE      := 10-minion-perms.rules
 DISTFILES := Makefile $(UDEV_RULE) $(SHARED_HEADERS) $(KERNEL_SRCS)
 

@@ -3,7 +3,7 @@ PREFIX ?= /opt/ONT/minion1c-driver-utils
 RM        := rm -f
 
 # list of all the programs to build
-UTILS := minion-reg minion-hsrx minion-shift minion-eeprom minion-dma dma-audit
+UTILS := minion-reg minion-hsrx minion-shift minion-eeprom minion-temp minion-dma dma-audit
 
 IOCTL := ../driver/minion_ioctl.h
 

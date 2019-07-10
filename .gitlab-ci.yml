@@ -4,7 +4,7 @@ stages:
 
 variables:
   KERNEL_RELEASE: "4.4.38-minit"
-  DRIVER_VERSION: "0.0.1-1"
+  DRIVER_VERSION: "0.1.0-1"
   UBUNTU_VERSION: "xenial"
 
 compile:
@@ -19,6 +19,8 @@ compile:
     - ./ont-minion1c-driver-${KERNEL_RELEASE}_${DRIVER_VERSION}~${UBUNTU_VERSION}_arm64.deb
     - ./ont-minion1c-driver-dev_${DRIVER_VERSION}~${UBUNTU_VERSION}_all.deb
     - ./ont-minion1c-driver-utils_${DRIVER_VERSION}~${UBUNTU_VERSION}_arm64.deb
+    - ./ont-minion1c-driver_${DRIVER_VERSION}~${UBUNTU_VERSION}.dsc
+    - ./ont-minion1c-driver_${DRIVER_VERSION}~${UBUNTU_VERSION}.tar.gz
 
 .publish: &publish
   image: docker-registry.oxfordnanolabs.local:5000/ont-base-ubuntu:16.04
@@ -27,19 +29,20 @@ compile:
     - linux
   only:
     - master
+    - tags
   script:
    - eval $(ssh-agent -s)
    - ssh-add <(echo "$DEB_REPO_KEY")
-   #- scp -o StrictHostKeyChecking=no ont-minion1c-driver*.deb hudson@deb-repo.oxfordnanolabs.local:/var/www/apt/${UBUNTU_VERSION}-${STABILITY}
+   - scp -o StrictHostKeyChecking=no ont-minion1c-driver*.deb hudson@deb-repo.oxfordnanolabs.local:/var/www/apt/${UBUNTU_VERSION}-${CHANNEL}-minit
 
 publish_unstable:
   <<: *publish
   stage: deploy
   variables:
-    STABILITY: unstable
+    CHANNEL: unstable
 
 publish_stable:
   <<: *publish
   stage: deploy
   variables:
-    STABILITY: stable
+    CHANNEL: stable

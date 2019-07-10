@@ -6,3 +6,6 @@ driver/modules.order
 *.ko.cmd
 *.mod.c
 *~
+driver/Module.symvers
+*.mod
+.vscode
