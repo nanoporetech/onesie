@@ -1,4 +1,3 @@
-
 # default to distributing as source and relying on DKMS to build
 COMPILED_DRIVER_PACKAGE ?= 0
 PACKAGE_BASE_NAME := ont-minion1c-driver
@@ -70,7 +69,7 @@ dist-deb:
 	sed -i -e "s/_ARCH_/$(DEB_ARCH)/g" package/debian/control
 	# debhelper version-9, changelog is just version number
 	echo 9 > package/debian/compat
-	echo "ont-minion1c-driver ($(VERSION)-1~$(shell lsb_release -cs)) unstable; urgency=low" > package/debian/changelog
+	echo "$(PACKAGE_BASE_NAME) ($(VERSION)-1~$(shell lsb_release -cs)) unstable; urgency=low" > package/debian/changelog
 
 	# copy the source and packaging information, make the source package
 	mkdir $(PACKAGE_BASE_NAME)-$(VERSION)
