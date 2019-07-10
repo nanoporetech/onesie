@@ -804,7 +804,7 @@ static inline u16 temperature_to_fixedpoint(u16 temp)
 static inline u16 fixedpoint_to_temperature(u16 fixed)
 {
     // limit to a maximum of 1-bit under 112C
-    fixed = min(fixed, MAX_TEMPREATURE);
+    fixed = min(fixed, MAX_TEMPERATURE);
     return 2 * (fixed + 4096);
 }
 
@@ -867,8 +867,15 @@ static long apply_temp_cmd(struct minion_device_s* mdev, struct minion_temperatu
 
     // set temperatures and control-word
     if (write) {
-        writew(fixedpoint_to_temperature(tmp_cmd->desired_temperature), &temp_message->set_point);
-        writew(tmp_cmd->control_word, &temp_message->control_word);
+        if (tmp_cmd->control_word & CTRL_EN_MASK) {
+            // if temperature control is enabled, write the temperature first, then control
+            writew(fixedpoint_to_temperature(tmp_cmd->desired_temperature), &temp_message->set_point);
+            writew(tmp_cmd->control_word, &temp_message->control_word);
+        } else {
+            // otherwise (if disabling temperature-control), write the control first, the temperature
+            writew(tmp_cmd->control_word, &temp_message->control_word);
+            writew(fixedpoint_to_temperature(tmp_cmd->desired_temperature), &temp_message->set_point);
+        }
     }
 
     // read control, error and temperatures
