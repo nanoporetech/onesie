@@ -3,7 +3,7 @@ Section: kernel
 Architecture: _ARCH_
 Depends: ${misc:Depends}
 Recommends: linux-modules-_KVERS_ | linux-image-_KVERS_
-Provides: ont-minion1c-driver-module
+Provides: ont-minion1c-driver-module (= _VERSION_)
 Description: Oxford Nanopore Technologies MinIT-1C acquisition-hardware
  kernel module. This package contains the MinIT-1C acquisition-hardware loadable
  kernel module for the linux-images-_KVERS_ package.
