@@ -21,6 +21,7 @@ Package: ont-minion1c-driver-dkms
 Section: kernel
 Architecture: all
 Depends: ${misc:Depends}, build-essential, dkms
+Provides: ont-minion1c-driver-module (= _VERSION_)
 Description: MinIT-1C hardware device-driver kernel module (DKMS)
  This provides the source code for the MinIT-1C acquisition-hardware
  device-driver kernel module to be built with dkms.

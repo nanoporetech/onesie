@@ -62,11 +62,11 @@ dist-deb:
 	# make the .deb control file and change kernel verison number
 	cp debian/control package/debian/control
 	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then\
-		sed -e "s/_KVERS_/$(KVERS)/g" debian/control.modules.in >> package/debian/control;\
+		sed -e "s/_KVERS_/$(KVERS)/g;s/_VERSION_/$(VERSION)/g" debian/control.modules.in >> package/debian/control;\
 		sed -e "s/_KVERS_/$(KVERS)/g" debian/postinst.modules.in > package/debian/ont-minion1c-driver-$(KVERS).postinst;\
 		sed -e "s/_KVERS_/$(KVERS)/g" debian/postrm.modules.in > package/debian/ont-minion1c-driver-$(KVERS).postrm;\
 	fi
-	sed -i -e "s/_ARCH_/$(DEB_ARCH)/g" package/debian/control
+	sed -i -e "s/_ARCH_/$(DEB_ARCH)/g;s/_VERSION_/$(VERSION)/g" package/debian/control
 	# debhelper version-9, changelog is just version number
 	echo 9 > package/debian/compat
 	echo "$(PACKAGE_BASE_NAME) ($(VERSION)-1~$(shell lsb_release -cs)) unstable; urgency=low" > package/debian/changelog
