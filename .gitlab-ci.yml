@@ -33,7 +33,7 @@ compile:
   script:
    - eval $(ssh-agent -s)
    - ssh-add <(echo "$DEB_REPO_KEY")
-   - scp -o StrictHostKeyChecking=no ont-minion1c-driver*.deb hudson@deb-repo.oxfordnanolabs.local:/var/www/apt/${UBUNTU_VERSION}-${CHANNEL}-minit
+   - scp -o StrictHostKeyChecking=no ont-minion1c-driver*.deb hudson@deb-repo.oxfordnanolabs.local:/var/www/apt/${UBUNTU_VERSION}-${CHANNEL}-mk1c
 
 publish_unstable:
   <<: *publish
