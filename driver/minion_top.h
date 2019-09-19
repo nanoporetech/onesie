@@ -66,10 +66,6 @@
 
 #define PCI_BAR_EXPECTED_SIZE   0x3b20
 
-// limits that define the intersecting range of two temperature formats used in
-// the driver and firmware.
-#define MIN_TEMPERATURE ((u16)8192)   // 0C in NIOS firmware temperature format
-#define MAX_TEMPERATURE ((u16)0x6fff) // Just under 112C in 8.8 fixed-point
 #define MAX_SET_POINT   ((u16)0x3200) // 50C in 8.8 fixed-point
 
 struct altr_i2c_dev;
@@ -153,6 +149,10 @@ struct minion_device_s {
     struct thermal_control_sysfs tc_attr ;
 
     int minor_dev_no;
+
+    // functions for converting Temperature to/from hardware format
+    u16 (*temp_to_fixedpoint)(u16 temp);
+    u16 (*fixedpoint_to_temp)(u16 temp);
 };
 
 
