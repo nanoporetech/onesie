@@ -174,12 +174,13 @@ The `cancel_data_transfer` function will reset the DMA hardware, and dispose of 
 ## Tools
 The utils director contains a number of tools for debugging the driver and firmware:
 
-*  minion-dma
-*  minion-eeprom
-*  minion-hsrx
-*  minion-reg
-*  minion-shift
-*  dma-audit
+*  minion-dma       - acquire data
+*  minion-eeprom    - read/write EEPROM
+*  minion-hsrx      - access high-speed receiver core registers
+*  minion-reg       - generic register access
+*  minion-shift     - read/write ASIC configuration
+*  minion-temp      - read and control temperatures
+*  dma-audit        - check the format of the acquired data
 
 ### minion-reg
 
@@ -296,6 +297,25 @@ Data is output as a bytes-stream, not normally intelligible with out a some othe
 `minion-dma /dev/flowcell0 -s 4224 -r | hexdump -C` read four frames and use `hexdump` to make readable.
 
 `minion-dma /dev/flowcell0 -s 135168 -r --stream > captured-data` stream 128-frame buffers to a file.
+
+### minion-temp
+
+`minion-temp` reads the temperature sensors and controls the set-point of the control-loop regulating flow-cell temperature.
+
+`minion-temp [-s <temp>] [-f] <device>`
+
+| | |
+| --- | --- |
+| `-s`, `--set <temperature>` | Set the desired temperature (set-point) of the flow-cell in Celsius and enable temperature control |
+| `-f`, `--off` | Disable temperature control |
+
+A Peltier device effects heat transfer between the thermal-pad and a heat-sink that transfers heat to/from airflow through the device. When run, the program will perform the optional control functions (setting or disabling thermal control) then return the current desired temperature and the temperatures of the heat-sink and the thermal-pad (used as a proxy for the flow-cell.) It will also communicate any errors reported by the thermal control software.
+
+eg:
+
+`minion-temp /dev/flowcell0 -s 35.2` Enable temperature control and set the desired temperature to 35.2C.
+
+`minion-temp /dev/flowcell0` Report temperatures and errors.
 
 ### dma-audit
 
