@@ -814,23 +814,73 @@ static void dump_firmware_info(struct minion_firmware_info_s* fw_info)
 }
 
 /**
+ * @return true if temperature conversion is in new format
+ */
+static bool new_temperature_format(struct minion_firmware_info_s* fw_info)
+{
+    return fw_info->major >= 2;
+}
+
+/**
  * Convert from the temperatures used by the NIOS firmware to 8.8 fixed point
  */
-static inline u16 temperature_to_fixedpoint(u16 temp)
+static u16 temperature_to_fixedpoint_v1(u16 temp)
 {
-    // limit to min 0C
+    // limit to min 0C in NIOS firmware temperature format
+    const u16 MIN_TEMPERATURE = (u16)8192;
     temp = max(temp, MIN_TEMPERATURE);
     return (temp / 2) - 4096;
 }
 
 /**
- * Convert to the temperatures used by the NIOS firmware from 8.8 fixed point
+ * Convert from 8.8 fixed point to the temperatures used by the NIOS firmware
  */
-static inline u16 fixedpoint_to_temperature(u16 fixed)
+static u16 fixedpoint_to_temperature_v1(u16 fixed)
 {
     // limit to a maximum of 1-bit under 112C
+    const u16 MAX_TEMPERATURE = (u16)0x6fff;
     fixed = min(fixed, MAX_TEMPERATURE);
     return 2 * (fixed + 4096);
+}
+
+/*
+ * The newer firmware (v2.x.x onwards) uses the following function to convert
+ * from sensor units (S) to temperature Celsius (T)
+ *
+ * T = -45 + (175 * S / 65535)
+ *
+ * We express T in 8.8 fixed point, so things get multiplied by 256
+ */
+
+/**
+ * Convert from the temperatures used by the NIOS firmware to 8.8 fixed point
+ */
+static u16 temperature_to_fixedpoint_v2(u16 temp)
+{
+    // limit input to something that evaluates to the smallest value above 0C
+    // in 8.8 fixed point
+    const u16 MIN_TEMPERATURE = (u16)16852;
+    u32 big = (u32)max(temp,MIN_TEMPERATURE);
+    u32 out = ((175*256*big)/65535) - (256*45);
+
+    DPRINTK("READ HW %04x 8.8 fixed %04x\n",temp,out);
+    return out;
+}
+
+/**
+ * Convert from 8.8 fixed point to the temperatures used by the NIOS firmware
+ */
+static u16 fixedpoint_to_temperature_v2(u16 fixed)
+{
+    // limit to a maximum of 1-bit under 130C in 8.8 fixed-point, this
+    // translates to just under 65536 in NIOS format
+    const u16 MAX_TEMPERATURE = (u16)0x81ff;
+    u32 temp = (u32)min(fixed, MAX_TEMPERATURE);
+
+    u32 out = ((temp + 45*256) * 65535) / (175*256);
+
+    DPRINTK("SET  HW %04x 8.8 fixed %04x\n",temp,out);
+    return out;
 }
 
 static long apply_temp_cmd(struct minion_device_s* mdev, struct minion_temperature_command_s* tmp_cmd, bool write)
@@ -894,12 +944,12 @@ static long apply_temp_cmd(struct minion_device_s* mdev, struct minion_temperatu
     if (write) {
         if (tmp_cmd->control_word & CTRL_EN_MASK) {
             // if temperature control is enabled, write the temperature first, then control
-            writew(fixedpoint_to_temperature(tmp_cmd->desired_temperature), &temp_message->set_point);
+            writew(mdev->fixedpoint_to_temp(tmp_cmd->desired_temperature), &temp_message->set_point);
             writew(tmp_cmd->control_word, &temp_message->control_word);
         } else {
             // otherwise (if disabling temperature-control), write the control first, the temperature
             writew(tmp_cmd->control_word, &temp_message->control_word);
-            writew(fixedpoint_to_temperature(tmp_cmd->desired_temperature), &temp_message->set_point);
+            writew(mdev->fixedpoint_to_temp(tmp_cmd->desired_temperature), &temp_message->set_point);
         }
     }
 
@@ -909,10 +959,10 @@ static long apply_temp_cmd(struct minion_device_s* mdev, struct minion_temperatu
 
     latest_data_log_index = min(readw(&temp_message->data_log_pointer), (u16)LOG_LEN);
 
-    tmp_cmd->desired_temperature = temperature_to_fixedpoint(readw(&temp_message->set_point));
-    tmp_cmd->flowcell_temperature = temperature_to_fixedpoint(
+    tmp_cmd->desired_temperature = mdev->temp_to_fixedpoint(readw(&temp_message->set_point));
+    tmp_cmd->flowcell_temperature = mdev->temp_to_fixedpoint(
                 readw(&temp_message->data_log[latest_data_log_index].fc_temp));
-    tmp_cmd->heatsink_temperature = temperature_to_fixedpoint(
+    tmp_cmd->heatsink_temperature = mdev->temp_to_fixedpoint(
                 readw(&temp_message->data_log[latest_data_log_index].hsink_temp));
 
 exit:
@@ -1569,6 +1619,15 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
         struct minion_firmware_info_s fw_info;
         get_fw_info(mdev,&fw_info);
         dump_firmware_info(&fw_info);
+
+        // select temperature conversion fns based on firmware version
+        if (new_temperature_format(&fw_info)) {
+            mdev->temp_to_fixedpoint = temperature_to_fixedpoint_v2;
+            mdev->fixedpoint_to_temp = fixedpoint_to_temperature_v2;
+        } else {
+            mdev->temp_to_fixedpoint = temperature_to_fixedpoint_v1;
+            mdev->fixedpoint_to_temp = fixedpoint_to_temperature_v1;
+        }
     }
 
     // Use the existance of a define as indication that we're compiling on a new
