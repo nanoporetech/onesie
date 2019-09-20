@@ -824,7 +824,7 @@ static bool new_temperature_format(struct minion_firmware_info_s* fw_info)
 /**
  * Convert from the temperatures used by the NIOS firmware to 8.8 fixed point
  */
-static u16 temperature_to_fixedpoint_old(u16 temp)
+static u16 temperature_to_fixedpoint_v1(u16 temp)
 {
     // limit to min 0C in NIOS firmware temperature format
     const u16 MIN_TEMPERATURE = (u16)8192;
@@ -835,7 +835,7 @@ static u16 temperature_to_fixedpoint_old(u16 temp)
 /**
  * Convert from 8.8 fixed point to the temperatures used by the NIOS firmware
  */
-static u16 fixedpoint_to_temperature_old(u16 fixed)
+static u16 fixedpoint_to_temperature_v1(u16 fixed)
 {
     // limit to a maximum of 1-bit under 112C
     const u16 MAX_TEMPERATURE = (u16)0x6fff;
@@ -855,7 +855,7 @@ static u16 fixedpoint_to_temperature_old(u16 fixed)
 /**
  * Convert from the temperatures used by the NIOS firmware to 8.8 fixed point
  */
-static u16 temperature_to_fixedpoint_new(u16 temp)
+static u16 temperature_to_fixedpoint_v2(u16 temp)
 {
     // limit input to something that evaluates to the smallest value above 0C
     // in 8.8 fixed point
@@ -863,14 +863,14 @@ static u16 temperature_to_fixedpoint_new(u16 temp)
     u32 big = (u32)max(temp,MIN_TEMPERATURE);
     u32 out = ((175*256*big)/65535) - (256*45);
 
-    DPRINTK(KERN_ERR"READ HW %04x 8.8 fixed %04x\n",temp,out);
+    DPRINTK("READ HW %04x 8.8 fixed %04x\n",temp,out);
     return out;
 }
 
 /**
  * Convert from 8.8 fixed point to the temperatures used by the NIOS firmware
  */
-static u16 fixedpoint_to_temperature_new(u16 fixed)
+static u16 fixedpoint_to_temperature_v2(u16 fixed)
 {
     // limit to a maximum of 1-bit under 130C in 8.8 fixed-point, this
     // translates to just under 65536 in NIOS format
@@ -879,7 +879,7 @@ static u16 fixedpoint_to_temperature_new(u16 fixed)
 
     u32 out = ((temp + 45*256) * 65535) / (175*256);
 
-    DPRINTK(KERN_ERR"SET  HW %04x 8.8 fixed %04x\n",temp,out);
+    DPRINTK("SET  HW %04x 8.8 fixed %04x\n",temp,out);
     return out;
 }
 
@@ -1622,11 +1622,11 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 
         // select temperature conversion fns based on firmware version
         if (new_temperature_format(&fw_info)) {
-            mdev->temp_to_fixedpoint = temperature_to_fixedpoint_new;
-            mdev->fixedpoint_to_temp = fixedpoint_to_temperature_new;
+            mdev->temp_to_fixedpoint = temperature_to_fixedpoint_v2;
+            mdev->fixedpoint_to_temp = fixedpoint_to_temperature_v2;
         } else {
-            mdev->temp_to_fixedpoint = temperature_to_fixedpoint_old;
-            mdev->fixedpoint_to_temp = fixedpoint_to_temperature_old;
+            mdev->temp_to_fixedpoint = temperature_to_fixedpoint_v1;
+            mdev->fixedpoint_to_temp = fixedpoint_to_temperature_v1;
         }
     }
 
