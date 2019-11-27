@@ -67,7 +67,7 @@
 #define PCI_BAR_EXPECTED_SIZE   0x3b20
 
 #define MAX_SET_POINT   ((u16)0x3200) // 50C in 8.8 fixed-point
-#define MIN_SET_POINT   ((u16)0x0f00) // 15C in 8.8 fixed-point
+#define MIN_SET_POINT   ((u16)0x1400) // 20C in 8.8 fixed-point
 
 struct altr_i2c_dev;
 struct altr_dma_dev;
