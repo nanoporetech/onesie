@@ -891,8 +891,11 @@ static long apply_temp_cmd(struct minion_device_s* mdev, struct minion_temperatu
     u16* nios_message_ram_base = mdev->ctrl_bar + NIOS_MESSAGE_RAM_BASE;
     struct message_struct* temp_message = (struct message_struct*)nios_message_ram_base;
 
-    // limit desired temperature to range [0C,50C]
-    if (write && tmp_cmd->desired_temperature > MAX_SET_POINT) {
+    // limit desired temperature to range [10C,50C]
+    if (write &&
+        (tmp_cmd->desired_temperature > MAX_SET_POINT ||
+         tmp_cmd->desired_temperature < MIN_SET_POINT ))
+    {
         rc = -EINVAL;
         goto exit;
     }
