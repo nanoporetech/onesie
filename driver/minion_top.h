@@ -48,7 +48,7 @@
 #define ONT_DRIVER_NAME     "ont-minion1c"
 
 /* version is major.minor.patch */
-#define ONT_DRIVER_VERSION  "0.2.1"
+#define ONT_DRIVER_VERSION  "0.2.2"
 
 #define ONT_FIRST_MINOR 0
 
@@ -66,7 +66,8 @@
 
 #define PCI_BAR_EXPECTED_SIZE   0x3b20
 
-#define MAX_SET_POINT   ((u16)0x3200) // 50C in 8.8 fixed-point
+#define MAX_SET_POINT   ((u16)0x2800) // 40C in 8.8 fixed-point
+#define MIN_SET_POINT   ((u16)0x1e00) // 30C in 8.8 fixed-point
 
 struct altr_i2c_dev;
 struct altr_dma_dev;
