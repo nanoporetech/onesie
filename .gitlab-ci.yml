@@ -31,18 +31,28 @@ compile:
     - master
     - tags
   script:
-   - eval $(ssh-agent -s)
-   - ssh-add <(echo "$DEB_REPO_KEY")
-   - scp -o StrictHostKeyChecking=no ont-minion1c-driver*.deb hudson@deb-repo.oxfordnanolabs.local:/var/www/apt/${UBUNTU_VERSION}-${CHANNEL}-mk1c
+   - for deb in ont-minion1c-driver*.deb; do
+   -   arch=$(dpkg --info "${deb}" | grep "Architecture:" | cut -d ":" -f 2 | tr -d "[:space:]")
+   -   url="https://artifactory.oxfordnanolabs.local/artifactory/${REPO}/pool/$(basename "${deb}");commitSHA=${CI_COMMIT_SHA};deb.distribution=${UBUNTU_VERSION};deb.component=non-free;deb.architecture=${arch}"
+   -   echo "Uploading ${deb} to ${url}"
+   - ' curl -LfsS
+         --request PUT
+         --user "${ARTIFACTORY_USER}:${ARTIFACTORY_PASS}"
+         --header "X-Checksum-Sha256: $(sha256sum "${deb}" | cut -d " " -f 1)"
+         --header "X-Checksum-Md5: $(md5sum "${deb}" | cut -d " " -f 1)"
+         --upload-file "${deb}"
+         "${url}"'
+   -   echo "Artifact is available at https://artifactory.oxfordnanolabs.local/artifactory/webapp/#/artifacts/browse/tree/General/${REPO}/pool/$(basename "${deb}")"
+   - done
 
 publish_unstable:
   <<: *publish
   stage: deploy
   variables:
-    CHANNEL: unstable
+    REPO: ONTDev-Deb
 
 publish_stable:
   <<: *publish
   stage: deploy
   variables:
-    CHANNEL: stable
+    REPO: ONT-Deb
