@@ -62,7 +62,7 @@ int main(int argc, char* argv [])
 {
     bool set = false;
     bool enable = false;
-    double temperature;
+    double temperature = 34.0;
     std::string device;
 
     // parse options
@@ -77,11 +77,11 @@ int main(int argc, char* argv [])
             ++index;
             std::string field(argv[index]);
             try {
-                temperature = std::stod(field,0);
-            } catch(std::invalid_argument& e) {
+                temperature = std::stod(field, nullptr);
+            } catch(std::invalid_argument&) {
                 std::cerr << "couldn't convert '" << field << "'to a number" << std::endl;
                 exit(1);
-            } catch(std::out_of_range& e) {
+            } catch(std::out_of_range&) {
                 std::cerr << "'" << field << "'is too big" << std::endl;
                 exit(1);
             }
@@ -121,8 +121,8 @@ int main(int argc, char* argv [])
     try {
         struct minion_temperature_command_s temp_command = {};
         if (set) {
+            temp_command.desired_temperature = std::uint8_t(temperature * 256.0);
             if (enable) {
-                temp_command.desired_temperature = temperature * 256.0;
                 temp_command.control_word = CTRL_EN_MASK;
             }
 
