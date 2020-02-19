@@ -286,7 +286,7 @@ struct minion_asic_control_s {
 #define MINION_IOCTL_ASIC_CONTROL_READ _IOR('b', 73, struct minion_firmware_info_s)
 #define MINION_IOCTL_ASIC_CONTROL_WRITE _IOW('b', 74, struct minion_firmware_info_s)
 
-/*
+/**
  * @brief For controlling and reading the temperature of the heat-sink/heat-pad
  * with MINION_IOCTL_TEMP_CMD_WRITE and MINION_IOCTL_TEMP_CMD_READ
  *
