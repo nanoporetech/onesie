@@ -4,7 +4,7 @@ stages:
 
 variables:
   KERNEL_RELEASE: "4.4.38-minit"
-  DRIVER_VERSION: "0.2.3-1"
+  DRIVER_VERSION: "0.3.0-1"
   UBUNTU_VERSION: "xenial"
 
 compile:
