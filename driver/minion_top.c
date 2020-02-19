@@ -506,27 +506,45 @@ static void minion_hs_reg_access(struct minion_device_s* mdev, struct minion_hs_
 
 static void read_asic_control(struct minion_device_s* mdev, struct minion_asic_control_s* val)
 {
-    u16 reg = readw(mdev->ctrl_bar + ASIC_CTRL_BASE);
+    u16 clk_low_bits;
+    u16 clk_hi_bits;
+    u16 reg;
 
+    reg = readw(mdev->ctrl_bar + ASIC_CTRL_BASE + ASIC_CTRL);
     val->reset = !!(reg & ASIC_CTRL_RESET);
     val->analogue_power = !!(reg & ASIC_CTRL_ALG_POWER);
-    val->clock_speed = (reg & ASIC_CTRL_CLK_MASK) >> ASIC_CTRL_CLK_SHIFT;
+    clk_low_bits = (reg & ASIC_CTRL_CLK_MASK) >> ASIC_CTRL_CLK_SHIFT;
     val->eeprom_enable = !!(reg & ASIC_CTRL_BUS_MODE);
     val->asic_detect = !!(reg & ASIC_CTRL_DETECT);
     val->analogue_power_good = !!(reg & ASIC_CTRL_GOOD_POWER);
     val->asic_clocks_detected = (reg & ASIC_CTRL_CLK_FBK_MASK) >> ASIC_CTRL_CLK_FBK_SHIFT;
+
+    reg = readw(mdev->ctrl_bar + ASIC_CTRL_BASE + ASIC_CTRL2);
+    clk_hi_bits = (reg & ASIC_CTRL2_CLK_MASK) >> ASIC_CTRL2_CLK_SHIFT;
+    val->clock_speed = (clk_hi_bits << 2) | clk_low_bits;
 }
 
 static void write_asic_control(struct minion_device_s* mdev, struct minion_asic_control_s* val)
 {
+    u16 clk_low_bits;
+    u16 clk_hi_bits;
     u16 reg = 0;
 
     reg |= val->reset ? ASIC_CTRL_RESET : 0;
     reg |= val->analogue_power ? ASIC_CTRL_ALG_POWER : 0;
     reg |= val->eeprom_enable ? ASIC_CTRL_BUS_MODE : 0;
-    reg |= (val->clock_speed << ASIC_CTRL_CLK_SHIFT) & ASIC_CTRL_CLK_MASK;
 
-    writew(reg, mdev->ctrl_bar + ASIC_CTRL_BASE);
+    // the bottom 2 bits of the HS_CLK enum
+    clk_low_bits = val->clock_speed & 0x3;
+    reg |= (clk_low_bits << ASIC_CTRL_CLK_SHIFT) & ASIC_CTRL_CLK_MASK;
+
+    writew(reg, mdev->ctrl_bar + ASIC_CTRL_BASE + ASIC_CTRL);
+
+    reg = 0;
+    // the top bit of the HS_CLK enum
+    clk_hi_bits = val->clock_speed >> 2;
+    reg |= (clk_hi_bits << ASIC_CTRL2_CLK_SHIFT) & ASIC_CTRL2_CLK_MASK;
+    writew(reg, mdev->ctrl_bar + ASIC_CTRL_BASE + ASIC_CTRL2);
 }
 
 
