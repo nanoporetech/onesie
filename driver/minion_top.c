@@ -581,10 +581,11 @@ static int switch_link_mode(struct minion_device_s* mdev, const enum link_mode_e
     mdev->link_mode = mode;
 
     // read and modify the asic-control register to set either I2C or SPI mode
-    switch(mode & ASIC_CTRL_MASK) {
+    switch(mode) {
     case link_mode_i2c:
         asic_ctrl |= ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET ;
         break;
+    case link_idle: // should be caught by if-statement above
     case link_mode_data:
         asic_ctrl &= ~(ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET );
         asic_ctrl |= ASIC_CTRL_ALG_POWER;

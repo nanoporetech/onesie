@@ -65,14 +65,9 @@
 #define ASIC_CTRL_HWID_MASK     (3 << 14)
 #define ASIC_CTRL_HWID_SHIFT    14
 
-#define ASIC_CTRL_MASK      0x00003fbf /* all the above */
-
 #define ASIC_CTRL2 2
-#define ASIC_CTRL2_CLK_MASK  (1 << 0)
+#define ASIC_CTRL2_CLK_MASK     (1 << 0)
 #define ASIC_CTRL2_CLK_SHIFT    0
-#define ASIC_CTRL2_MASK         0x00000001 /* all the above */
-
-
 
 /* ASIC shift register; buffers and control register */
 #define ASIC_SHIFT_REG_SIZE     0x11b
