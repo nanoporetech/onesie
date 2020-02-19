@@ -256,6 +256,7 @@ struct minion_firmware_info_s {
  * eeprom_enable        write
  * asic_detect          read
  * asic_clocks_detected read
+ * hardware_id          read
  */
 struct minion_asic_control_s {
     __u8 reset;
@@ -265,7 +266,7 @@ struct minion_asic_control_s {
     __u8 eeprom_enable;
     __u8 asic_detect;
     __u8 asic_clocks_detected;
-    __u8 padding; // must be zero
+    __u8 hardware_id;
 } __attribute__(( packed ));
 
 /** for use with minion_asic_control_s.clock_speed */
@@ -275,6 +276,10 @@ struct minion_asic_control_s {
 #define MINION_IOCTL_ASIC_CONTROL_16MHZ     4
 #define MINION_IOCTL_ASIC_CONTROL_8MHZ      5
 #define MINION_IOCTL_ASIC_CONTROL_0MHZ      0
+
+/** for use with the minion_asic_control_s.hardware_id */
+#define MINION_IOCTL_ASIC_CONTROL_P2        0
+#define MINION_IOCTL_ASIC_CONTROL_P3        1
 
 #define MINION_IOCTL_ASIC_CONTROL_SIZE 8
 

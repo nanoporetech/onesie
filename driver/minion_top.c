@@ -518,6 +518,7 @@ static void read_asic_control(struct minion_device_s* mdev, struct minion_asic_c
     val->asic_detect = !!(reg & ASIC_CTRL_DETECT);
     val->analogue_power_good = !!(reg & ASIC_CTRL_GOOD_POWER);
     val->asic_clocks_detected = (reg & ASIC_CTRL_CLK_FBK_MASK) >> ASIC_CTRL_CLK_FBK_SHIFT;
+    val->hardware_id = (reg & ASIC_CTRL_HWID_MASK) >> ASIC_CTRL_HWID_SHIFT;
 
     reg = readw(mdev->ctrl_bar + ASIC_CTRL_BASE + ASIC_CTRL2);
     clk_hi_bits = (reg & ASIC_CTRL2_CLK_MASK) >> ASIC_CTRL2_CLK_SHIFT;
@@ -1246,10 +1247,6 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             rc = copy_from_user(&asic_control, (void __user*)arg, sizeof(asic_control));
             if (rc < 0) {
                 return rc;
-            }
-            if (asic_control.padding != 0) {
-                dev_err(&mdev->pci_device->dev, "Padding in IOCTL not zero");
-                return -EINVAL;
             }
             write_asic_control(mdev, &asic_control);
             return 0;
