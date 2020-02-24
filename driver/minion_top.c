@@ -1003,7 +1003,7 @@ static int minion_file_open(struct inode* inode, struct file *file)
     }
 
     // freed in close
-    user = kzalloc(GFP_KERNEL, sizeof(struct minion_user_s));
+    user = kzalloc(sizeof(struct minion_user_s), GFP_KERNEL);
     if (!user) {
         return -ENOMEM;
     }
