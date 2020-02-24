@@ -156,6 +156,14 @@ struct minion_device_s {
     u16 (*fixedpoint_to_temp)(u16 temp);
 };
 
+/// @todo this is a temporary name for an object who's lifetime matches that
+/// of the user keeping the file open
+struct minion_user_s {
+    struct minion_device_s* mdev;
+    /// true if the user did DMA and will trigger a clean-up when closing the file
+    bool dma_used;
+};
+
 
 extern int borrowed_altr_i2c_probe(struct minion_device_s* base);
 extern void borrowed_altr_i2c_remove(void* ptr);

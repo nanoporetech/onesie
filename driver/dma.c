@@ -276,7 +276,7 @@ __attribute__(( unused )) static void crazy_dump_debug(struct altr_dma_dev* adma
     list_for_each_entry(job, &adma->post_hardware, list) {
         dump_job(job);
     }
-    printk(KERN_ERR"done lock %s\n", spin_is_locked(&adma->hardware_lock) ? "locked" : "unlocked"); /// @todo
+    printk(KERN_ERR"done lock %s\n", spin_is_locked(&adma->done_lock) ? "locked" : "unlocked"); /// @todo
     printk(KERN_ERR"done transfers\n");
     list_for_each_entry(job, &adma->transfers_done, list) {
         dump_job(job);

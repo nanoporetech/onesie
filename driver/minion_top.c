@@ -992,6 +992,7 @@ static void disable_temperature_control(void* ptr)
 static int minion_file_open(struct inode* inode, struct file *file)
 {
     struct minion_device_s* mdev;
+    struct minion_user_s* user;
 
     VPRINTK("minion_file_open\n");
     /* work out which hardware the user is expecting to talk to from the device no */
@@ -1001,7 +1002,13 @@ static int minion_file_open(struct inode* inode, struct file *file)
         return -ENODEV;
     }
 
-    file->private_data = mdev;
+    // freed in close
+    user = kzalloc(GFP_KERNEL, sizeof(struct minion_user_s));
+    if (!user) {
+        return -ENOMEM;
+    }
+    user->mdev = mdev;
+    file->private_data = user;
     return 0;
 }
 
@@ -1010,17 +1017,21 @@ static int minion_file_open(struct inode* inode, struct file *file)
  */
 static int minion_file_close(struct inode *inode, struct file *file)
 {
-    struct minion_device_s* mdev;
+    struct minion_user_s* user;
 
     VPRINTK("minion_file_close\n");
-    mdev = (struct minion_device_s*)file->private_data;
-    if (!mdev) {
+    user = (struct minion_user_s*)file->private_data;
+    if (!user) {
         DPRINTK("file->private_data null, can't clear-up!\n");
         return 0;
     }
 
-    // cancel all transfers
-    cancel_data_transfers(mdev->dma_dev);
+    if (user->dma_used) {
+        // cancel all transfers
+        cancel_data_transfers(user->mdev->dma_dev);
+        user->dma_used = false;
+    }
+    kfree(user);
 
     return 0;
 }
@@ -1028,10 +1039,11 @@ static int minion_file_close(struct inode *inode, struct file *file)
 static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
     long rc = 0;
-    struct minion_device_s* mdev = file->private_data;
+    struct minion_user_s* user = file->private_data;
+    struct minion_device_s* mdev = user->mdev;
 
     VPRINTK("IOCTL file %p cmd %u, arg %lu\n",file, cmd, arg);
-    VPRINTK("mdev = %p\n",mdev);
+    VPRINTK("user = %p, mdev = %p\n", user, mdev);
     if (_IOC_TYPE(cmd) != 'b') {
         DPRINTK("bad magic number\n");
         return -ENOTTY;
@@ -1159,6 +1171,8 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                 DPRINTK("copy_from_user failed\n");
                 return rc;
             }
+            // consider DMA "used" at this point
+            user->dma_used = true;
             // make a transfer object to represent the transfer when in the driver
             rc = queue_data_transfer(mdev->dma_dev, &transfer, file);
             return rc;
@@ -1206,8 +1220,11 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
         }
         break;
     case MINION_IOCTL_CANCEL_TRANSFERS: {
+            long ret;
             VPRINTK("MINION_IOCTL_CANCEL_TRANSFERS\n");
-            return cancel_data_transfers(mdev->dma_dev);
+            ret = cancel_data_transfers(mdev->dma_dev);
+            user->dma_used = false;
+            return ret;
         }
         break;
     case MINION_IOCTL_FIRMWARE_INFO: {
