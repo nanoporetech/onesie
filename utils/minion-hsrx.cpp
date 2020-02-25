@@ -16,7 +16,8 @@
 
 void hs_receiver_ioctl(
         const std::string& device,
-        std::array<std::uint16_t, MINION_IOCTL_HS_RECEIVER_REG_SIZE>& data)
+        std::array<std::uint16_t, MINION_IOCTL_HS_RECEIVER_REG_SIZE>& data,
+        const bool write = false)
 {
     // try and open file
     int fd = open(device.c_str(), O_RDWR);
@@ -28,7 +29,7 @@ void hs_receiver_ioctl(
     for (unsigned int i(0); i < MINION_IOCTL_HS_RECEIVER_REG_SIZE ;++i) {
         hs_rx_ioctl.registers[i] = data.at(i);
     }
-    hs_rx_ioctl.write = 1;
+    hs_rx_ioctl.write = write ? 1 : 0;
     const auto rc = ioctl(fd, MINION_IOCTL_HS_RECIEVER, &hs_rx_ioctl);
     if (rc < 0) {
         throw std::runtime_error(strerror(rc));
@@ -45,7 +46,9 @@ void usage()
         << " -e, --enable     Set write enable bit\n"
         << " -r, --sync-reset Set the sync-reset bit\n"
         << " -x, --hex        Output will be in hexadecimal csv\n"
-        << " -f, --frames     Number of frames in a packet (1-511)\n";
+        << " -f, --frames     Number of frames in a packet (1-511)\n"
+        << " -w, --write      Write to the register, defaults to true if --enable,\n"
+        << "                  --sync-reset or --frames are used\n";
     exit(1);
 }
 
@@ -53,6 +56,7 @@ int main(int argc, char* argv[]) {
     bool enable = false;
     bool reset = false;
     bool hex = false;
+    bool write = false;
     unsigned int frames = 1;
     std::string device;
 
@@ -68,10 +72,12 @@ int main(int argc, char* argv[]) {
         }
         if (arg == "-e" || arg == "--enable") {
             enable = true;
+            write = true;
             continue;
         }
         if (arg == "-r" || arg == "--sync-reset") {
             reset = true;
+            write = true;
             continue;
         }
         if (arg == "-f" || arg == "--frames") {
@@ -89,6 +95,11 @@ int main(int argc, char* argv[]) {
                 std::cerr << "'" << field << "'is " << e.what() << std::endl;
                 exit(1);
             }
+            write = true;
+            continue;
+        }
+        if (arg == "-w" || arg == "--write") {
+            write = true;
             continue;
         }
 
@@ -121,7 +132,7 @@ int main(int argc, char* argv[]) {
     regs[0] |= reset  ? 2 : 0;
     regs[11] = frames;
     try {
-        hs_receiver_ioctl(device, regs);
+        hs_receiver_ioctl(device, regs, write);
     } catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
         exit(1);
