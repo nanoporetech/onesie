@@ -11,14 +11,6 @@
 static const std::size_t frame_length = 528; //522 D-words
 typedef std::array<std::uint16_t, frame_length> frame_t;
 
-void byteswap(std::uint16_t& data)
-{
-    std::uint16_t temp = data;
-    data >>= 8;
-    data |= (temp & 0x00ff) << 8;
-}
-
-
 int main(int argc, char* argv[])
 {
     std::istream& in = std::cin;
@@ -87,10 +79,6 @@ int main(int argc, char* argv[])
         std::cout << std::hex;
         while (!in.eof()) {
             in.read((char*)frame.data(), frame.size() * 2);
-
-            for (auto& data: frame) {
-                byteswap(data);
-            }
 
             check_and_update_quad(514, frame_no, "frame-no");
             check_and_update_word(516, sampling_freq, "sampling frequency");
