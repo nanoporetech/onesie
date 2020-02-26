@@ -246,6 +246,7 @@ Usage: `minit-hsrx [-erxf] <device>`
 | `-r`, `--sync-reset` | set the reset-bit in hs-rx word-0 |
 | `-x`, `--hex` | output registers read as hexadecimal rather than a byte-stream |
 | `-f`, `--frames <no-frames>` | set the number of frames of data between "End-of-Packet" signals |
+| `-h`, `--human` | Output the registers in (vaguely) human-readable format |
 
 `<device>` is the device-node
 

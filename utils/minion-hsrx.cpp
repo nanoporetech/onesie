@@ -13,6 +13,7 @@
 #include <string>
 #include <array>
 #include <stdexcept>
+#include <bitset>
 
 void hs_receiver_ioctl(
         const std::string& device,
@@ -45,6 +46,7 @@ void usage()
         << "usage minit-hsrx [-wx] <device>\n"
         << " -e, --enable     Set write enable bit\n"
         << " -r, --sync-reset Set the sync-reset bit\n"
+        << " -h, --human      Output data in human-readable format\n"
         << " -x, --hex        Output will be in hexadecimal csv\n"
         << " -f, --frames     Number of frames in a packet (1-511)\n"
         << " -w, --write      Write to the register, defaults to true if --enable,\n"
@@ -57,6 +59,7 @@ int main(int argc, char* argv[]) {
     bool reset = false;
     bool hex = false;
     bool write = false;
+    bool human = false;
     unsigned int frames = 1;
     std::string device;
 
@@ -68,6 +71,10 @@ int main(int argc, char* argv[]) {
         std::string arg(argv[index]);
         if (arg == "-x" || arg == "--hex") {
             hex = true;
+            continue;
+        }
+        if (arg == "-h" || arg == "--human") {
+            human = true;
             continue;
         }
         if (arg == "-e" || arg == "--enable") {
@@ -147,9 +154,28 @@ int main(int argc, char* argv[]) {
             printf("0x%04x",word);
         }
         std::cout << std::endl;
-    } else {
-        std::cout.write(reinterpret_cast<char*>(regs.data()),regs.size() * sizeof(std::uint16_t) );
-        // todo
     }
-    return -1;
+
+    if (human) {
+        std::cout << "Channel Remap  " << (regs[0] & 1 ? "on" : "off") << std::endl;
+        std::cout << "Reset          " << (regs[0] & 2 ? "on" : "off") << std::endl;
+        std::cout << "Temp Offset    " << (regs[1] & 0x007f) << std::endl;
+        std::cout << "ADC Offset     " << (regs[2] * 0x01ff) << std::endl;
+        std::cout << "Frame Count    " << (regs[3] + ((regs[4] & 0x00ff) << 16)) << std::endl;
+        std::cout << "Bias ADC       " << (regs[5] & 0x1fff) << std::endl;
+        std::cout << "Ref ADC        " << (regs[6] & 0x1fff) << std::endl;
+        std::cout << "ADC Offset     " << (regs[7] & 0x01ff) << std::endl;
+        std::cout << "Temp Offset    " << (regs[8] & 0x007f) << std::endl;
+        std::cout << "Errors         " << std::bitset<16>(regs[9] & 0x07ff) << std::endl;
+        std::cout << "Timeout Enable " << (regs[10] & 0x8000 ? "on" : "off") << std::endl;
+        std::cout << "Timeout        " << (regs[10] & 0x00ff) << std::endl;
+        std::cout << "Frames/Buffer  " << (regs[11] & 0x01ff) << std::endl;
+        std::cout << "Temperature    " << (regs[12]) << std::endl;
+    }
+
+    if (!hex || !human ) {
+        std::cout.write(reinterpret_cast<char*>(regs.data()),regs.size() * sizeof(std::uint16_t) );
+    }
+
+    return 0;
 }
