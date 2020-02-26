@@ -181,6 +181,7 @@ The utils director contains a number of tools for debugging the driver and firmw
 *  minion-shift     - read/write ASIC configuration
 *  minion-temp      - read and control temperatures
 *  dma-audit        - check the format of the acquired data
+*  otp-decode       - decode the OTP bits in the shift-register to human readable form
 
 ### minion-reg
 
@@ -330,6 +331,12 @@ eg:
 *  correctly incrementing frame-numbers
 *  0xcafebabe end-of-frame marker
 *  changes in sampling-frequency, ASIC-id, bias-voltage, heat-sink temperature and ASIC configuration-id (aka command-id.)
+
+### otp-decode
+
+`otp-decode` accepts the byte-stream from `minion-shift` and converts the part of the output that pertains to OTP bits in the flow-cell into human-readable form, eg:
+
+`minion-shift -s -e -f 44000000 /dev/flowcell0 | otp_decode`
 
 ## Packaging and Distribution
 
