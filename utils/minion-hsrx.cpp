@@ -173,7 +173,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Temperature    " << (regs[12]) << std::endl;
     }
 
-    if (!hex || !human ) {
+    if (!hex && !human ) {
         std::cout.write(reinterpret_cast<char*>(regs.data()),regs.size() * sizeof(std::uint16_t) );
     }
 
