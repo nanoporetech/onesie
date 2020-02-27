@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
     std::cout << "Temp Offset              " << bits_to_uint<unsigned int >(shift_reg_raw, 66, 71) << std::endl;
     std::cout << "ASIC Revision            " <<(bits_to_uint<unsigned int >(shift_reg_raw, 72) ? "IA02D" : "IA02C") << std::endl;
 
-    if (otp || shift_reg_raw.size() < 2259) {
+    if (otp || shift_reg_raw.size() < 211) {
         return 0;
     }
 
@@ -152,7 +152,7 @@ int main(int argc, char* argv[])
     std::cout << "Bandgap Out Test Enable  " << bits_to_uint<unsigned int >(shift_reg_raw, 209) << std::endl;
     std::cout << "Spare! (SBZ)             " << bits_to_uint<unsigned int >(shift_reg_raw, 210, 211) << std::endl;
 
-    if (not_input_select) {
+    if (not_input_select || shift_reg_raw.size() < 2259) {
         return 0;
     }
 
