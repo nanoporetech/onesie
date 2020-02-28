@@ -101,7 +101,7 @@
 #define ASIC_HS_RECEIVER_REMAP  0x400
 
 /* bitmask of HS Reveiver registers that can be written */
-#define ASIC_HS_REG_WRITE_MASK  ((1 << 0) | (1 << 0xb) | (1 << 0xc))
+#define ASIC_HS_REG_WRITE_MASK  ((1 << 0) | (1 << 9) | (1 << 0xb) | (1 << 0xc))
 /* BASE ADDRESSES BAR-2*/
 #define ADC_SPI_BASE            0x00012000
 #define DAC_SPI_BASE            0x00012020
