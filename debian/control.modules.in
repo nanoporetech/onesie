@@ -1,7 +1,7 @@
 Package: ont-minion1c-driver-_KVERS_
 Section: kernel
 Architecture: _ARCH_
-Depends: ${misc:Depends}, ont-minion1c-fpga (>= 2.1.0)
+Depends: ${misc:Depends}, ont-minion1c-fpga (>= 2.2.3)
 Recommends: linux-modules-_KVERS_ | linux-image-_KVERS_
 Provides: ont-minion1c-driver-module (= _VERSION_)
 Description: Oxford Nanopore Technologies MinIT-1C acquisition-hardware
