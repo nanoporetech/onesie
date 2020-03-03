@@ -57,9 +57,12 @@ struct minion_register_s {
  *                      This can be the same buffer as the one pointed to by
  *                      to_device. If null any data read from the hardware will
  *                      be discarded.
- * clock_hz to-driver   Clock speed in Hz for the transfer. Due to hardware
+ * clock    to-driver   For values over 63, this is taken to be the desired
+ *                      Clock speed in Hz for the transfer. Due to hardware
  *                      limitations the actual clock speed may differ from that
- *                      requested
+ *                      requested. For values of 63 and less, this is taken to
+ *                      be the value used in the clock-speed divider. See the
+ *                      data-sheet for valid divider values.
  * start    to-driver   Sets start-bit if non-zero
  * enable   to-driver   Sets enable-bit it non-zero
  * command_id to/from-driver
@@ -87,7 +90,7 @@ struct minion_register_s {
 struct minion_shift_reg_s {
     __u64   to_device;
     __u64   from_device;
-    __u32   clock_hz;
+    __u32   clock;
     __u8    start;
     __u8    enable;
     __u8    command_id;

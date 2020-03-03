@@ -243,12 +243,18 @@ static u32 calculate_shift_reg_clock_divider(const u32 clk)
 {
     u32 clockdiv;
     u32 actual_clock;
+
+    // Below a threshold, clk is actually the divider
+    if (clk < ASIC_SHIFT_CLK_IS_DIVIDER) {
+        return clk;
+    }
+
     if (clk > ASIC_SHIFT_MAX_CLOCK) {
-        clockdiv = 0;
+        clockdiv = ASIC_SHIFT_CTRL_DIV_MIN;
     } else if (clk < ASIC_SHIFT_MIN_CLOCK) {
         clockdiv = ASIC_SHIFT_CTRL_DIV_MAX;
     } else {
-        clockdiv = ((PCIe_LANE_CLOCK/(2*clk)) - 1) / 2;
+        clockdiv = ASIC_SHIFT_CLOCK_TO_DIV(clk);
     }
     actual_clock = ASIC_SHIFT_DIV_TO_CLOCK(clockdiv);
     if (actual_clock != clk) {
@@ -424,7 +430,7 @@ static long minion_shift_reg_access_wrapper(struct minion_device_s* mdev, struct
         .waveform_frames = shift_reg_access->waveform_frame_count,
         .start = shift_reg_access->start,
         .enable = shift_reg_access->enable,
-        .clk = shift_reg_access->clock_hz,
+        .clk = shift_reg_access->clock,
         .cmd_id = shift_reg_access->command_id,
     };
 
