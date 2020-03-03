@@ -527,9 +527,22 @@ static void read_asic_control(struct minion_device_s* mdev, struct minion_asic_c
 
 static void write_asic_control(struct minion_device_s* mdev, struct minion_asic_control_s* val)
 {
+    static u8 last_clock_speed = 0;
     u16 clk_low_bits;
     u16 clk_hi_bits;
     u16 reg = 0;
+
+    // if the clock speed has changed, call ourselves with reset on
+    if (last_clock_speed != val->clock_speed) {
+        struct minion_asic_control_s reset_on = *val;
+        reset_on.reset = 1;
+
+        // remember to do this or we'll be here all night
+        last_clock_speed = val->clock_speed;
+
+        write_asic_control(mdev, &reset_on);
+        udelay(100);
+    }
 
     reg |= val->reset ? ASIC_CTRL_RESET : 0;
     reg |= val->analogue_power ? ASIC_CTRL_ALG_POWER : 0;
