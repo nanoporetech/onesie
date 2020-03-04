@@ -148,7 +148,7 @@ struct minion_device_s {
     void __iomem* pci_bar;
 
     struct thermal_control_sysfs tc_attr ;
-
+    u8 last_hs_clk_speed;
     int minor_dev_no;
 
     // functions for converting Temperature to/from hardware format
