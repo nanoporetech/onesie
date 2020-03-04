@@ -243,12 +243,18 @@ static u32 calculate_shift_reg_clock_divider(const u32 clk)
 {
     u32 clockdiv;
     u32 actual_clock;
+
+    // Below a threshold, clk is actually the divider
+    if (clk < ASIC_SHIFT_CLK_IS_DIVIDER) {
+        return clk;
+    }
+
     if (clk > ASIC_SHIFT_MAX_CLOCK) {
-        clockdiv = 0;
+        clockdiv = ASIC_SHIFT_CTRL_DIV_MIN;
     } else if (clk < ASIC_SHIFT_MIN_CLOCK) {
         clockdiv = ASIC_SHIFT_CTRL_DIV_MAX;
     } else {
-        clockdiv = ((PCIe_LANE_CLOCK/(2*clk)) - 1) / 2;
+        clockdiv = ASIC_SHIFT_CLOCK_TO_DIV(clk);
     }
     actual_clock = ASIC_SHIFT_DIV_TO_CLOCK(clockdiv);
     if (actual_clock != clk) {
@@ -424,7 +430,7 @@ static long minion_shift_reg_access_wrapper(struct minion_device_s* mdev, struct
         .waveform_frames = shift_reg_access->waveform_frame_count,
         .start = shift_reg_access->start,
         .enable = shift_reg_access->enable,
-        .clk = shift_reg_access->clock_hz,
+        .clk = shift_reg_access->clock,
         .cmd_id = shift_reg_access->command_id,
     };
 
@@ -506,27 +512,58 @@ static void minion_hs_reg_access(struct minion_device_s* mdev, struct minion_hs_
 
 static void read_asic_control(struct minion_device_s* mdev, struct minion_asic_control_s* val)
 {
-    u16 reg = readw(mdev->ctrl_bar + ASIC_CTRL_BASE);
+    u16 clk_low_bits;
+    u16 clk_hi_bits;
+    u16 reg;
 
+    reg = readw(mdev->ctrl_bar + ASIC_CTRL_BASE + ASIC_CTRL);
     val->reset = !!(reg & ASIC_CTRL_RESET);
     val->analogue_power = !!(reg & ASIC_CTRL_ALG_POWER);
-    val->clock_speed = (reg & ASIC_CTRL_CLK_MASK) >> ASIC_CTRL_CLK_SHIFT;
+    clk_low_bits = (reg & ASIC_CTRL_CLK_MASK) >> ASIC_CTRL_CLK_SHIFT;
     val->eeprom_enable = !!(reg & ASIC_CTRL_BUS_MODE);
     val->asic_detect = !!(reg & ASIC_CTRL_DETECT);
     val->analogue_power_good = !!(reg & ASIC_CTRL_GOOD_POWER);
     val->asic_clocks_detected = (reg & ASIC_CTRL_CLK_FBK_MASK) >> ASIC_CTRL_CLK_FBK_SHIFT;
+    val->hardware_id = (reg & ASIC_CTRL_HWID_MASK) >> ASIC_CTRL_HWID_SHIFT;
+
+    reg = readw(mdev->ctrl_bar + ASIC_CTRL_BASE + ASIC_CTRL2);
+    clk_hi_bits = (reg & ASIC_CTRL2_CLK_MASK) >> ASIC_CTRL2_CLK_SHIFT;
+    val->clock_speed = (clk_hi_bits << 2) | clk_low_bits;
 }
 
 static void write_asic_control(struct minion_device_s* mdev, struct minion_asic_control_s* val)
 {
+    u16 clk_low_bits;
+    u16 clk_hi_bits;
     u16 reg = 0;
+
+    // if the clock speed has changed, call ourselves with reset on
+    if (mdev->last_hs_clk_speed != val->clock_speed) {
+        struct minion_asic_control_s reset_on = *val;
+        reset_on.reset = 1;
+
+        // remember to do this or we'll be here all night
+        mdev->last_hs_clk_speed = val->clock_speed;
+
+        write_asic_control(mdev, &reset_on);
+        udelay(100);
+    }
 
     reg |= val->reset ? ASIC_CTRL_RESET : 0;
     reg |= val->analogue_power ? ASIC_CTRL_ALG_POWER : 0;
     reg |= val->eeprom_enable ? ASIC_CTRL_BUS_MODE : 0;
-    reg |= (val->clock_speed << ASIC_CTRL_CLK_SHIFT) & ASIC_CTRL_CLK_MASK;
 
-    writew(reg, mdev->ctrl_bar + ASIC_CTRL_BASE);
+    // the bottom 2 bits of the HS_CLK enum
+    clk_low_bits = val->clock_speed & 0x3;
+    reg |= (clk_low_bits << ASIC_CTRL_CLK_SHIFT) & ASIC_CTRL_CLK_MASK;
+
+    writew(reg, mdev->ctrl_bar + ASIC_CTRL_BASE + ASIC_CTRL);
+
+    reg = 0;
+    // the top bit of the HS_CLK enum
+    clk_hi_bits = val->clock_speed >> 2;
+    reg |= (clk_hi_bits << ASIC_CTRL2_CLK_SHIFT) & ASIC_CTRL2_CLK_MASK;
+    writew(reg, mdev->ctrl_bar + ASIC_CTRL_BASE + ASIC_CTRL2);
 }
 
 
@@ -562,10 +599,11 @@ static int switch_link_mode(struct minion_device_s* mdev, const enum link_mode_e
     mdev->link_mode = mode;
 
     // read and modify the asic-control register to set either I2C or SPI mode
-    switch(mode & ASIC_CTRL_MASK) {
+    switch(mode) {
     case link_mode_i2c:
         asic_ctrl |= ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET ;
         break;
+    case link_idle: // should be caught by if-statement above
     case link_mode_data:
         asic_ctrl &= ~(ASIC_CTRL_BUS_MODE | ASIC_CTRL_RESET );
         asic_ctrl |= ASIC_CTRL_ALG_POWER;
@@ -1245,10 +1283,6 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             rc = copy_from_user(&asic_control, (void __user*)arg, sizeof(asic_control));
             if (rc < 0) {
                 return rc;
-            }
-            if (asic_control.padding != 0) {
-                dev_err(&mdev->pci_device->dev, "Padding in IOCTL not zero");
-                return -EINVAL;
             }
             write_asic_control(mdev, &asic_control);
             return 0;

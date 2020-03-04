@@ -57,9 +57,12 @@ struct minion_register_s {
  *                      This can be the same buffer as the one pointed to by
  *                      to_device. If null any data read from the hardware will
  *                      be discarded.
- * clock_hz to-driver   Clock speed in Hz for the transfer. Due to hardware
+ * clock    to-driver   For values over 63, this is taken to be the desired
+ *                      Clock speed in Hz for the transfer. Due to hardware
  *                      limitations the actual clock speed may differ from that
- *                      requested
+ *                      requested. For values of 63 and less, this is taken to
+ *                      be the value used in the clock-speed divider. See the
+ *                      data-sheet for valid divider values.
  * start    to-driver   Sets start-bit if non-zero
  * enable   to-driver   Sets enable-bit it non-zero
  * command_id to/from-driver
@@ -87,7 +90,7 @@ struct minion_register_s {
 struct minion_shift_reg_s {
     __u64   to_device;
     __u64   from_device;
-    __u32   clock_hz;
+    __u32   clock;
     __u8    start;
     __u8    enable;
     __u8    command_id;
@@ -256,6 +259,7 @@ struct minion_firmware_info_s {
  * eeprom_enable        write
  * asic_detect          read
  * asic_clocks_detected read
+ * hardware_id          read
  */
 struct minion_asic_control_s {
     __u8 reset;
@@ -265,21 +269,27 @@ struct minion_asic_control_s {
     __u8 eeprom_enable;
     __u8 asic_detect;
     __u8 asic_clocks_detected;
-    __u8 padding; // must be zero
+    __u8 hardware_id;
 } __attribute__(( packed ));
 
 /** for use with minion_asic_control_s.clock_speed */
 #define MINION_IOCTL_ASIC_CONTROL_128MHZ    1
 #define MINION_IOCTL_ASIC_CONTROL_64MHZ     2
 #define MINION_IOCTL_ASIC_CONTROL_32MHZ     3
+#define MINION_IOCTL_ASIC_CONTROL_16MHZ     4
+#define MINION_IOCTL_ASIC_CONTROL_8MHZ      5
 #define MINION_IOCTL_ASIC_CONTROL_0MHZ      0
+
+/** for use with the minion_asic_control_s.hardware_id */
+#define MINION_IOCTL_ASIC_CONTROL_P2        0
+#define MINION_IOCTL_ASIC_CONTROL_P3        1
 
 #define MINION_IOCTL_ASIC_CONTROL_SIZE 8
 
 #define MINION_IOCTL_ASIC_CONTROL_READ _IOR('b', 73, struct minion_firmware_info_s)
 #define MINION_IOCTL_ASIC_CONTROL_WRITE _IOW('b', 74, struct minion_firmware_info_s)
 
-/*
+/**
  * @brief For controlling and reading the temperature of the heat-sink/heat-pad
  * with MINION_IOCTL_TEMP_CMD_WRITE and MINION_IOCTL_TEMP_CMD_READ
  *

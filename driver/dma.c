@@ -111,7 +111,7 @@ static void dump_job(struct transfer_job_s* job)
     printk(KERN_ERR" descriptor physical address 0x%016llx\n", job->descriptor_phys);
     printk(KERN_ERR" descriptors:\n");
     desc = job->descriptor;
-    while (desc) {
+    while (desc && desc->driver_ref == job) {
         dump_descriptor(desc);
         desc = desc->next_desc_virt;
     }

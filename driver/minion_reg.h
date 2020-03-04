@@ -49,20 +49,25 @@
 #define SYS_ID_TIMESTAMP        0x4
 
 /* ASIC Control Bits and masks */
-#define ASIC_CTRL_RESET     (1 << 0)
-#define ASIC_CTRL_ALG_POWER (1 << 1)
-#define ASIC_CTRL_CLK_MASK  (3 << 2)
-#define ASIC_CTRL_CLK_128   (1 << 2)
-#define ASIC_CTRL_CLK_64    (2 << 2)
-#define ASIC_CTRL_CLK_32    (3 << 2)
+#define ASIC_CTRL 0
+#define ASIC_CTRL_RESET         (1 << 0)
+#define ASIC_CTRL_ALG_POWER     (1 << 1)
+#define ASIC_CTRL_CLK_MASK      (3 << 2)
+#define ASIC_CTRL_CLK_128       (1 << 2)
+#define ASIC_CTRL_CLK_64        (2 << 2)
+#define ASIC_CTRL_CLK_32        (3 << 2)
 #define ASIC_CTRL_CLK_SHIFT     2
-#define ASIC_CTRL_BUS_MODE  (1 << 4)
-#define ASIC_CTRL_DETECT    (1 << 5)
-#define ASIC_CTRL_GOOD_POWER (1 << 7)
+#define ASIC_CTRL_BUS_MODE      (1 << 4)
+#define ASIC_CTRL_DETECT        (1 << 5)
+#define ASIC_CTRL_GOOD_POWER    (1 << 7)
 #define ASIC_CTRL_CLK_FBK_SHIFT 8
-#define ASIC_CTRL_CLK_FBK_MASK 0x3f00
+#define ASIC_CTRL_CLK_FBK_MASK  0x3f00
+#define ASIC_CTRL_HWID_MASK     (3 << 14)
+#define ASIC_CTRL_HWID_SHIFT    14
 
-#define ASIC_CTRL_MASK      0x00003fbf /* all the above */
+#define ASIC_CTRL2 2
+#define ASIC_CTRL2_CLK_MASK     (1 << 0)
+#define ASIC_CTRL2_CLK_SHIFT    0
 
 /* ASIC shift register; buffers and control register */
 #define ASIC_SHIFT_REG_SIZE     0x11b
@@ -80,13 +85,16 @@
 
 #define ASIC_SHIFT_CTRL_EN      (1 << 0)
 #define ASIC_SHIFT_CTRL_ST      (1 << 1)
+#define ASIC_SHIFT_CLK_IS_DIVIDER 0x40
 #define ASIC_SHIFT_CTRL_DIV_MASK  0x3f
 #define ASIC_SHIFT_CTRL_DIV_MAX   0x3e
+#define ASIC_SHIFT_CTRL_DIV_MIN   0x1
 #define ASIC_SHIFT_CTRL_DIV_SHIFT 2
 #define ASIC_SHIFT_CTRL_CMDID_SHIFT 8
 
-#define ASIC_SHIFT_DIV_TO_CLOCK(DIV) (PCIe_LANE_CLOCK / ((4*(DIV)) + 2))
-#define ASIC_SHIFT_MAX_CLOCK ASIC_SHIFT_DIV_TO_CLOCK(0)
+#define ASIC_SHIFT_DIV_TO_CLOCK(DIV) (PCIe_LANE_CLOCK / (2*(2+DIV)) )
+#define ASIC_SHIFT_CLOCK_TO_DIV(CLK) ((PCIe_LANE_CLOCK / (2*CLK)) - 2)
+#define ASIC_SHIFT_MAX_CLOCK ASIC_SHIFT_DIV_TO_CLOCK(ASIC_SHIFT_CTRL_DIV_MIN)
 #define ASIC_SHIFT_MIN_CLOCK ASIC_SHIFT_DIV_TO_CLOCK(ASIC_SHIFT_CTRL_DIV_MAX)
 
 
@@ -96,7 +104,7 @@
 #define ASIC_HS_RECEIVER_REMAP  0x400
 
 /* bitmask of HS Reveiver registers that can be written */
-#define ASIC_HS_REG_WRITE_MASK  ((1 << 0) | (1 << 0xb) | (1 << 0xc))
+#define ASIC_HS_REG_WRITE_MASK  ((1 << 0) | (1 << 9) | (1 << 0xb) | (1 << 0xc))
 /* BASE ADDRESSES BAR-2*/
 #define ADC_SPI_BASE            0x00012000
 #define DAC_SPI_BASE            0x00012020

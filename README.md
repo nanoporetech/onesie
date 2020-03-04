@@ -181,6 +181,7 @@ The utils director contains a number of tools for debugging the driver and firmw
 *  minion-shift     - read/write ASIC configuration
 *  minion-temp      - read and control temperatures
 *  dma-audit        - check the format of the acquired data
+*  shift-decode     - decode the bits in the shift-register to human-readable form
 
 ### minion-reg
 
@@ -245,6 +246,7 @@ Usage: `minit-hsrx [-erxf] <device>`
 | `-r`, `--sync-reset` | set the reset-bit in hs-rx word-0 |
 | `-x`, `--hex` | output registers read as hexadecimal rather than a byte-stream |
 | `-f`, `--frames <no-frames>` | set the number of frames of data between "End-of-Packet" signals |
+| `-h`, `--human` | Output the registers in (vaguely) human-readable format |
 
 `<device>` is the device-node
 
@@ -330,6 +332,24 @@ eg:
 *  correctly incrementing frame-numbers
 *  0xcafebabe end-of-frame marker
 *  changes in sampling-frequency, ASIC-id, bias-voltage, heat-sink temperature and ASIC configuration-id (aka command-id.)
+
+### shift-decode
+
+`shift-decode` accepts the byte-stream from `minion-shift` and converts all or part of it into human-readable form.
+
+`shift-decode [-x][-o][-n]`
+
+| | |
+| --- | --- |
+| `-x`, `--hex` | Accept input in comma separated hexadecimal format |
+| `-o`, `--otp` | Only decode the OTP part of the shift register |
+| `-n`, `--not-input-select` | Do not decode the input select for the channels |
+
+eg:
+
+`minion-shift -s -e /dev/flowcell0 | shift-decode`
+
+
 
 ## Packaging and Distribution
 

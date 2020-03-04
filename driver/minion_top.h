@@ -48,7 +48,7 @@
 #define ONT_DRIVER_NAME     "ont-minion1c"
 
 /* version is major.minor.patch */
-#define ONT_DRIVER_VERSION  "0.2.3"
+#define ONT_DRIVER_VERSION  "0.3.0"
 
 #define ONT_FIRST_MINOR 0
 
@@ -148,7 +148,7 @@ struct minion_device_s {
     void __iomem* pci_bar;
 
     struct thermal_control_sysfs tc_attr ;
-
+    u8 last_hs_clk_speed;
     int minor_dev_no;
 
     // functions for converting Temperature to/from hardware format
