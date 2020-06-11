@@ -317,15 +317,13 @@ static void read_shift_reg_hw(
 {
     int i;
     u16 tmp;
-    unsigned int delay_ms = 1+((1000 * ASIC_SHIFT_REG_SIZE) / param->clk);
 
     if (!param->from_dev) {
         return;
     }
 
-    // wait for the data to move
-    VPRINTK("sleeping for %d ms\n",delay_ms);
-    msleep(delay_ms);
+    // generous wait for data movement
+    msleep(1);
 
     for (i = 0; i < ASIC_SHIFT_REG_SIZE; i += 2) {
         tmp = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
