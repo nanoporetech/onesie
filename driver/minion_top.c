@@ -1302,6 +1302,10 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             if (rc < 0) {
                 return rc;
             }
+
+            // debug, force reported temp to be the set-point
+            temp_cmd.flowcell_temperature = temp_cmd.desired_temperature;
+            temp_cmd.heatsink_temperature = temp_cmd.desired_temperature;
             return copy_to_user((void __user*)arg, &temp_cmd, sizeof(temp_cmd));
         }
         break;
@@ -1789,6 +1793,7 @@ static int __init minion_init(void)
     int rc = 0;
     dev_t first_dev;
     DPRINTK("minion_init\n");
+    printk(KERN_WARNING "Development version of the MinION-mk1C driver with temperatures modified to report the set-point");
 
     // grab some character device numbers
     rc = alloc_chrdev_region(
