@@ -295,8 +295,9 @@ void dma_dump_debug(struct altr_dma_dev* adma)
     printk(KERN_ERR"max transfer size 0x%x (%d)\n",adma->max_transfer_size,adma->max_transfer_size);
     printk(KERN_ERR"hardware lock %s\n", spin_is_locked(&adma->hardware_lock) ? "locked" : "unlocked" ); /// @todo
 
-    // if we can get the lock then we're probably running and should get the lock
-    // to prevent things being changed whilst we're dumping them
+    // if we can acquire the lock then DMA is probably running as opposed to
+    // locked-up, we should take the lock to prevent things being changed whilst
+    // we're dumping them
     have_lock = spin_trylock_bh(&adma->hardware_lock);
 
     printk(KERN_ERR"transfers on hardware\n");
