@@ -330,6 +330,11 @@ struct minion_temperature_command_s {
 #define MINION_IOCTL_TEMP_CMD_READ _IOR('b', 75, struct minion_temperature_command_s)
 #define MINION_IOCTL_TEMP_CMD_WRITE _IOW('b', 76, struct minion_temperature_command_s)
 
+/**
+ * Instruct the driver to dump registers, etc. to the kernel logs
+ */
+#define MINION_IOCTL_DUMP_DEBUG _IO('b', 77)
+
 #ifdef __cplusplus
 }
 #endif
