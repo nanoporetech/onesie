@@ -279,6 +279,7 @@ static void dump_dma_registers(struct altr_dma_dev* adma) {
 void dma_dump_debug(struct altr_dma_dev* adma)
 {
     struct transfer_job_s* job;
+    int have_lock;
     bool want_descriptors = true;
 
     if (!adma) {
@@ -293,6 +294,11 @@ void dma_dump_debug(struct altr_dma_dev* adma)
     printk(KERN_ERR"pci_device %p\n",adma->pci_device);
     printk(KERN_ERR"max transfer size 0x%x (%d)\n",adma->max_transfer_size,adma->max_transfer_size);
     printk(KERN_ERR"hardware lock %s\n", spin_is_locked(&adma->hardware_lock) ? "locked" : "unlocked" ); /// @todo
+
+    // if we can get the lock then we're probably running and should get the lock
+    // to prevent things being changed whilst we're dumping them
+    have_lock = spin_trylock_bh(&adma->hardware_lock);
+
     printk(KERN_ERR"transfers on hardware\n");
     list_for_each_entry(job, &adma->transfers_on_hardware, list) {
         // only want to show the descriptors for the first job that has descriptors
@@ -307,6 +313,10 @@ void dma_dump_debug(struct altr_dma_dev* adma)
     list_for_each_entry(job, &adma->post_hardware, list) {
         dump_job(job, false);
     }
+    if (have_lock) {
+        spin_unlock_bh(&adma->hardware_lock);
+    }
+
     printk(KERN_ERR"done lock %s\n", spin_is_locked(&adma->done_lock) ? "locked" : "unlocked"); /// @todo
     printk(KERN_ERR"done transfers\n");
     list_for_each_entry(job, &adma->transfers_done, list) {
