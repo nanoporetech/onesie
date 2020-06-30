@@ -24,7 +24,7 @@ else
 endif
 
 
-# Extract a version string from the driver source it mus be the only thing
+# Extract a version string from the driver source. It must be the only thing
 # between quotes
 VERSION   := $(shell grep ONT_DRIVER_VERSION driver/minion_top.h | sed -e 's/^.*"\([^"]*\)"$$/\1/')
 all: utils driver test
