@@ -5,7 +5,7 @@ MinION flowcell over a PCIe link.
 
 ## Getting Started
 
-Building is more complicated than `make all` due to the need to access the MinIT kernel include files, these are not installed in the MinIT/MinION-1C by defaults and there are no packages available for them. At the moment, the driver has to be cross-compiled and the utilities compiled natively.
+Building is more complicated than `make all` due to the need to access the MinIT kernel include files, these are not installed in the MinIT/MinION-1C by default and there are no packages available for them. There are instructions for building in Docker [here](https://wiki.oxfordnanolabs.local/pages/viewpage.action?pageId=138836195#You'veBeenGivenaMinION-mk1CandYouWantTo...-...BuildtheDriverinDocker)
 
 ### Build Driver
 
@@ -45,6 +45,16 @@ Warning: The major number that the driver uses _can_ change each time driver is
 loaded. Though the file will still be there. If the driver stops working check
 `/proc/devices` to see that its still using the same major number. If it's changed
 delete the device node and create a new one with the correct number
+
+### Version Numbers
+
+The driver version is of the form `<major>.<minor>.<patch>`
+
+The Major number is incremented when a change makes the API incompatible with previous versions.
+
+The Minor number is incremented when adding a new feature to the API that maintains backwards compatibility.
+
+The Patch number is incremented when adding a feature or fix to the driver that doesn't change the API.
 
 ## Driver Internals
 
