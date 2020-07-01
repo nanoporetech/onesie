@@ -4,7 +4,6 @@ stages:
 
 variables:
   KERNEL_RELEASE: "4.4.38-minit"
-  DRIVER_VERSION: "0.3.1-1"
   UBUNTU_VERSION: "xenial"
 
 compile:
@@ -16,11 +15,11 @@ compile:
     - COMPILED_DRIVER_PACKAGE=1 KERNELRELEASE=${KERNEL_RELEASE} make dist-deb
   artifacts:
     paths:
-    - ./ont-minion1c-driver-${KERNEL_RELEASE}_${DRIVER_VERSION}~${UBUNTU_VERSION}_arm64.deb
-    - ./ont-minion1c-driver-dev_${DRIVER_VERSION}~${UBUNTU_VERSION}_all.deb
-    - ./ont-minion1c-driver-utils_${DRIVER_VERSION}~${UBUNTU_VERSION}_arm64.deb
-    - ./ont-minion1c-driver_${DRIVER_VERSION}~${UBUNTU_VERSION}.dsc
-    - ./ont-minion1c-driver_${DRIVER_VERSION}~${UBUNTU_VERSION}.tar.gz
+    - ./ont-minion1c-driver-${KERNEL_RELEASE}_*~${UBUNTU_VERSION}_arm64.deb
+    - ./ont-minion1c-driver-dev_*~${UBUNTU_VERSION}_all.deb
+    - ./ont-minion1c-driver-utils_*~${UBUNTU_VERSION}_arm64.deb
+    - ./ont-minion1c-driver_*~${UBUNTU_VERSION}.dsc
+    - ./ont-minion1c-driver_*~${UBUNTU_VERSION}.tar.gz
 
 .publish: &publish
   image: docker-registry.oxfordnanolabs.local:5000/ont-base-ubuntu:16.04

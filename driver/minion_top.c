@@ -1305,6 +1305,9 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             return copy_to_user((void __user*)arg, &temp_cmd, sizeof(temp_cmd));
         }
         break;
+    case MINION_IOCTL_DUMP_DEBUG:
+        dma_dump_debug(mdev->dma_dev);
+        return 0;
     default:
         printk(KERN_ERR ONT_DRIVER_NAME": Invalid ioctl for this device (%u)\n", cmd);
     }

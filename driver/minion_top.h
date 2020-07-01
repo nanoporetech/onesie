@@ -48,7 +48,7 @@
 #define ONT_DRIVER_NAME     "ont-minion1c"
 
 /* version is major.minor.patch */
-#define ONT_DRIVER_VERSION  "0.3.1"
+#define ONT_DRIVER_VERSION  "0.4.0"
 
 #define ONT_FIRST_MINOR 0
 
@@ -172,4 +172,5 @@ extern void altera_sgdma_remove(void* ptr);
 extern long queue_data_transfer(struct altr_dma_dev*, struct minion_data_transfer_s*, struct file* file);
 extern u32 get_completed_data_transfers(struct altr_dma_dev*, u32, struct minion_transfer_status_s*);
 extern long cancel_data_transfers(struct altr_dma_dev*);
+extern void dma_dump_debug(struct altr_dma_dev* adma);
 #endif        //  #ifndef MINION_TOP_H
