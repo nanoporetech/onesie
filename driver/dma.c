@@ -125,7 +125,7 @@ static void dump_job(struct transfer_job_s* job, bool show_descriptors)
     printk(KERN_ERR" buffer_size 0x%08x (%d)\n",job->buffer_size,job->buffer_size);
     printk(KERN_ERR" transfer_id %d\n",job->transfer_id);
     printk(KERN_ERR" signal_number %d\n",job->signal_number);
-    printk(KERN_ERR" pid %d\n",job->pid);
+    printk(KERN_ERR" pid %d\n", job->pid ? job->pid->numbers[0].nr : 0);
     printk(KERN_ERR" scatter-table\n"); // todo
     printk(KERN_ERR" status %d\n",job->status);
     printk(KERN_ERR" file %p\n",job->file);
@@ -893,7 +893,13 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minion_data_transfer_
     }
     job->transfer_id = transfer->transfer_id;
     job->signal_number = transfer->signal_number;
-    job->pid = transfer->pid;
+    if (transfer->pid) {
+        job->pid = find_get_pid(transfer->pid);
+        if (!job->pid) {
+            free_transfer_job(job);
+            return -ESRCH;
+        }
+    }
     job->file = file;
 
     rc = setup_dma(adma, job, (char*)transfer->buffer, transfer->buffer_size);
@@ -1092,14 +1098,14 @@ static irqreturn_t dma_isr(int irq_no, void* dev)
  * @todo check to see if adding the ability to send any signal to any process
  * constitutes a security problem.
  */
-static void send_signal(const int signal_number, const int pid)
+static void send_signal(const int signal_number, struct pid *pid)
 {
-    if (signal_number) {
+    if (signal_number && pid) {
         int rc;
         struct task_struct* task;
 
         rcu_read_lock();
-        task = pid_task(find_vpid( pid ), PIDTYPE_PID);
+        task = pid_task(pid, PIDTYPE_PID);
         rcu_read_unlock();
         if (task) {
             rc = send_sig(signal_number, task, 0);
@@ -1132,7 +1138,7 @@ static void post_transfer(struct work_struct *work)
 
         // move to done
         push_job(&adma->transfers_done, &adma->done_lock, job);
-        send_signal(job->signal_number,job->pid);
+        send_signal(job->signal_number, job->pid);
     }
 }
 

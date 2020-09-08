@@ -138,7 +138,7 @@ struct transfer_job_s {
     u32 buffer_size;
     u32 transfer_id; // for the user to track transfers
     int signal_number;
-    int pid;
+    struct pid *pid;
     struct sg_table sgt;
     u32 status;
     struct file* file;
@@ -172,6 +172,7 @@ inline void free_transfer_job(struct transfer_job_s *job)
     BUG_ON(job->no_pages);
     BUG_ON(job->pages);
 
+    put_pid(job->pid);
     kfree(job);
 }
 
