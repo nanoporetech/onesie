@@ -56,6 +56,42 @@ The Minor number is incremented when adding a new feature to the API that mainta
 
 The Patch number is incremented when adding a feature or fix to the driver that doesn't change the API.
 
+### Debugging
+
+Providing nothing is using the driver, it can be removed with
+
+    rmmod minion
+
+and a replacement inserted with
+
+    insmod ./minion.ko
+
+Extensive debugging can be enabled by uncommenting the line
+
+    #define ONT_DEBUG
+
+in `driver/minion_top.h`. However, there are debug statements in the code that can be dynamically enabled
+and runtime, which may be more convenient.
+
+For an overview of how to control dynamic debugging, see
+[the Linux kernel administrator's guide](https://www.kernel.org/doc/html/latest/admin-guide/dynamic-debug-howto.html),
+but briefly, the following can be done as root (assuming debugfs is mounted at `/sys/kernel/debug`):
+
+Enable all minion driver dynamic debug statements:
+
+    echo 'module minion' > /sys/kernel/debug/dynamic_debug/control
+
+Find available debug statements:
+
+    grep minion /sys/kernel/debug/dynamic_debug/control
+
+Enable a specific debug statement (for paths and lines, see the above grep):
+
+    echo 'file /path/to/driver/dma.c line 899 +p' > /sys/kernel/debug/dynamic_debug/control
+
+To disable it again, replace `+p` with `-p`.
+
+
 ## Driver Internals
 
 The driver is a PCI/PCIe device driver. It is roughly split into three compilation
