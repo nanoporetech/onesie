@@ -896,8 +896,15 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minion_data_transfer_
     if (transfer->pid) {
         job->pid = find_get_pid(transfer->pid);
         if (!job->pid) {
+            adma_dbg(adma, "Failed to find process for PID %d\n", transfer->pid);
             free_transfer_job(job);
             return -ESRCH;
+        }
+        if (pid_nr(job->pid) != current->group_leader->pid) {
+            adma_dbg(adma, "Rejected signal target %d (%d in local NS) requested by process %d\n",
+                pid_nr(job->pid), transfer->pid, current->group_leader->pid);
+            free_transfer_job(job);
+            return -EPERM;
         }
     }
     job->file = file;
