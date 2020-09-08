@@ -48,7 +48,7 @@
 #define ONT_DRIVER_NAME     "ont-minion1c"
 
 /* version is major.minor.patch */
-#define ONT_DRIVER_VERSION  "0.4.0"
+#define ONT_DRIVER_VERSION  "0.5.0"
 
 #define ONT_FIRST_MINOR 0
 
