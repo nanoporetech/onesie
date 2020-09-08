@@ -728,15 +728,134 @@ static long create_descriptor_list(struct altr_dma_dev* adma, struct transfer_jo
     if (rc < 0) {
         goto err_free_descriptors;
     }
-
-    // should be ready for hardware
-    submit_transfer_to_hw_or_queue(adma, job);
     return 0;
 
 err_free_descriptors:
     free_descriptor_list(adma, job);
 
     return rc;
+}
+
+/**
+ * Map in the user pages in `buffer` and construct a scatter list out of them for `job`.
+ */
+static int setup_dma(struct altr_dma_dev* adma, struct transfer_job_s* job, char __user* buffer, u32 buffer_size)
+{
+    unsigned long pg_start, pg_start_offset, pg_end;
+    unsigned int page_count_for_buffer = 0;
+    struct page** pages = NULL;
+    int loaded_page_count = 0;
+    int nents;
+    int rc;
+    int i;
+
+    if (buffer_size == 0) {
+        // there's nothing to load...
+        return -EINVAL;
+    }
+
+    // convert to scaterlist and do dma mapping
+    pg_start = (unsigned long)buffer & PAGE_MASK;
+    pg_start_offset = (unsigned long)buffer & ~PAGE_MASK;
+    pg_end = PAGE_ALIGN((unsigned long)(buffer + buffer_size));
+    page_count_for_buffer = (pg_end - pg_start) >> PAGE_SHIFT;
+
+    // Allocate memory for page list
+    pages = kzalloc(sizeof(struct page*) * page_count_for_buffer, GFP_KERNEL);
+    if (!pages) {
+        adma_dbg(adma, "Couldn't allocate memory for page-table\n");
+        return -ENOMEM;
+    }
+
+    // Pull the user buffer into kernel memory space
+    loaded_page_count = get_user_pages_fast(pg_start, page_count_for_buffer, 1, pages);
+    if (loaded_page_count != page_count_for_buffer) {
+        adma_dbg(adma, "Failed to map in user pages\n");
+        goto err;
+    }
+    VPRINTK("start page addr %lx, end page addr %lx, start offset %lx\n",
+        pg_start, pg_end, pg_start_offset);
+
+    // create scatterlist
+    if (sg_alloc_table_from_pages(
+        &job->sgt,
+        pages,
+        loaded_page_count,
+        pg_start_offset,
+        buffer_size,
+        GFP_KERNEL))
+    {
+        adma_dbg(adma, "Failed to allocate memory for scatterlist\n");
+        goto err;
+    }
+
+    nents = dma_map_sg(&adma->pci_device->dev, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
+    if (!nents) {
+        adma_dbg(adma, "Error mapping dma to bus addresses\n");
+        goto err_scatterlist_created;
+    }
+
+    rc = create_descriptor_list(adma, job, nents);
+    if (rc) {
+        goto err_mapped;
+    }
+
+    VPRINTK("Mapped %d DMA transfers for userspace buffer %p (len %d) using %d pages at %p\n",
+        nents,
+        job->buffer,
+        job->buffer_size,
+        loaded_page_count,
+        pages);
+
+    job->buffer = buffer;
+    job->buffer_size = buffer_size;
+    job->pages = pages;
+    job->no_pages = loaded_page_count;
+    return 0;
+
+err_mapped:
+    dma_unmap_sg(&adma->pci_device->dev, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
+err_scatterlist_created:
+    sg_free_table(&job->sgt);
+err:
+    for (i = 0; i < loaded_page_count; ++i) {
+        put_page(pages[i]);
+    }
+    kfree(pages);
+    return -ENOMEM;
+}
+
+static void mark_buffer_changed(struct transfer_job_s* job)
+{
+    unsigned i;
+    for (i = 0; i < job->no_pages; ++i) {
+        SetPageDirty(job->pages[i]);
+    }
+}
+
+/**
+ * Release buffer pages and release memory used by the scatterlist.
+ */
+static void teardown_dma(struct altr_dma_dev* adma, struct transfer_job_s* job)
+{
+    unsigned i;
+
+    if (job->no_pages == 0) {
+        // calling discard twice? or didn't build it in the first place?
+        BUG();
+        return;
+    }
+
+    free_descriptor_list(adma, job);
+    dma_unmap_sg(&adma->pci_device->dev, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
+
+    sg_free_table(&job->sgt);
+    for (i = 0; i < job->no_pages; ++i) {
+        put_page(job->pages[i]);
+    }
+    kfree(job->pages);
+    job->pages = NULL;
+    job->no_pages = 0;
 }
 
 /**
@@ -752,14 +871,7 @@ err_free_descriptors:
 long queue_data_transfer(struct altr_dma_dev* adma, struct minion_data_transfer_s* transfer,struct file* file)
 {
     long rc = 0;
-    struct page** pages;
-    int actual_pages;
-    int nents;
-    unsigned long pg_start;
-    unsigned long pg_start_offset;
-    unsigned long pg_end;
-    unsigned int no_pages;
-    struct transfer_job_s* job;
+    struct transfer_job_s* job = NULL;
 
     // check the buffer the user supplied has the correct alignment to avoid
     // cache-coherency issues
@@ -774,109 +886,24 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minion_data_transfer_
     }
 
     // create job structure, freed in get_completed_data_transfers, or cancel_data_transfer
-    job = kzalloc(sizeof(struct transfer_job_s), GFP_KERNEL);
+    job = alloc_transfer_job();
     if (!job) {
         DPRINTK("Failed to allocate memory for transfer_job\n");
         return -ENOMEM;
     }
-    job->buffer = (char*)transfer->buffer;
-    job->buffer_size = transfer->buffer_size;
     job->transfer_id = transfer->transfer_id;
     job->signal_number = transfer->signal_number;
     job->pid = transfer->pid;
     job->file = file;
 
-    // convert to scaterlist and do dma mapping
-    pg_start = (unsigned long)job->buffer & PAGE_MASK;
-    pg_start_offset = (unsigned long)job->buffer & ~PAGE_MASK;
-    pg_end = PAGE_ALIGN((unsigned long)(job->buffer + job->buffer_size));
-    no_pages = (pg_end - pg_start) >> PAGE_SHIFT;
-
-    VPRINTK("DMA transfer, usespace buffer %p len %d\n",
-        job->buffer,
-        job->buffer_size);
-
-    // Alocate memory for page list
-    pages = kzalloc(sizeof(struct page*) * no_pages, GFP_KERNEL);
-    if (!pages) {
-        printk(KERN_ERR"Couldn't allocate memory for page-table\n");
-        rc = -ENOMEM;
-        goto err;
-    }
-    VPRINTK("page list at %p",pages);
-
-    // get page entries for buffer pages (write to pages)
-    actual_pages = get_user_pages_fast(pg_start, no_pages, 1, pages);
-    VPRINTK("mapped %d pages from userspace\n",actual_pages);
-    VPRINTK("start page addr %lx, end page addr %lx, start offset %lx\n",
-        pg_start, pg_end, pg_start_offset);
-
-    // check we got all the pages of the buffer
-    if ( actual_pages != no_pages) {
-        printk(KERN_ERR"couldn't get all the buffer's pages (%d vs %d)\n",actual_pages, no_pages);
-        rc = -ENOMEM;
-        goto err_free_pages;
-    }
-    job->pages = pages;
-    job->no_pages = no_pages;
-
-    // create scatterlist
-    if (sg_alloc_table_from_pages(
-        &job->sgt,
-        pages,
-        no_pages,
-        pg_start_offset,
-        job->buffer_size,
-        GFP_KERNEL))
-    {
-        printk(KERN_ERR"Couldn't allocate memory for scatterlist\n");
-        rc = -ENOMEM;
-        goto err_free_pages;
+    rc = setup_dma(adma, job, (char*)transfer->buffer, transfer->buffer_size);
+    if (rc != 0) {
+        free_transfer_job(job);
+        return rc;
     }
 
-    // map dma
-    nents = pci_map_sg( adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
-    if (!nents) {
-        printk(KERN_ERR"Error mapping dma to bus addresses\n");
-        rc = -ENOMEM;
-        goto err_free_scatterlist;
-    }
-    VPRINTK("Mapped scattelist to %d transfers\n", nents);
-
-    // queue for creating descriptor list, return if no error
-    rc = create_descriptor_list(adma, job, nents);
-    if (rc) {
-        goto err_unmap;
-    }
-
-    // success
+    submit_transfer_to_hw_or_queue(adma, job);
     return 0;
-err_unmap:
-    // unmap dma
-    VPRINTK("unmap sg\n");
-    pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE );
-err_free_scatterlist:
-    // free scatterlist
-    VPRINTK("free scatterlist table\n");
-    sg_free_table(&job->sgt);
-err_free_pages:
-    // release any allocated pages, no writing done yet.
-    if (actual_pages > 0) {
-        struct page* page;
-        unsigned int i;
-        for (i = 0; i < no_pages; ++i) {
-            page = pages[i];
-            VPRINTK("release page %d %p -> %p\n",i, page, page_address(page) );
-
-            // release it back into the wild
-            put_page(page);
-        }
-    }
-    kfree(pages);
-    job->pages = 0;
-    job->no_pages = 0;
-err:
-    return rc;
 }
 
 /**
@@ -908,7 +935,7 @@ u32 get_completed_data_transfers(struct altr_dma_dev* adma, u32 max_elem, struct
 
         // transfer probably done, data is in memory, status recorded, can now
         // destroy the job object
-        kfree(job);
+        free_transfer_job(job);
     }
 
     VPRINTK("found %d finished transfers\n", i);
@@ -941,20 +968,9 @@ long cancel_data_transfers(struct altr_dma_dev* adma)
 
         if (job) {
             // free descriptors and unmap dma, release pages
-            unsigned int i;
             list_del(&job->list);
-            free_descriptor_list(adma, job);
-            pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
-            sg_free_table(&job->sgt);
-            // mark pages as dirty and release
-            for (i = 0; i < job->no_pages; ++i) {
-                 struct page* page = job->pages[i];
-                 put_page(page);
-            }
-            kfree(job->pages);
-            job->pages = 0;
-            job->no_pages = 0;
-            kfree(job);
+            teardown_dma(adma, job);
+            free_transfer_job(job);
         }
     }
     list_for_each_entry_safe(job, temp, &adma->post_hardware, list) {
@@ -962,21 +978,10 @@ long cancel_data_transfers(struct altr_dma_dev* adma)
 
         if (job) {
             // free descriptors and unmap dma, release pages
-            unsigned int i;
             list_del(&job->list);
-            free_descriptor_list(adma, job);
-            pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
-            sg_free_table(&job->sgt);
-            // mark pages as dirty and release
-            for (i = 0; i < job->no_pages; ++i) {
-                 struct page* page = job->pages[i];
-                 SetPageDirty(page);
-                 put_page(page);
-            }
-            kfree(job->pages);
-            job->pages = 0;
-            job->no_pages = 0;
-            kfree(job);
+            mark_buffer_changed(job);
+            teardown_dma(adma, job);
+            free_transfer_job(job);
         }
     }
     spin_unlock_irqrestore(&adma->hardware_lock, flags);
@@ -987,7 +992,7 @@ long cancel_data_transfers(struct altr_dma_dev* adma)
         DPRINTK("investigating job complete %p\n",job);
         if (job) {
             list_del(&job->list);
-            kfree(job);
+            free_transfer_job(job);
         }
     }
     spin_unlock_irqrestore(&adma->done_lock, flags);
@@ -1121,20 +1126,9 @@ static void post_transfer(struct work_struct *work)
     VPRINTK("post_transfer\n");
 
     while ((job = pop_job(&adma->post_hardware, &adma->hardware_lock)) != NULL) {
-        unsigned int i;
         VPRINTK("post_transfer job %p\n",job);
-        free_descriptor_list(adma,job);
-        pci_unmap_sg(adma->pci_device, job->sgt.sgl, job->sgt.nents, DMA_FROM_DEVICE);
-        sg_free_table(&job->sgt);
-        // mark pages as dirty and release
-        for (i = 0; i < job->no_pages; ++i) {
-             struct page* page = job->pages[i];
-             SetPageDirty(page);
-             put_page(page);
-        }
-        kfree(job->pages);
-        job->pages = 0;
-        job->no_pages = 0;
+        mark_buffer_changed(job);
+        teardown_dma(adma, job);
 
         // move to done
         push_job(&adma->transfers_done, &adma->done_lock, job);

@@ -157,6 +157,24 @@ struct transfer_job_s {
     unsigned int no_pages;
 };
 
+inline struct transfer_job_s * alloc_transfer_job(void)
+{
+    return kzalloc(sizeof(struct transfer_job_s), GFP_KERNEL);
+}
+
+inline void free_transfer_job(struct transfer_job_s *job)
+{
+    if (!job) {
+        return;
+    }
+
+    // Didn't teardown_dma()?
+    BUG_ON(job->no_pages);
+    BUG_ON(job->pages);
+
+    kfree(job);
+}
+
 
 struct altr_dma_dev {
     void __iomem* msgdma_base;
@@ -189,4 +207,7 @@ struct altr_dma_dev {
     // dma in flight
     atomic_t count;
 };
+
+#define adma_dbg(adma, format, ...) dev_dbg(&(adma)->pci_device->dev, format, ##__VA_ARGS__)
+
 #endif // ONT_ALTERA_DMA_H
