@@ -138,7 +138,7 @@ struct transfer_job_s {
     u32 buffer_size;
     u32 transfer_id; // for the user to track transfers
     int signal_number;
-    int pid;
+    struct pid *pid;
     struct sg_table sgt;
     u32 status;
     struct file* file;
@@ -156,6 +156,25 @@ struct transfer_job_s {
     struct page** pages;
     unsigned int no_pages;
 };
+
+inline struct transfer_job_s * alloc_transfer_job(void)
+{
+    return kzalloc(sizeof(struct transfer_job_s), GFP_KERNEL);
+}
+
+inline void free_transfer_job(struct transfer_job_s *job)
+{
+    if (!job) {
+        return;
+    }
+
+    // Didn't teardown_dma()?
+    BUG_ON(job->no_pages);
+    BUG_ON(job->pages);
+
+    put_pid(job->pid);
+    kfree(job);
+}
 
 
 struct altr_dma_dev {
@@ -189,4 +208,7 @@ struct altr_dma_dev {
     // dma in flight
     atomic_t count;
 };
+
+#define adma_dbg(adma, format, ...) dev_dbg(&(adma)->pci_device->dev, format, ##__VA_ARGS__)
+
 #endif // ONT_ALTERA_DMA_H

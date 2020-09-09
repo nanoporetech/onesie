@@ -6,6 +6,15 @@ driver/modules.order
 *.ko.cmd
 *.mod.c
 *~
+.*.swp
 driver/Module.symvers
 *.mod
 .vscode
+/utils/dma-audit
+/utils/minion-dma
+/utils/minion-eeprom
+/utils/minion-hsrx
+/utils/minion-reg
+/utils/minion-shift
+/utils/minion-temp
+/utils/shift-decode
