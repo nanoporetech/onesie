@@ -9,3 +9,5 @@ if [ "$1" = "configure" ]; then
 		depmod -a || true
 	fi
 fi
+
+modprobe -r minion && modprobe minion

@@ -27,6 +27,10 @@ endif
 # Extract a version string from the driver source. It must be the only thing
 # between quotes
 VERSION   := $(shell grep ONT_DRIVER_VERSION driver/minion_top.h | sed -e 's/^.*"\([^"]*\)"$$/\1/')
+
+# Each time the driver changes, ie whenever VERSION is different, this should be set back to 1
+DEBIAN_REVISION := 2
+
 all: utils driver test
 
 driver:
@@ -48,12 +52,12 @@ clean:
 	$(MAKE) -C utils $@
 	#$(MAKE) -C test $@
 	$(RM) -r package
-	$(RM) $(PACKAGE_BASE_NAME)-dev_$(VERSION)-1~$(DISTRIBUTION)_all.deb
-	$(RM) $(PACKAGE_BASE_NAME)-dkms_$(VERSION)-1~$(DISTRIBUTION)_all.deb
-	$(RM) $(PACKAGE_BASE_NAME)-utils_$(VERSION)-1~$(DISTRIBUTION)_$(DEB_ARCH).deb
-	$(RM) $(PACKAGE_BASE_NAME)-$(KVERS)_$(VERSION)-1~$(DISTRIBUTION)_$(DEB_ARCH).deb
-	$(RM) $(PACKAGE_BASE_NAME)_$(VERSION)-1~$(DISTRIBUTION).dsc
-	$(RM) $(PACKAGE_BASE_NAME)_$(VERSION)-1~$(DISTRIBUTION).tar.gz
+	$(RM) $(PACKAGE_BASE_NAME)-dev_$(VERSION)-*~$(DISTRIBUTION)_all.deb
+	$(RM) $(PACKAGE_BASE_NAME)-dkms_$(VERSION)-*~$(DISTRIBUTION)_all.deb
+	$(RM) $(PACKAGE_BASE_NAME)-utils_$(VERSION)-*~$(DISTRIBUTION)_$(DEB_ARCH).deb
+	$(RM) $(PACKAGE_BASE_NAME)-$(KVERS)_$(VERSION)-*~$(DISTRIBUTION)_$(DEB_ARCH).deb
+	$(RM) $(PACKAGE_BASE_NAME)_$(VERSION)-*~$(DISTRIBUTION).dsc
+	$(RM) $(PACKAGE_BASE_NAME)_$(VERSION)-*~$(DISTRIBUTION).tar.gz
 
 dist-deb:
 	# assmeble all the files under package
@@ -69,7 +73,7 @@ dist-deb:
 	sed -i -e "s/_ARCH_/$(DEB_ARCH)/g;s/_VERSION_/$(VERSION)/g" package/debian/control
 	# debhelper version-9, changelog is just version number
 	echo 9 > package/debian/compat
-	echo "$(PACKAGE_BASE_NAME) ($(VERSION)-1~$(shell lsb_release -cs)) unstable; urgency=low" > package/debian/changelog
+	echo "$(PACKAGE_BASE_NAME) ($(VERSION)-$(DEBIAN_REVISION)~$(shell lsb_release -cs)) unstable; urgency=low" > package/debian/changelog
 
 	# copy the source and packaging information, make the source package
 	mkdir $(PACKAGE_BASE_NAME)-$(VERSION)
