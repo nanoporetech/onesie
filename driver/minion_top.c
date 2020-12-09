@@ -275,16 +275,26 @@ static void write_shift_reg_hw(
 {
     u16 tmp;
     unsigned int i;
+    unsigned int waited;
+    volatile void* const shift_output_buffer = mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF;
 
     if (!param->to_dev) {
         return;
     }
 
+    // wait for a maximum of about 12ms for the shift-register hardware to be idle
+    for (waited = 0; waited < 10; ++waited) {
+        if (!(readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL) & ASIC_SHIFT_CTRL_ST)) {
+            break;
+        }
+        usleep_range(750, 1250);
+    }
+
     for (i = 0; i < ASIC_SHIFT_REG_SIZE; i += 2) {
-        VPRINTK("Shift to dev  : 0x%02x => [%p]\n", param->to_dev[i], mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
-        VPRINTK("Shift to dev  : 0x%02x => [%p]\n", param->to_dev[i+1], mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i + 1);
+        VPRINTK("Shift to dev  : 0x%02x => [%p]\n", param->to_dev[i], shift_output_buffer + i);
+        VPRINTK("Shift to dev  : 0x%02x => [%p]\n", param->to_dev[i+1], shift_output_buffer + i + 1);
         tmp = (param->to_dev[i+1] << 8u) | param->to_dev[i];
-        writew(tmp, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF + i);
+        writew(tmp, shift_output_buffer + i);
     }
 
     if (param->wavetable) {
@@ -317,20 +327,27 @@ static void read_shift_reg_hw(
 {
     int i;
     u16 tmp;
+    unsigned int waited;
+    volatile void* const shift_input_buffer = mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF;
 
     if (!param->from_dev) {
         return;
     }
 
-    // generous wait for data movement
-    msleep(1);
+    // wait for a maximum of about 12ms for the shift-register hardware to be idle
+    for (waited = 0; waited < 50; ++waited) {
+        if (!(readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL) & ASIC_SHIFT_CTRL_ST)) {
+            break;
+        }
+        usleep_range(750, 1250);
+    }
 
     for (i = 0; i < ASIC_SHIFT_REG_SIZE; i += 2) {
-        tmp = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
+        tmp = readw(shift_input_buffer + i);
         param->from_dev[i] = tmp & 0xff;
         param->from_dev[i+1] = tmp >> 8;
-        VPRINTK("Shift from dev: 0x%02x <= [%p]\n", param->from_dev[i], mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i);
-        VPRINTK("Shift from dev: 0x%02x <= [%p]\n", param->from_dev[i+1], mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF + i + 1);
+        VPRINTK("Shift from dev: 0x%02x <= [%p]\n", param->from_dev[i], shift_input_buffer + i);
+        VPRINTK("Shift from dev: 0x%02x <= [%p]\n", param->from_dev[i+1], shift_input_buffer + i + 1);
     }
 
     if (param->wavetable) {
