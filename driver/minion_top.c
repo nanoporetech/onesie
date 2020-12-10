@@ -265,29 +265,47 @@ static u32 calculate_shift_reg_clock_divider(const u32 clk)
 }
 
 /**
+ * Wait for the start-bit in the shift-register to clear, signalling that the
+ * shift-register hardware is idle
+ *
+ * @param mdev
+ * @param max_wait roughly converted into ms, +/- 25%
+ * @return non-zero if failed to go idle
+ */
+static inline int wait_for_shift_reg(struct minion_device_s* mdev, unsigned int max_wait)
+{
+    unsigned int waited;
+    for (waited = 0; waited < max_wait; ++waited) {
+        const bool busy = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL) & ASIC_SHIFT_CTRL_ST;
+        if (!busy) {
+            return 0;
+        }
+        usleep_range(750, 1250);
+    }
+    return -1;
+}
+
+/**
  * @brief write the shift-register, wavetable and wavetable-control registers
  * @param mdev pointer to driver structure
  * @param param parameters containing shift-register and optional wavetable data
+ * @return non-zero on error
  */
-static void write_shift_reg_hw(
+static int write_shift_reg_hw(
         struct minion_device_s* mdev,
         struct shift_reg_access_parameters_s* param)
 {
     u16 tmp;
     unsigned int i;
-    unsigned int waited;
     volatile void* const shift_output_buffer = mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF;
 
     if (!param->to_dev) {
-        return;
+        return 0;
     }
 
     // wait for a maximum of about 12ms for the shift-register hardware to be idle
-    for (waited = 0; waited < 10; ++waited) {
-        if (!(readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL) & ASIC_SHIFT_CTRL_ST)) {
-            break;
-        }
-        usleep_range(750, 1250);
+    if (wait_for_shift_reg(mdev, 12)) {
+        return -EBUSY;
     }
 
     for (i = 0; i < ASIC_SHIFT_REG_SIZE; i += 2) {
@@ -313,6 +331,8 @@ static void write_shift_reg_hw(
 
     tmp = ((param->waveform_frames-1) & ASIC_SHIFT_WAVE_FRAMES_MASK);
     writew(tmp, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_WAVE_CTRL2 );
+
+    return 0;
 }
 
 /**
@@ -320,26 +340,23 @@ static void write_shift_reg_hw(
  * @param mdev pointer to driver structure
  * @param param parameters with space for the read shift-register values,
  *              asic-configuration id and optional wave-table.
+ * @return ioctl error code
  */
-static void read_shift_reg_hw(
+static int read_shift_reg_hw(
         struct minion_device_s* mdev,
         struct shift_reg_access_parameters_s* param)
 {
     int i;
     u16 tmp;
-    unsigned int waited;
     volatile void* const shift_input_buffer = mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_INPUT_BUF;
 
     if (!param->from_dev) {
-        return;
+        return 0;
     }
 
     // wait for a maximum of about 12ms for the shift-register hardware to be idle
-    for (waited = 0; waited < 50; ++waited) {
-        if (!(readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL) & ASIC_SHIFT_CTRL_ST)) {
-            break;
-        }
-        usleep_range(750, 1250);
+    if (wait_for_shift_reg(mdev, 12)) {
+        return -EBUSY;
     }
 
     for (i = 0; i < ASIC_SHIFT_REG_SIZE; i += 2) {
@@ -368,6 +385,7 @@ static void read_shift_reg_hw(
 
     // read command-id / ASIC-config id
     param->cmd_id = readw(mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL) >> ASIC_SHIFT_CTRL_CMDID_SHIFT;
+    return 0;
 }
 
 /**
@@ -398,7 +416,10 @@ static long minion_shift_register_access(
     }
 
     // write to data into shift register
-    write_shift_reg_hw(mdev, param);
+    rc = write_shift_reg_hw(mdev, param);
+    if (rc < 0) {
+        return rc;
+    }
 
     wmb();
 
@@ -412,7 +433,10 @@ static long minion_shift_register_access(
     writew(control, mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_CTRL);
     wmb();
 
-    read_shift_reg_hw(mdev, param);
+    rc = read_shift_reg_hw(mdev, param);
+    if (rc < 0) {
+        return rc;
+    }
 
     free_link(mdev, &old_link_mode);
 
