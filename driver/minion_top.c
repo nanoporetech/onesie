@@ -404,7 +404,7 @@ static long minion_shift_register_access(
         struct shift_reg_access_parameters_s* param)
 {
     struct historical_link_mode old_link_mode;
-    long rc;
+    long rc = 0;
     u32 clockdiv;
     u16 control;
     VPRINTK("minion_shift_register_access to_dev %p, from_dev %p, start %d, enable %d, clk %d\n",
@@ -418,7 +418,7 @@ static long minion_shift_register_access(
     // write to data into shift register
     rc = write_shift_reg_hw(mdev, param);
     if (rc < 0) {
-        return rc;
+        goto out;
     }
 
     wmb();
@@ -435,12 +435,12 @@ static long minion_shift_register_access(
 
     rc = read_shift_reg_hw(mdev, param);
     if (rc < 0) {
-        return rc;
+        goto out;
     }
-
+out:
     free_link(mdev, &old_link_mode);
 
-    return 0;
+    return rc;
 }
 
 /**
