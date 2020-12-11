@@ -29,7 +29,7 @@ endif
 VERSION   := $(shell grep ONT_DRIVER_VERSION driver/minion_top.h | sed -e 's/^.*"\([^"]*\)"$$/\1/')
 
 # Each time the driver changes, ie whenever VERSION is different, this should be set back to 1
-DEBIAN_REVISION := 2
+DEBIAN_REVISION := 1
 
 all: utils driver test
 
