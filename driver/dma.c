@@ -108,40 +108,6 @@ static bool job_hw_owned(struct transfer_job_s* job)
 }
 
 /**
- * @brief Dump a job and its DMA descriptors to kernel log
- * @param job
- */
-static void dump_job(struct transfer_job_s* job, bool show_descriptors)
-{
-    minion_dma_extdesc_t* desc;
-
-    if (!job) {
-        printk(KERN_ERR"NULL!\n");
-        return;
-    }
-
-    printk(KERN_ERR"job structure at %p\n",job);
-    printk(KERN_ERR" buffer %p\n",job->buffer);
-    printk(KERN_ERR" buffer_size 0x%08x (%d)\n",job->buffer_size,job->buffer_size);
-    printk(KERN_ERR" transfer_id %d\n",job->transfer_id);
-    printk(KERN_ERR" signal_number %d\n",job->signal_number);
-    printk(KERN_ERR" pid %d\n", job->pid ? job->pid->numbers[0].nr : 0);
-    printk(KERN_ERR" scatter-table\n"); // todo
-    printk(KERN_ERR" status %d\n",job->status);
-    printk(KERN_ERR" file %p\n",job->file);
-    printk(KERN_ERR" descriptor physical address 0x%016llx\n", job->descriptor_phys);
-    if (!show_descriptors) {
-        return;
-    }
-    printk(KERN_ERR" descriptors:\n");
-    desc = job->descriptor;
-    while (desc && desc->driver_ref == job) {
-        dump_descriptor(desc);
-        desc = desc->next_desc_virt;
-    }
-}
-
-/**
  * Dump registers and anything else useful to the
  * kernel log
  *
@@ -278,10 +244,6 @@ static void dump_dma_registers(struct altr_dma_dev* adma) {
  */
 void dma_dump_debug(struct altr_dma_dev* adma)
 {
-    struct transfer_job_s* job;
-    int have_lock;
-    bool want_descriptors = true;
-
     if (!adma) {
         printk(KERN_ERR"struct altr_dma_dev in NULL!\n");
         return;
@@ -293,36 +255,13 @@ void dma_dump_debug(struct altr_dma_dev* adma)
 
     printk(KERN_ERR"pci_device %p\n",adma->pci_device);
     printk(KERN_ERR"max transfer size 0x%x (%d)\n",adma->max_transfer_size,adma->max_transfer_size);
-    printk(KERN_ERR"hardware lock %s\n", spin_is_locked(&adma->hardware_lock) ? "locked" : "unlocked" ); /// @todo
+    printk(KERN_ERR"hardware lock %s\n", spin_is_locked(&adma->hardware_lock) ? "locked" : "unlocked" );
 
-    // if we can acquire the lock then DMA is probably running as opposed to
-    // locked-up, we should take the lock to prevent things being changed whilst
-    // we're dumping them
-    have_lock = spin_trylock_bh(&adma->hardware_lock);
+    printk(KERN_ERR"transfers on hardware %s\n", (list_empty_careful(&adma->transfers_on_hardware) ? "Yes" : "No"));
+    printk(KERN_ERR"post-hardware transfers %s\n", (list_empty_careful(&adma->post_hardware) ? "Yes" : "No") );
 
-    printk(KERN_ERR"transfers on hardware\n");
-    list_for_each_entry(job, &adma->transfers_on_hardware, list) {
-        // only want to show the descriptors for the first job that has descriptors
-        // that are owned by hardware
-        bool show_descriptors = want_descriptors && job_hw_owned(job);
-        dump_job(job, show_descriptors);
-        if (show_descriptors) {
-            want_descriptors = false;
-        }
-    }
-    printk(KERN_ERR"post hardware transfers\n");
-    list_for_each_entry(job, &adma->post_hardware, list) {
-        dump_job(job, false);
-    }
-    if (have_lock) {
-        spin_unlock_bh(&adma->hardware_lock);
-    }
-
-    printk(KERN_ERR"done lock %s\n", spin_is_locked(&adma->done_lock) ? "locked" : "unlocked"); /// @todo
-    printk(KERN_ERR"done transfers\n");
-    list_for_each_entry(job, &adma->transfers_done, list) {
-        dump_job(job, false);
-    }
+    printk(KERN_ERR"done lock %s\n", spin_is_locked(&adma->done_lock) ? "locked" : "unlocked");
+    printk(KERN_ERR"done transfers %s\n", (list_empty_careful(&adma->transfers_done) ? "Yes" : "No") );
     printk(KERN_ERR"descriptor pool %p\n",adma->descriptor_pool);
     printk(KERN_ERR"finishing queue %p\n",adma->finishing_queue);
     printk(KERN_ERR"terminal descriptor %p (phys 0x%016llx)\n",
