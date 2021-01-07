@@ -177,11 +177,11 @@ void dma_dump_debug(struct altr_dma_dev* adma)
     printk(KERN_ERR"max transfer size 0x%x (%d)\n",adma->max_transfer_size,adma->max_transfer_size);
     printk(KERN_ERR"hardware lock %s\n", spin_is_locked(&adma->hardware_lock) ? "locked" : "unlocked" );
 
-    printk(KERN_ERR"transfers on hardware %s\n", (!list_empty_careful(&adma->transfers_on_hardware) ? "Yes" : "No"));
-    printk(KERN_ERR"post-hardware transfers %s\n", (!list_empty_careful(&adma->post_hardware) ? "Yes" : "No") );
+    printk(KERN_ERR"transfers on hardware %s\n", (!list_empty(&adma->transfers_on_hardware) ? "Yes" : "No"));
+    printk(KERN_ERR"post-hardware transfers %s\n", (!list_empty(&adma->post_hardware) ? "Yes" : "No") );
 
     printk(KERN_ERR"done lock %s\n", spin_is_locked(&adma->done_lock) ? "locked" : "unlocked");
-    printk(KERN_ERR"done transfers %s\n", (!list_empty_careful(&adma->transfers_done) ? "Yes" : "No") );
+    printk(KERN_ERR"done transfers %s\n", (!list_empty(&adma->transfers_done) ? "Yes" : "No") );
     printk(KERN_ERR"descriptor pool %p\n",adma->descriptor_pool);
     printk(KERN_ERR"finishing queue %p\n",adma->finishing_queue);
     printk(KERN_ERR"terminal descriptor %p (phys 0x%016llx)\n",
