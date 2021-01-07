@@ -26,86 +26,6 @@
 #include "minion_reg.h"
 #include "dma.h"
 
-/**
- * @brief Dump a descriptor chain element
- * @param desc pointer to the descriptor
- */
-static void dump_descriptor(minion_dma_extdesc_t* desc)
-{
-    u64 big_no;
-    if (!desc) {
-        printk(KERN_ERR"NULL!\n");
-        return;
-    }
-
-    printk(KERN_ERR"Descriptor at virt %p\n",desc);
-    big_no = desc->read_hi_phys;
-    big_no <<= 32;
-    big_no |= desc->read_lo_phys;
-    printk(KERN_ERR"    read physical address 0x%016llx\n", big_no);
-    big_no = desc->write_hi_phys;
-    big_no <<= 32;
-    big_no |= desc->write_lo_phys;
-    printk(KERN_ERR"    write physical address 0x%016llx\n", big_no);
-
-    printk(KERN_ERR"    LENGTH 0x%08x (%d)\n", desc->length, desc->length);
-    printk(KERN_ERR"    BYTES TRANSFERRED 0x%08x (%d)\n", desc->bytes_transferred, desc->bytes_transferred);
-
-    printk(KERN_ERR"    STATUS 0x%08x\n", desc->status);
-    printk(KERN_ERR"        %s Error code %02x\n",
-           (desc->status & (1<<8)) ? "EARLY-TERM" :".",
-           (desc->status & 0xff));
-
-    printk(KERN_ERR"    BURST-SEQUENCE 0x%08x\n", desc->burst_sequence);
-    printk(KERN_ERR"        write burst count %d, read burst count %d, sequence no %d\n",
-           (desc->burst_sequence & 0xff000000) >> 24,
-           (desc->burst_sequence & 0x00ff0000) >> 16,
-           (desc->burst_sequence & 0x0000ffff));
-
-    printk(KERN_ERR"    STRIDE 0x%08x\n",desc->stride);
-    printk(KERN_ERR"        write stride %d, read stride %d\n",
-           (desc->stride & 0xffff0000) >> 16,
-           (desc->stride & 0x0000ffff));
-
-    printk(KERN_ERR"    CONTROL 0x%08x\n", desc->control);
-    printk(KERN_ERR"        %s %s %s error-enable 0x%02x, %s %s %s %s %s %s %s transmit-channel %d\n",
-           desc->control & (1<<31) ? "GO" : ".",
-           desc->control & (1<<30) ? "HW" : ".",
-           desc->control & (1<<24) ? "EARLY-DONE" : ".",
-           (desc->control & 0x00ff0000) >> 16,
-           desc->control & (1<<15) ? "EARLY-TERM-IRQ" : ".",
-           desc->control & (1<<14) ? "TRANS-DONE-IRQ" : ".",
-           desc->control & (1<<12) ? "END-EOP" : ".",
-           desc->control & (1<<11) ? "PARK-WRITES" : ".",
-           desc->control & (1<<10) ? "PARK-READS" : ".",
-           desc->control & (1<<9) ? "GEN-EOP" : ".",
-           desc->control & (1<<8) ? "GEN-SOP" : ".",
-           desc->control & 0x000000ff);
-    printk(KERN_ERR"    driver_ref (job) %p\n",desc->driver_ref);
-    printk(KERN_ERR"    next desc phys 0x%016llx\n", ((u64)desc->next_desc_hi_phys << 32) | desc->next_desc_lo_phys);
-    printk(KERN_ERR"    next desc virt %p\n",desc->next_desc_virt);
-}
-
-/**
- * @return true if all or some of the descriptors in the job are hardware owned
- */
-static bool job_hw_owned(struct transfer_job_s* job)
-{
-    minion_dma_extdesc_t* desc;
-
-    if (!job) {
-        return false;
-    }
-    desc = job->descriptor;
-    // iterate through all descriptors that refer to this job
-    while (desc && desc->driver_ref == job) {
-        if (desc->control & ALTERA_DMA_DESC_CONTROL_HW_OWNED) {
-            return true;
-        }
-        desc = desc->next_desc_virt;
-    }
-    return false;
-}
 
 /**
  * Dump registers and anything else useful to the
@@ -657,7 +577,6 @@ static long create_descriptor_list(struct altr_dma_dev* adma, struct transfer_jo
                             &prev_desc->next_desc_lo_phys,
                             desc_phys);
             }
-//            dump_descriptor(desc);
 
             prev_desc = desc;
         }
