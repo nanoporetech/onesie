@@ -365,6 +365,8 @@ static void desc_copy(minion_dma_extdesc_t* dst, const minion_dma_extdesc_t* src
 static void start_transfer_idle_nolocking(struct altr_dma_dev* adma, struct transfer_job_s* job)
 {
     VPRINTK("start from idle\n");
+    printk(KERN_ERR"idle DMA hardware: transfer-id %d, seq-no %d", job->transfer_id, job->sequence_no);
+    printk(KERN_ERR"HSRX error reg: 0x%04x", readw(adma->mdev->ctrl_bar + ASIC_HS_RECEIVER_BASE + 0x12));
     // stop prefetcher core
     WRITEL(0, adma->prefetcher_base + PRE_CONTROL);
     wmb();
@@ -1018,6 +1020,7 @@ int altera_sgdma_probe(struct minion_device_s* mdev) {
     adma->msgdma_base = mdev->ctrl_bar + ASIC_HS_DMA_BASE;
     adma->prefetcher_base = mdev->ctrl_bar + ASIC_HS_DMA_PREF_BASE;
     adma->pci_device = mdev->pci_device;
+    adma->mdev = mdev;
     adma->max_transfer_size = get_max_transfer_size(adma);
 
     mdev->dma_isr_quick = dma_isr_quick;

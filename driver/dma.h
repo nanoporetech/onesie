@@ -181,6 +181,9 @@ struct altr_dma_dev {
     void __iomem* msgdma_base;
     void __iomem* prefetcher_base;
     struct pci_dev* pci_device;
+
+    struct minion_device_s* mdev;
+
     unsigned int max_transfer_size;
 
     // This covers transfers_ready_for_hardware, transfers_on_hardware and post_hardware
