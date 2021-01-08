@@ -1437,7 +1437,7 @@ static void setup_channel_remapping_memory(struct minion_device_s* mdev)
 {
     /* This code is based on an algorithm found in the USB MinION firmware in
      * asicDataRecieverV1.v line 483 */
-    u16 physical, logical, masked_logical;
+    u16 physical = 0, logical, masked_logical;
     for (logical = 0; logical < 512; ++logical) {
         masked_logical = logical & ~0x101;
         switch (logical & 0x101) {
@@ -1453,6 +1453,8 @@ static void setup_channel_remapping_memory(struct minion_device_s* mdev)
         case 0x101: // Line 2 odd channels: 257, 259, 261 ... 511
             physical = masked_logical | 0x101;
             break;
+        default:
+            BUG();
         }
 
         // write the physical source for each logical channel into the remapper memory
