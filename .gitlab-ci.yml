@@ -29,6 +29,19 @@ docker-u18.04-k4.9.140:
     UBUNTU_VERSION: "18.04"
     HEADERS_PACKAGE_URL: "https://git.oxfordnanolabs.local/minit/linux-build-tegra-l4t32/-/jobs/4421405/artifacts/raw/linux-headers-4.9.140-minit_32.4.3-20201126185312_arm64.deb"
 
+.build:
+  stage: build
+  tags:
+    - linux_aarch64
+  script:
+    - make
+
+build-u18.04-k4.9.140:
+  extends: .build
+  image: "${CI_REGISTRY_IMAGE}/u18.04-k4.9.140"
+  variables:
+    KERNELRELEASE: "4.9.140-minit"
+
 compile:
   image: docker-registry.oxfordnanolabs.local:5000/kernel-dev-aarch64
   tags:
@@ -52,6 +65,7 @@ compile:
   only:
     - master
     - tags
+  dependencies: ["compile"]
   script:
    - for deb in ont-minion1c-driver*.deb; do
    -   arch=$(dpkg --info "${deb}" | grep "Architecture:" | cut -d ":" -f 2 | tr -d "[:space:]")
