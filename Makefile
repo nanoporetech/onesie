@@ -1,7 +1,6 @@
 # default to distributing as source and relying on DKMS to build
 COMPILED_DRIVER_PACKAGE ?= 0
 PACKAGE_BASE_NAME := ont-minion1c-driver
-DISTRIBUTION := $(shell lsb_release -cs)
 
 # DKMS sets KERNELRELEASE
 ifeq (,$(KERNELRELEASE))
@@ -26,7 +25,14 @@ endif
 
 # Extract a version string from the driver source. It must be the only thing
 # between quotes
-VERSION   := $(shell grep ONT_DRIVER_VERSION driver/minion_top.h | sed -e 's/^.*"\([^"]*\)"$$/\1/')
+VERSION        := $(shell grep ONT_DRIVER_VERSION driver/minion_top.h | sed -e 's/^.*"\([^"]*\)"$$/\1/')
+DISTRIBUTION   ?= $(shell . /etc/os-release && echo $$VERSION_CODENAME)
+ifeq ($(DISTRIBUTION),)
+VERSION_SUFFIX ?=
+else
+VERSION_SUFFIX ?= ~$(DISTRIBUTION)
+endif
+
 
 # Each time the driver changes, ie whenever VERSION is different, this should be set back to 1
 DEBIAN_REVISION := 1
@@ -52,12 +58,10 @@ clean:
 	$(MAKE) -C utils $@
 	#$(MAKE) -C test $@
 	$(RM) -r package
-	$(RM) $(PACKAGE_BASE_NAME)-dev_$(VERSION)-*~$(DISTRIBUTION)_all.deb
-	$(RM) $(PACKAGE_BASE_NAME)-dkms_$(VERSION)-*~$(DISTRIBUTION)_all.deb
-	$(RM) $(PACKAGE_BASE_NAME)-utils_$(VERSION)-*~$(DISTRIBUTION)_$(DEB_ARCH).deb
-	$(RM) $(PACKAGE_BASE_NAME)-$(KVERS)_$(VERSION)-*~$(DISTRIBUTION)_$(DEB_ARCH).deb
-	$(RM) $(PACKAGE_BASE_NAME)_$(VERSION)-*~$(DISTRIBUTION).dsc
-	$(RM) $(PACKAGE_BASE_NAME)_$(VERSION)-*~$(DISTRIBUTION).tar.gz
+	$(RM) -r $(PACKAGE_BASE_NAME)-$(VERSION)
+	$(RM) $(PACKAGE_BASE_NAME)-*.deb
+	$(RM) $(PACKAGE_BASE_NAME)_*.dsc
+	$(RM) $(PACKAGE_BASE_NAME)_*.tar.gz
 
 dist-deb:
 	# assmeble all the files under package
@@ -73,7 +77,8 @@ dist-deb:
 	sed -i -e "s/_ARCH_/$(DEB_ARCH)/g;s/_VERSION_/$(VERSION)/g" package/debian/control
 	# debhelper version-9, changelog is just version number
 	echo 9 > package/debian/compat
-	echo "$(PACKAGE_BASE_NAME) ($(VERSION)-$(DEBIAN_REVISION)~$(shell lsb_release -cs)) unstable; urgency=low" > package/debian/changelog
+	echo "VERSION_SUFFIX=$(VERSION_SUFFIX)"
+	echo "$(PACKAGE_BASE_NAME) ($(VERSION)-$(DEBIAN_REVISION)$(VERSION_SUFFIX)) unstable; urgency=low" > package/debian/changelog
 
 	# copy the source and packaging information, make the source package
 	mkdir $(PACKAGE_BASE_NAME)-$(VERSION)
