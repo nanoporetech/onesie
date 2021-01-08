@@ -58,20 +58,27 @@ build-u18.04-k4.9.140:
   variables:
     KERNELRELEASE: "4.9.140-minit"
 
-compile:
-  image: docker-registry.oxfordnanolabs.local:5000/kernel-dev-aarch64
+.package-bin:
+  stage: build
   tags:
     - linux_aarch64
-  stage: build
   script:
-    - COMPILED_DRIVER_PACKAGE=1 KERNELRELEASE=${KERNEL_RELEASE} make dist-deb
+    - COMPILED_DRIVER_PACKAGE=1 make dist-deb
   artifacts:
     paths:
-    - ./ont-minion1c-driver-${KERNEL_RELEASE}_*~${UBUNTU_VERSION}_arm64.deb
-    - ./ont-minion1c-driver-dev_*~${UBUNTU_VERSION}_all.deb
-    - ./ont-minion1c-driver-utils_*~${UBUNTU_VERSION}_arm64.deb
-    - ./ont-minion1c-driver_*~${UBUNTU_VERSION}.dsc
-    - ./ont-minion1c-driver_*~${UBUNTU_VERSION}.tar.gz
+      - "*.deb"
+
+package-u16.04-k4.4.38:
+  extends: .package-bin
+  image: "docker-registry.oxfordnanolabs.local:5000/kernel-dev-aarch64"
+  variables:
+    KERNELRELEASE: "4.4.38-minit"
+
+package-u16.04-k4.4.197:
+  extends: .package-bin
+  image: "${CI_REGISTRY_IMAGE}/u16.04-k4.4.197"
+  variables:
+    KERNELRELEASE: "4.4.197-minit"
 
 .publish: &publish
   image: docker-registry.oxfordnanolabs.local:5000/ont-base-ubuntu:16.04
@@ -81,7 +88,9 @@ compile:
   only:
     - master
     - tags
-  dependencies: ["compile"]
+  dependencies:
+    - package-u16.04-k4.4.38
+    - package-u16.04-k4.4.197
   script:
    - for deb in ont-minion1c-driver*.deb; do
    -   arch=$(dpkg --info "${deb}" | grep "Architecture:" | cut -d ":" -f 2 | tr -d "[:space:]")
