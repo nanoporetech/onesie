@@ -55,30 +55,38 @@ build-u18.04-k4.9.140:
   variables:
     KERNELRELEASE: "4.9.140-minit"
 
-.package-bin:
+.package:
   stage: build
   tags:
     - linux_aarch64
   script:
-    - COMPILED_DRIVER_PACKAGE=1 make dist-deb
+    - make dist-deb
   artifacts:
     paths:
       - "*.deb"
 
 package-u16.04-k4.4.38:
-  extends: .package-bin
+  extends: .package
   image: "docker-registry.oxfordnanolabs.local:5000/kernel-dev-aarch64"
   variables:
     KERNELRELEASE: "4.4.38-minit"
+    COMPILED_DRIVER_PACKAGE: "1"
 
 package-u16.04-k4.4.197:
-  extends: .package-bin
+  extends: .package
   image: "${CI_REGISTRY_IMAGE}/u16.04-k4.4.197"
+  variables:
+    KERNELRELEASE: "4.4.197-minit"
+    COMPILED_DRIVER_PACKAGE: "1"
+
+package-u18.04-dkms:
+  extends: .package
+  image: "${CI_REGISTRY_IMAGE}/u18.04"
   variables:
     KERNELRELEASE: "4.4.197-minit"
 
 .publish: &publish
-  image: docker-registry.oxfordnanolabs.local:5000/ont-base-ubuntu:16.04
+  image: git.oxfordnanolabs.local:4567/traque/ont-docker-base/ont-base-ubuntu:20.04
   when: manual
   tags:
     - linux
