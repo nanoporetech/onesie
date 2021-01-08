@@ -1,0 +1,29 @@
+FROM git.oxfordnanolabs.local:4567/traque/ont-docker-base/ont-base-ubuntu:16.04
+
+RUN apt-get update && apt-get -y upgrade && apt-get -y install \
+    build-essential \
+    bc \
+    debhelper \
+    dkms \
+    fakeroot \
+    git
+
+ARG BUILD_TAG=minion1c_v1.1.0
+
+RUN cd /usr/src &&\
+    git clone --branch "${BUILD_TAG}" --depth 1 https://git.oxfordnanolabs.local/minit/linux-minit.git
+
+ARG LOCALVERSION="-minit"
+
+RUN cd /usr/src/linux-minit &&\
+    make mrproper &&\
+    make minion1c_defconfig &&\
+    make modules_prepare
+
+ADD Module.symvers.${BUILD_TAG} /usr/src/linux-minit/Module.symvers
+
+RUN cd /usr/src/linux-minit &&\
+    KERNELVERSION="$(make -s kernelversion)$LOCALVERSION" &&\
+    mkdir -p "/lib/modules/$KERNELVERSION" &&\
+    ln -s "$PWD" "/lib/modules/$KERNELVERSION/build"
+
