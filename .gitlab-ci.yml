@@ -3,10 +3,6 @@ stages:
  - build
  - deploy
 
-variables:
-  KERNEL_RELEASE: "4.4.38-minit"
-  UBUNTU_VERSION: "xenial"
-
 .docker:
   when: manual
   stage: docker
@@ -96,10 +92,12 @@ package-u18.04-dkms:
   dependencies:
     - package-u16.04-k4.4.38
     - package-u16.04-k4.4.197
+    - package-u18.04-dkms
   script:
    - for deb in ont-minion1c-driver*.deb; do
-   -   arch=$(dpkg --info "${deb}" | grep "Architecture:" | cut -d ":" -f 2 | tr -d "[:space:]")
-   -   url="https://artifactory.oxfordnanolabs.local/artifactory/${REPO}/pool/$(basename "${deb}");commitSHA=${CI_COMMIT_SHA};deb.distribution=${UBUNTU_VERSION};deb.component=non-free;deb.architecture=${arch}"
+   -   arch=$(dpkg --field "${deb} Architecture")
+   -   dist=$(dpkg --field "${deb} Version" | cut -d '~' -f 2)
+   -   url="https://artifactory.oxfordnanolabs.local/artifactory/${REPO}/pool/$(basename "${deb}");commitSHA=${CI_COMMIT_SHA};deb.distribution=${dist};deb.component=non-free;deb.architecture=${arch}"
    -   echo "Uploading ${deb} to ${url}"
    - ' curl -LfsS
          --request PUT
