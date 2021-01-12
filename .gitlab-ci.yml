@@ -95,8 +95,8 @@ package-u18.04-dkms:
     - package-u18.04-dkms
   script:
    - for deb in ont-minion1c-driver*.deb; do
-   -   arch=$(dpkg --field "${deb} Architecture")
-   -   dist=$(dpkg --field "${deb} Version" | cut -d '~' -f 2)
+   -   arch=$(dpkg --field "${deb}" Architecture)
+   -   dist=$(dpkg --field "${deb}" Version | cut -d '~' -f 2)
    -   url="https://artifactory.oxfordnanolabs.local/artifactory/${REPO}/pool/$(basename "${deb}");commitSHA=${CI_COMMIT_SHA};deb.distribution=${dist};deb.component=non-free;deb.architecture=${arch}"
    -   echo "Uploading ${deb} to ${url}"
    - ' curl -LfsS
