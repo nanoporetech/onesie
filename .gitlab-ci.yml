@@ -3,47 +3,40 @@ stages:
  - build
  - deploy
 
-variables:
-  KERNEL_RELEASE: "4.4.38-minit"
-  UBUNTU_VERSION: "xenial"
-
 .docker:
   when: manual
   stage: docker
   tags:
     - docker-builder-arm
   image: git.oxfordnanolabs.local:4567/traque/ont-docker-base/ont-base-docker:latest
+  script:
+    - TAG="${CI_REGISTRY_IMAGE}/${CI_JOB_NAME#docker-}"
+    - echo "Building ${TAG} from ${DOCKER_FILE}"
+    - build_args=$(env | grep "^BUILD_ARG_" | sed 's/^BUILD_ARG_/--build-arg\n/g')
+    - echo "$build_args"
+    - echo "$build_args" | tr '\n' '\0' | xargs -0 docker build --no-cache --pull
+        -t "${TAG}" -f "${DOCKER_FILE}" ./docker
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker push "${TAG}"
 
 docker-u16.04-k4.4.197:
   extends: .docker
-  script:
-    - TAG="${CI_REGISTRY_IMAGE}/${CI_JOB_NAME#docker-}"
-    - echo "Building ${TAG}"
-    - docker build --no-cache --pull -t "${TAG}"
-        --build-arg "BUILD_TAG=${BUILD_TAG}"
-        -f ./docker/Dockerfile.16.04 ./docker
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker push "${TAG}"
   variables:
-    BUILD_TAG: "minion1c_v1.1.0"
-
-.docker-headers:
-  extends: .docker
-  script:
-    - TAG="${CI_REGISTRY_IMAGE}/${CI_JOB_NAME#docker-}"
-    - echo "Building ${TAG}"
-    - docker build --no-cache --pull -t "${TAG}"
-        --build-arg "UBUNTU_VERSION=${UBUNTU_VERSION}"
-        --build-arg "HEADERS_PACKAGE_URL=${HEADERS_PACKAGE_URL}"
-        -f ./docker/Dockerfile.headers ./docker
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker push "${TAG}"
+    DOCKER_FILE: "./docker/Dockerfile.16.04"
+    BUILD_ARG_BUILD_TAG: "minion1c_v1.1.0"
 
 docker-u18.04-k4.9.140:
-  extends: .docker-headers
+  extends: .docker
   variables:
-    UBUNTU_VERSION: "18.04"
-    HEADERS_PACKAGE_URL: "https://git.oxfordnanolabs.local/minit/linux-build-tegra-l4t32/-/jobs/4421405/artifacts/raw/linux-headers-4.9.140-minit_32.4.3-20201126185312_arm64.deb"
+    DOCKER_FILE: "./docker/Dockerfile.headers"
+    BUILD_ARG_UBUNTU_VERSION: "18.04"
+    BUILD_ARG_HEADERS_PACKAGE_URL: "https://git.oxfordnanolabs.local/minit/linux-build-tegra-l4t32/-/jobs/4421405/artifacts/raw/linux-headers-4.9.140-minit_32.4.3-20201126185312_arm64.deb"
+
+docker-u18.04:
+  extends: .docker
+  variables:
+    DOCKER_FILE: "./docker/Dockerfile.package"
+    BUILD_ARG_UBUNTU_VERSION: "18.04"
 
 .build:
   stage: build
@@ -58,30 +51,38 @@ build-u18.04-k4.9.140:
   variables:
     KERNELRELEASE: "4.9.140-minit"
 
-.package-bin:
+.package:
   stage: build
   tags:
     - linux_aarch64
   script:
-    - COMPILED_DRIVER_PACKAGE=1 make dist-deb
+    - make dist-deb
   artifacts:
     paths:
       - "*.deb"
 
 package-u16.04-k4.4.38:
-  extends: .package-bin
+  extends: .package
   image: "docker-registry.oxfordnanolabs.local:5000/kernel-dev-aarch64"
   variables:
     KERNELRELEASE: "4.4.38-minit"
+    COMPILED_DRIVER_PACKAGE: "1"
 
 package-u16.04-k4.4.197:
-  extends: .package-bin
+  extends: .package
   image: "${CI_REGISTRY_IMAGE}/u16.04-k4.4.197"
+  variables:
+    KERNELRELEASE: "4.4.197-minit"
+    COMPILED_DRIVER_PACKAGE: "1"
+
+package-u18.04-dkms:
+  extends: .package
+  image: "${CI_REGISTRY_IMAGE}/u18.04"
   variables:
     KERNELRELEASE: "4.4.197-minit"
 
 .publish: &publish
-  image: docker-registry.oxfordnanolabs.local:5000/ont-base-ubuntu:16.04
+  image: git.oxfordnanolabs.local:4567/traque/ont-docker-base/ont-base-ubuntu:20.04
   when: manual
   tags:
     - linux
@@ -91,10 +92,12 @@ package-u16.04-k4.4.197:
   dependencies:
     - package-u16.04-k4.4.38
     - package-u16.04-k4.4.197
+    - package-u18.04-dkms
   script:
    - for deb in ont-minion1c-driver*.deb; do
-   -   arch=$(dpkg --info "${deb}" | grep "Architecture:" | cut -d ":" -f 2 | tr -d "[:space:]")
-   -   url="https://artifactory.oxfordnanolabs.local/artifactory/${REPO}/pool/$(basename "${deb}");commitSHA=${CI_COMMIT_SHA};deb.distribution=${UBUNTU_VERSION};deb.component=non-free;deb.architecture=${arch}"
+   -   arch=$(dpkg --field "${deb} Architecture")
+   -   dist=$(dpkg --field "${deb} Version" | cut -d '~' -f 2)
+   -   url="https://artifactory.oxfordnanolabs.local/artifactory/${REPO}/pool/$(basename "${deb}");commitSHA=${CI_COMMIT_SHA};deb.distribution=${dist};deb.component=non-free;deb.architecture=${arch}"
    -   echo "Uploading ${deb} to ${url}"
    - ' curl -LfsS
          --request PUT

@@ -18,3 +18,7 @@ driver/Module.symvers
 /utils/minion-shift
 /utils/minion-temp
 /utils/shift-decode
+*.deb
+*.dsc
+*.tar.gz
+/package
