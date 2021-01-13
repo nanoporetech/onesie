@@ -10,9 +10,9 @@ Package: ont-minion1c-driver-udev
 Architecture: all
 Depends: ${misc:Depends}
 Recommends: ont-minion1c-driver-dkms | ont-minion1c-driver-module
-Breaks: ont-minion1c-driver-module (<< 0.5.3-1)
+Breaks: ont-minion1c-driver-module (<< 0.5.3)
 # for file overwriting to work properly, we need to use real package names
-Replaces: ont-minion1c-driver-4.4.38-minit (<< 0.5.3-1), ont-minion1c-driver-4.4.197-minit (<< 0.5.3-1), ont-minion1c-driver-dkms (<< 0.5.3-1)
+Replaces: ont-minion1c-driver-4.4.38-minit (<< 0.5.3), ont-minion1c-driver-4.4.197-minit (<< 0.5.3), ont-minion1c-driver-dkms (<< 0.5.3)
 Description: udev rules for MinIT-1C acquisition hardware
 
 Package: ont-minion1c-driver-utils
@@ -34,7 +34,7 @@ Section: kernel
 Architecture: all
 # ont-minion1c-driver-udev dependency is a temporary transition helper - MinKNOW Core 4.2 will
 # provide an equivalent file, so once that version is everywhere, we can drop this
-Depends: ${misc:Depends}, build-essential, dkms, ont-minion1c-fpga (>= 2.2.4), ont-minion1c-driver-udev (>= 0.5.3-1)
+Depends: ${misc:Depends}, build-essential, dkms, ont-minion1c-fpga (>= 2.2.4), ont-minion1c-driver-udev (>= 0.5.3)
 Provides: ont-minion1c-driver-module (= _VERSION_)
 Description: MinIT-1C hardware device-driver kernel module (DKMS)
  This provides the source code for the MinIT-1C acquisition-hardware
