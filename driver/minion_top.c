@@ -1750,7 +1750,7 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
                     minion_isr, IRQF_SHARED,
                     "minion", mdev);
     if (rc) {
-        dev_err(&dev->dev, "failed to claim IRQ %d\n", dev->irq);
+        dev_err(&dev->dev, "failed to claim IRQ %d\n", irq);
         goto err;
     }
 
