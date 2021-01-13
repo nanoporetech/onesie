@@ -4,7 +4,7 @@ Architecture: _ARCH_
 # ont-minion1c-driver-udev dependency is a temporary transition helper - MinKNOW Core 4.2 will
 # provide an equivalent file, so once that version is everywhere, we can drop this (or move it
 # to Suggests)
-Depends: ${misc:Depends}, ont-minion1c-fpga (>= 2.2.4), update-notifier-common, kmod, ont-minion1c-driver-udev (>= 0.5.3-1)
+Depends: ${misc:Depends}, ont-minion1c-fpga (>= 2.2.4), update-notifier-common, kmod, ont-minion1c-driver-udev (>= 0.5.3)
 Recommends: linux-modules-_KVERS_ | linux-image-_KVERS_
 Provides: ont-minion1c-driver-module (= _VERSION_)
 Description: Oxford Nanopore Technologies MinIT-1C acquisition-hardware
