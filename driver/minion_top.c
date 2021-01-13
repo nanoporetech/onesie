@@ -1741,7 +1741,7 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 #else
     rc = pci_enable_msi(dev);
     if (rc < 0) {
-        DPRINTK("no MSI interrupts, using legacy irq\n");
+        dev_warn(&dev->dev, "no MSI interrupts (error: %d), using legacy irq\n", rc);
     }
     irq = dev->irq;
 #endif
