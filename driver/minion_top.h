@@ -12,7 +12,7 @@
 #include <linux/kobject.h>
 #include <linux/sysfs.h>
 
-//#define ONT_DEBUG
+#define ONT_DEBUG
 //#define ONT_VERBOSE_DEBUG
 
 // debug macros
