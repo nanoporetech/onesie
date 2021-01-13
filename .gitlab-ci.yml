@@ -67,6 +67,10 @@ package-u16.04-k4.4.38:
   variables:
     KERNELRELEASE: "4.4.38-minit"
     COMPILED_DRIVER_PACKAGE: "1"
+  artifacts:
+    paths:
+      # let the 4.4.197 job provide all the userspace stuff
+      - "ont-minion1c-driver-${KERNELRELEASE}_*_arm64.deb"
 
 package-u16.04-k4.4.197:
   extends: .package
@@ -74,6 +78,12 @@ package-u16.04-k4.4.197:
   variables:
     KERNELRELEASE: "4.4.197-minit"
     COMPILED_DRIVER_PACKAGE: "1"
+  artifacts:
+    paths:
+      # omit dkms
+      - "ont-minion1c-driver-${KERNELRELEASE}_*_arm64.deb"
+      - "ont-minion1c-driver-dev_*.deb"
+      - "ont-minion1c-driver-utils_*.deb"
 
 package-u18.04-dkms:
   extends: .package
