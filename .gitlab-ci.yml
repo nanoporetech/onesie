@@ -83,6 +83,7 @@ package-u16.04-k4.4.197:
       # omit dkms
       - "ont-minion1c-driver-${KERNELRELEASE}_*_arm64.deb"
       - "ont-minion1c-driver-dev_*.deb"
+      - "ont-minion1c-driver-udev_*.deb"
       - "ont-minion1c-driver-utils_*.deb"
 
 package-u18.04-dkms:

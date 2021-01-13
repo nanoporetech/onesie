@@ -51,6 +51,7 @@ test:
 
 install:
 	$(MAKE) -C driver $@
+	$(MAKE) -C udev $@
 	$(MAKE) -C utils $@
 
 clean:
@@ -94,9 +95,10 @@ dist-deb:
 
 	# if this is a binary then make and add driver object file.
 	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then $(MAKE) -C driver DESTDIR=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-$(KVERS) PREFIX=/usr install-modules; fi
-	# add driver-includes and udev rules, add source files for DKMS
+	# add driver-includes, add source files for DKMS
 	$(MAKE) -C driver DESTDIR=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-dev PREFIX=/usr install-dev
 	$(MAKE) -C driver distdir=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-dkms/usr/src/$(PACKAGE_BASE_NAME)-$(VERSION) dist
+	$(MAKE) -C udev DESTDIR=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-udev install
 	$(MAKE) -C utils DESTDIR=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-utils PREFIX=/usr install
 	# change the DKMS version to match the driver
 	sed -e "s/_VERSION_/$(VERSION)/g" debian/dkms.conf.in > package/debian/$(PACKAGE_BASE_NAME)-dkms.dkms
