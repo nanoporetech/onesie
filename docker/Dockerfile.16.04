@@ -15,12 +15,14 @@ RUN cd /usr/src &&\
 
 ARG LOCALVERSION="-minit"
 
-RUN cd /usr/src/linux-minit &&\
-    make mrproper &&\
-    make minion1c_defconfig &&\
-    make modules_prepare
+RUN cd /usr/src/linux-minit && make mrproper
 
 ADD Module.symvers.${BUILD_TAG} /usr/src/linux-minit/Module.symvers
+ADD config.${BUILD_TAG} /usr/src/linux-minit/.config
+
+RUN cd /usr/src/linux-minit &&\
+    make oldconfig &&\
+    make modules_prepare
 
 RUN cd /usr/src/linux-minit &&\
     KERNELVERSION="$(make -s kernelversion)$LOCALVERSION" &&\
