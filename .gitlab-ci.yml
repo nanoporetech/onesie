@@ -93,12 +93,12 @@ package-u18.04-dkms:
     KERNELRELEASE: "4.4.197-minit"
 
 .publish: &publish
+  stage: deploy
   image: git.oxfordnanolabs.local:4567/traque/ont-docker-base/ont-base-ubuntu:20.04
   when: manual
   tags:
     - linux
   only:
-    - master
     - tags
   dependencies:
     - package-u16.04-k4.4.38
@@ -120,15 +120,13 @@ package-u18.04-dkms:
    -   echo "Artifact is available at https://artifactory.oxfordnanolabs.local/artifactory/webapp/#/artifacts/browse/tree/General/${REPO}/pool/$(basename "${deb}")"
    - done
 
-publish_unstable:
+publish-ONTDev-Deb:
   <<: *publish
-  stage: deploy
   variables:
     REPO: ONTDev-Deb
 
-publish_stable:
+publish-ONT-Deb:
   <<: *publish
-  stage: deploy
   variables:
     REPO: ONT-Deb
 
