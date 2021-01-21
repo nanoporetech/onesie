@@ -399,6 +399,29 @@ static int read_shift_reg_hw(
  * @param param parameters to/from shift-reg core registers
  * @return an ioctl return code
  */
+
+/// @DEBUG check the output shift-register hasn't magically changed
+static void dump_stuff(
+        char* text,
+        struct minion_device_s* mdev,
+        struct shift_reg_access_parameters_s* param)
+{
+    if (param->to_dev) {
+        unsigned int i;
+        void* mem = param->to_dev;
+        for (i = 0; i < ASIC_SHIFT_REG_SIZE; i+=2) {
+            void* out_buffer = mdev->ctrl_bar + ASIC_SHIFT_BASE + ASIC_SHIFT_OUTPUT_BUF;
+            u16 actual = le16_to_cpu(readw(out_buffer + i));
+            u16 expected = le16_to_cpu(readw(mem + i));
+            if (actual != expected)
+            {
+                printk("%s [%i] 0x%04x vs 0x%04x\n",text,i,actual,expected);
+            }
+        }
+    }
+} 
+
+
 static long minion_shift_register_access(
         struct minion_device_s* mdev,
         struct shift_reg_access_parameters_s* param)
@@ -420,7 +443,7 @@ static long minion_shift_register_access(
     if (rc < 0) {
         goto out;
     }
-
+    dump_stuff("immedately after",mdev,param);
     wmb();
 
     clockdiv = calculate_shift_reg_clock_divider(param->clk);
@@ -437,6 +460,9 @@ static long minion_shift_register_access(
     if (rc < 0) {
         goto out;
     }
+    dump_stuff("after reading",mdev,param);
+
+    printk("cmd %d\n",param->cmd_id);
 out:
     free_link(mdev, &old_link_mode);
 
@@ -459,11 +485,14 @@ out:
 static long minion_shift_reg_access_wrapper(struct minion_device_s* mdev, struct minion_shift_reg_s* shift_reg_access)
 {
     long rc;
-    char shift_reg[ASIC_SHIFT_REG_SIZE];
+    char shift_in[ASIC_SHIFT_REG_SIZE+1];
+    char shift_out[ASIC_SHIFT_REG_SIZE+1];
+    shift_out[ASIC_SHIFT_REG_SIZE] = 0;
+    shift_in[ASIC_SHIFT_REG_SIZE] = 0;
     u16* wavetable = kzalloc(MINION_WAVEFORM_SIZE * sizeof(u16), GFP_KERNEL);
     struct shift_reg_access_parameters_s parameters = {
-        .to_dev   = shift_reg_access->to_device ? shift_reg : NULL,
-        .from_dev = shift_reg_access->from_device ? shift_reg : NULL,
+        .to_dev   = shift_reg_access->to_device ? shift_out : NULL,
+        .from_dev = shift_reg_access->from_device ? shift_in : NULL,
         .wavetable = shift_reg_access->waveform_table ? wavetable : NULL,
         .waveform_length = shift_reg_access->waveform_table_length,
         .waveform_frames = shift_reg_access->waveform_frame_count,
@@ -479,7 +508,7 @@ static long minion_shift_reg_access_wrapper(struct minion_device_s* mdev, struct
     }
 
     if (shift_reg_access->to_device) {
-        rc = copy_from_user(shift_reg, (void __user*)shift_reg_access->to_device, ASIC_SHIFT_REG_SIZE);
+        rc = copy_from_user(shift_out, (void __user*)shift_reg_access->to_device, ASIC_SHIFT_REG_SIZE);
         if (rc) {
             DPRINTK("copy_from_user failed\n");
             goto err_out;
@@ -508,7 +537,7 @@ static long minion_shift_reg_access_wrapper(struct minion_device_s* mdev, struct
     shift_reg_access->waveform_frame_count = parameters.waveform_frames;
     shift_reg_access->waveform_table_length = parameters.waveform_length;
     if (shift_reg_access->from_device) {
-        rc = copy_to_user((void __user*)shift_reg_access->from_device, shift_reg, ASIC_SHIFT_REG_SIZE);
+        rc = copy_to_user((void __user*)shift_reg_access->from_device, shift_in, ASIC_SHIFT_REG_SIZE);
         if (rc) {
             DPRINTK("copy_to_user failed\n");
             goto err_out;
