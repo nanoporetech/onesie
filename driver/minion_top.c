@@ -482,8 +482,8 @@ static long minion_shift_reg_access_wrapper(struct minion_device_s* mdev, struct
         goto err_out;
     }
 
-    // clear last (padding) byte
     BUILD_BUG_ON( sizeof(shift_reg) % 2 != 0);
+    // clear last (padding) byte
     shift_reg[ASIC_SHIFT_REG_SIZE] = 0;
 
     if (shift_reg_access->to_device) {
