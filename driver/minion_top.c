@@ -459,7 +459,11 @@ out:
 static long minion_shift_reg_access_wrapper(struct minion_device_s* mdev, struct minion_shift_reg_s* shift_reg_access)
 {
     long rc;
-    char shift_reg[ASIC_SHIFT_REG_SIZE];
+
+    // we have to write this buffer into hardware in 16-bit accesses so it must
+    // an even number of bytes
+    char shift_reg[ASIC_SHIFT_REG_SIZE+1];
+
     u16* wavetable = kzalloc(MINION_WAVEFORM_SIZE * sizeof(u16), GFP_KERNEL);
     struct shift_reg_access_parameters_s parameters = {
         .to_dev   = shift_reg_access->to_device ? shift_reg : NULL,
@@ -477,6 +481,10 @@ static long minion_shift_reg_access_wrapper(struct minion_device_s* mdev, struct
         rc = -ENOMEM;
         goto err_out;
     }
+
+    // clear last (padding) byte
+    BUILD_BUG_ON( sizeof(shift_reg) % 2 != 0);
+    shift_reg[ASIC_SHIFT_REG_SIZE] = 0;
 
     if (shift_reg_access->to_device) {
         rc = copy_from_user(shift_reg, (void __user*)shift_reg_access->to_device, ASIC_SHIFT_REG_SIZE);
