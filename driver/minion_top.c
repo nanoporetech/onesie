@@ -652,7 +652,7 @@ static int switch_link_mode(struct minion_device_s* mdev, const enum link_mode_e
 
 out:
     mutex_unlock(&mdev->link_mtx);
-    return 0;
+    return rc;
 }
 
 static void free_link(struct minion_device_s* mdev, const struct historical_link_mode* old_mode)
