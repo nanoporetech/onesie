@@ -125,7 +125,7 @@ struct  minion_hs_receiver_s {
 } __attribute__(( packed ));
 #define MINION_HS_RECEIVER_SIZE 28
 
-#define MINION_IOCTL_HS_RECIEVER _IOWR('b', 66, struct minion_hs_receiver_s)
+#define MINION_IOCTL_HS_RECEIVER _IOWR('b', 66, struct minion_hs_receiver_s)
 
 /**
  * @brief Transfer data to/from the EEPROM

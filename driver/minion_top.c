@@ -1174,10 +1174,10 @@ static long minion_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             return copy_to_user((void __user*)arg, &shift_reg_access, sizeof(struct minion_shift_reg_s) );
         }
         break;
-    case MINION_IOCTL_HS_RECIEVER: {
+    case MINION_IOCTL_HS_RECEIVER: {
             struct minion_hs_receiver_s minion_hs_reg = {};
             BUILD_BUG_ON(sizeof(struct minion_hs_receiver_s) != MINION_HS_RECEIVER_SIZE);
-            VPRINTK("MINION_IOCTL_HS_RECIEVER\n");
+            VPRINTK("MINION_IOCTL_HS_RECEIVER\n");
             rc = copy_from_user(&minion_hs_reg, (void __user*)arg, sizeof(minion_hs_reg));
             if (rc) {
                 DPRINTK("copy_from_user failed\n");
