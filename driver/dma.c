@@ -21,6 +21,13 @@
 #include <linux/spinlock.h>
 #include <linux/delay.h>
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,11,0)
+#include <linux/sched.h>
+#else
+#include <linux/sched/signal.h>
+#endif
+
 #include "minion_top.h"
 #include "minion_ioctl.h"
 #include "minion_reg.h"
