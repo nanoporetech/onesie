@@ -48,7 +48,7 @@
 #define ONT_DRIVER_NAME     "ont-minion1c"
 
 /* version is major.minor.patch */
-#define ONT_DRIVER_VERSION  "0.5.3"
+#define ONT_DRIVER_VERSION  "0.6.0"
 
 #define ONT_FIRST_MINOR 0
 
@@ -94,19 +94,22 @@ struct attribute_wrapper {
 
 struct thermal_control_sysfs {
     struct attribute_group thermal_group;
-    struct attribute* attributes[13];
+    struct attribute* attributes[16];
     struct attribute_wrapper control;
     struct attribute_wrapper error;
     struct attribute_wrapper tec_override;
-    struct attribute_wrapper tec_dead_zone;
+    struct attribute_wrapper error_code;
     struct attribute_wrapper tec_voltage;
     struct attribute_wrapper tec_current;
+    struct attribute_wrapper tec_ref;
+    struct attribute_wrapper tec_sp;
     struct attribute_wrapper data_log;
     struct attribute_wrapper latest_data_log;
-    struct attribute_wrapper threshold_1;
-    struct attribute_wrapper threshold_2;
-    struct attribute_wrapper threshold_3;
-    struct attribute_wrapper pid_settings;
+    struct attribute_wrapper pid_profiles;
+    struct attribute_wrapper ext_sens1_reading;
+    struct attribute_wrapper ext_sens2_reading;
+    struct attribute_wrapper ext_sens_control;
+    struct attribute_wrapper ext_sens_status;
 };
 
 struct shift_reg_access_parameters_s {
