@@ -64,7 +64,7 @@ struct minion_register_s {
  *                      to be the desired clock-speed in Hz for transfers. (Due
  *                      to hardware limitations the actual clock speed may
  *                      differ from that requested.
- *                      
+ *
  * start    to-driver   Sets start-bit if non-zero
  * enable   to-driver   Sets enable-bit it non-zero
  * command_id to/from-driver
@@ -321,14 +321,23 @@ struct minion_temperature_command_s {
 //Defines for control word
 #define CTRL_EN_MASK      0x0001
 #define CTRL_TEC_OVERRIDE_MASK 0x0002
+#define CTRL_RESTART 0x8000
 
 //Defines for error word
-#define FC_THERM_OPEN     0x0001
-#define FC_THERM_SHORT    0x0002
-#define FC_THERM_RANGE    0x0004
-#define HSINK_THERM_OPEN  0x0008
-#define HSINK_THERM_SHORT 0x0010
-#define HSINK_THERM_RANGE 0x0020
+#define SENS_I2C_ERR 1
+#define FC_SENS_ERR 2
+#define FC_SENS_RANGE 4
+#define HSINK_SENS_ERR 8
+#define HSINK_SENS_RANGE 0x10
+#define FC_HSINK_DELTA 0x20
+#define ADC_ERR 0x40
+#define REF_ERR 0x80
+#define DAC_ERR 0x100
+#define SP_LOW_ERR 0x200
+#define SP_HIGH_ERR 0x400
+#define SP_MID_ERR 0x800
+#define READY 0x8000
+
 
 #define MINION_IOCTL_TEMP_CMD_READ _IOR('b', 75, struct minion_temperature_command_s)
 #define MINION_IOCTL_TEMP_CMD_WRITE _IOW('b', 76, struct minion_temperature_command_s)
