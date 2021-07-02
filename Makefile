@@ -33,9 +33,12 @@ else
 VERSION_SUFFIX ?= ~$(DISTRIBUTION)
 endif
 
+# Recommended minimum firmware version, used for setting the ont-minion1c-fpga
+# dependency
+FIRMWARE_VERSION := 2.4.1
 
 # Each time the driver changes, ie whenever VERSION is different, this should be set back to 1
-DEBIAN_REVISION := 1
+DEBIAN_REVISION := 2
 
 all: utils driver test
 
@@ -71,11 +74,11 @@ dist-deb:
 	# make the .deb control file and change kernel verison number
 	cp debian/control package/debian/control
 	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then\
-		sed -e "s/_KVERS_/$(KVERS)/g;s/_VERSION_/$(VERSION)/g" debian/control.modules.in >> package/debian/control;\
+		sed -e "s/_KVERS_/$(KVERS)/g;s/_VERSION_/$(VERSION)/g;s/_FIRMWARE-VERSION_/$(FIRMWARE_VERSION)/g" debian/control.modules.in >> package/debian/control;\
 		sed -e "s/_KVERS_/$(KVERS)/g" debian/postinst.modules.in > package/debian/ont-minion1c-driver-$(KVERS).postinst;\
 		sed -e "s/_KVERS_/$(KVERS)/g" debian/postrm.modules.in > package/debian/ont-minion1c-driver-$(KVERS).postrm;\
 	fi
-	sed -i -e "s/_ARCH_/$(DEB_ARCH)/g;s/_VERSION_/$(VERSION)/g" package/debian/control
+	sed -i -e "s/_ARCH_/$(DEB_ARCH)/g;s/_VERSION_/$(VERSION)/g;s/_FIRMWARE-VERSION_/$(FIRMWARE_VERSION)/g" package/debian/control
 	# debhelper version-9, changelog is just version number
 	echo 9 > package/debian/compat
 	echo "VERSION_SUFFIX=$(VERSION_SUFFIX)"
