@@ -31,7 +31,7 @@ void hs_receiver_ioctl(
         hs_rx_ioctl.registers[i] = data.at(i);
     }
     hs_rx_ioctl.write = write ? 1 : 0;
-    const auto rc = ioctl(fd, MINION_IOCTL_HS_RECIEVER, &hs_rx_ioctl);
+    const auto rc = ioctl(fd, MINION_IOCTL_HS_RECEIVER, &hs_rx_ioctl);
     if (rc < 0) {
         throw std::runtime_error(strerror(rc));
     }

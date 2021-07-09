@@ -1,0 +1,9 @@
+ARG UBUNTU_VERSION=18.04
+
+FROM git.oxfordnanolabs.local:4567/traque/ont-docker-base/ont-base-ubuntu:${UBUNTU_VERSION}
+
+ARG HEADERS_PACKAGE_URL
+
+RUN curl -LSsf -o linux-headers.deb "${HEADERS_PACKAGE_URL}" && \
+    dpkg -i linux-headers.deb && \
+    rm linux-headers.deb

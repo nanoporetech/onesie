@@ -238,7 +238,7 @@ private:
                   << frames << " frames per packet"
                   << std::endl;
 
-        const auto rc = ioctl(_instance->_fd, MINION_IOCTL_HS_RECIEVER, &hs_rx_ioctl);
+        const auto rc = ioctl(_instance->_fd, MINION_IOCTL_HS_RECEIVER, &hs_rx_ioctl);
         if (rc < 0) {
             throw std::runtime_error(strerror(rc));
         }

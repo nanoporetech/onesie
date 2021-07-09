@@ -312,7 +312,7 @@ Usage: `minion-shift [-x] [-e] [-s] [-f frequency ] <device>`
 
 `<device>` is the device-node
 
-Command-data read from the ASIC is sent to standard-output as either a byte-stream, or if the `-x`/`--hex` option is enabled, comma separated hexadecimal data. The comma-separated hexadecimal data output is the correct format for using as input with the `-w` option. The clock-frequency defaults to 1-MHz any frequency specified is subject to the resolution of the clock-divider and should be in the range of 62.5-MHz to 1-MHz. Where possible, unachievable clock-frequencies will be adjusted rather than rejected. 
+Command-data read from the ASIC is sent to standard-output as either a byte-stream, or if the `-x`/`--hex` option is enabled, comma separated hexadecimal data. The comma-separated hexadecimal data output is the correct format for using as input with the `-w` option. The clock-frequency defaults to 1-MHz any frequency specified is subject to the resolution of the clock-divider and should be in the range of 62.5-MHz to 1-MHz. Where possible, unachievable clock-frequencies will be adjusted rather than rejected.
 
 In almost all scenarios, the `--enable` and `--start` options should be selected.
 
@@ -350,18 +350,21 @@ Data is output as a bytes-stream, not normally intelligible with out a some othe
 
 `minion-temp` reads the temperature sensors and controls the set-point of the control-loop regulating flow-cell temperature.
 
-`minion-temp [-s <temp>] [-f] <device>`
+`minion-temp [-s <temp>] [-f] [-r] <device>`
 
 | | |
 | --- | --- |
 | `-s`, `--set <temperature>` | Set the desired temperature (set-point) of the flow-cell in Celsius and enable temperature control |
 | `-f`, `--off` | Disable temperature control |
+| `-r`, `--restart` | Restart temperature controller |
 
 A Peltier device effects heat transfer between the thermal-pad and a heat-sink that transfers heat to/from airflow through the device. When run, the program will perform the optional control functions (setting or disabling thermal control) then return the current desired temperature and the temperatures of the heat-sink and the thermal-pad (used as a proxy for the flow-cell.) It will also communicate any errors reported by the thermal control software.
 
 eg:
 
 `minion-temp /dev/flowcell0 -s 35.2` Enable temperature control and set the desired temperature to 35.2C.
+
+`minion-temp /dev/flowcell0 -r` Restart the temperature controller; temperature control will be disabled
 
 `minion-temp /dev/flowcell0` Report temperatures and errors.
 

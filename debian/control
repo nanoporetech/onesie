@@ -3,6 +3,18 @@ Section: misc
 Priority: optional
 Maintainer: Oxford Nanopore Technologies <info@nanoporetech.com>
 
+# Having this in its own package allows multiple binary module packages
+# to be installed simultaneously (the correct module for the running kernel
+# will be used by modprobe)
+Package: ont-minion1c-driver-udev
+Architecture: all
+Depends: ${misc:Depends}
+Recommends: ont-minion1c-driver-dkms | ont-minion1c-driver-module
+Breaks: ont-minion1c-driver-module (<< 0.5.3)
+# for file overwriting to work properly, we need to use real package names
+Replaces: ont-minion1c-driver-4.4.38-minit (<< 0.5.3), ont-minion1c-driver-4.4.197-minit (<< 0.5.3), ont-minion1c-driver-dkms (<< 0.5.3)
+Description: udev rules for MinIT-1C acquisition hardware
+
 Package: ont-minion1c-driver-utils
 Architecture: _ARCH_
 Depends: ${misc:Depends}
@@ -20,7 +32,9 @@ Description: Headers for the MinIT-1C acquisition-hardware device-driver kernel 
 Package: ont-minion1c-driver-dkms
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends}, build-essential, dkms, ont-minion1c-fpga (>= 2.2.4)
+# ont-minion1c-driver-udev dependency is a temporary transition helper - MinKNOW Core 4.2 will
+# provide an equivalent file, so once that version is everywhere, we can drop this
+Depends: ${misc:Depends}, build-essential, dkms, ont-minion1c-fpga (>= _FIRMWARE-VERSION_), ont-minion1c-driver-udev (>= 0.5.3)
 Provides: ont-minion1c-driver-module (= _VERSION_)
 Description: MinIT-1C hardware device-driver kernel module (DKMS)
  This provides the source code for the MinIT-1C acquisition-hardware

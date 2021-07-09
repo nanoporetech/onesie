@@ -19,8 +19,7 @@ RM        := rm -f
 # source file groups
 SHARED_HEADERS := minion_ioctl.h
 KERNEL_SRCS    := minion_top.h dma.h minion_reg.h $(minion-objs:.o=.c) thermal_interface.h
-UDEV_RULE      := 10-minion-perms.rules
-DISTFILES := Makefile $(UDEV_RULE) $(SHARED_HEADERS) $(KERNEL_SRCS)
+DISTFILES := Makefile $(SHARED_HEADERS) $(KERNEL_SRCS)
 
 all: modules
 
@@ -33,8 +32,6 @@ modules:
 install-modules: modules
 	install -d "$(DESTDIR)$(KERNELDIR)/misc"
 	install -m644 $(MODNAME).ko "$(DESTDIR)$(KERNELDIR)/misc"
-	install -d "$(DESTDIR)/lib/udev/rules.d"
-	install -m644 $(UDEV_RULE) "$(DESTDIR)/lib/udev/rules.d"
 ifndef DESTDIR
 	depmod -a $(KVERS)
 endif
@@ -47,7 +44,6 @@ install: install-modules install-dev
 
 uninstall: modules
 	$(RM) "$(DESTDIR)$(KERNELDIR)/misc/$(MODNAME).ko"
-	$(RM) "$(DESTDIR)/lib/udev/rules.d/$(UDEV_RULE)"
 	for shared_header in $(SHARED_HEADERS); do $(RM) "$(DESTDIR)$(PREFIX)/include/$$shared_header"; done
 ifndef DESTDIR
 	depmod -a $(KVERS)

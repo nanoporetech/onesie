@@ -10,4 +10,7 @@ if [ "$1" = "configure" ]; then
 	fi
 fi
 
-modprobe -r minion && modprobe minion
+# allow this to fail (eg: in docker, or if the driver is currently in use)
+if [ "$(uname -r)" = "_KVERS_" ]; then
+    modprobe -r minion && modprobe minion || /usr/share/update-notifier/notify-reboot-required
+fi

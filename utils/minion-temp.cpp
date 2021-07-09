@@ -49,20 +49,24 @@ void usage()
 {
     std::cerr
         << "usage: minion-temp [-s <temp>] [-f] <device>\n"
-        << " -s, --set      Set the desired temperature\n"
-        << " -f, --off      Disable temperature control\n\n"
+        << " -s, --set      Set the desired temperature, enable temperature control\n"
+        << " -f, --off      Disable temperature control\n"
+        << " -r, --restart  Restart temperature controller\n"
+        << "\n"
         << "Examples:\n"
         << "    minion-temp <device>           -- read current state of TEC\n"
         << "    minion-temp -s <temp> <device> -- enable temperature control, with a specified target temperature\n"
-        << "    minion-temp -f <device>        -- disable temperature control\n";
+        << "    minion-temp -f <device>        -- disable temperature control\n"
+        << "    minion-temp -r <device>        -- restart device temperature controller\n";
     exit(1);
 }
 
 int main(int argc, char* argv [])
 {
-    bool set = false;
-    bool enable = false;
+    bool set_arg = false;
     double temperature = 34.0;
+    bool off_arg = false;
+    bool restart_arg = false;
     std::string device;
 
     // parse options
@@ -72,8 +76,7 @@ int main(int argc, char* argv [])
     for (int index(1); index < argc; ++index) {
         std::string arg(argv[index]);
         if (arg == "-s" || arg == "--set") {
-            set = true;
-            enable = true;
+            set_arg = true;
             ++index;
             std::string field(argv[index]);
             try {
@@ -88,8 +91,11 @@ int main(int argc, char* argv [])
             continue;
         }
         if (arg == "-f" || arg == "--off") {
-            set = true;
-            enable = false;
+            off_arg = true;
+            continue;
+        }
+        if (arg == "-r" || arg == "--restart") {
+            restart_arg = true;
             continue;
         }
 
@@ -112,6 +118,7 @@ int main(int argc, char* argv [])
 
         usage();
     }
+
     if (device.empty()) {
         std::cerr << "Error: No device node specified." << std::endl;
         usage();
@@ -120,10 +127,18 @@ int main(int argc, char* argv [])
 
     try {
         struct minion_temperature_command_s temp_command = {};
-        if (set) {
-            temp_command.desired_temperature = std::uint16_t(temperature * 256.0);
-            if (enable) {
+        if (set_arg || off_arg || restart_arg) {
+            if (set_arg) {
+                temp_command.desired_temperature = std::uint16_t(temperature * 256.0);
                 temp_command.control_word = CTRL_EN_MASK;
+            }
+            if (off_arg) {
+                // "off" overrides "set"
+                temp_command.control_word = 0;
+            }
+            if (restart_arg) {
+                // "restart" is compatible with both "off" and "set"
+                temp_command.control_word |= CTRL_RESTART;
             }
 
             write_temp_ioctl(device, temp_command);
@@ -131,18 +146,40 @@ int main(int argc, char* argv [])
             read_temp_ioctl(device, temp_command);
         }
 
+
         std::cout << "desired temperature  : " << double(temp_command.desired_temperature) / 256.0
                   << (temp_command.control_word & CTRL_EN_MASK ? " (temperature control enabled)\n": " (temperature control disabled)\n")
                   << "heatsink temperature : " << double(temp_command.heatsink_temperature) / 256.0 << "\n"
                   << "flow-cell temperature: " << double(temp_command.flowcell_temperature) / 256.0 << std::endl;
 
-        std::cout << "error codes: "
-                  << (temp_command.error_word & FC_THERM_OPEN ? "flow-cell thermistor open-circuit " :"")
-                  << (temp_command.error_word & FC_THERM_SHORT ? "flow-cell thermistor short-circuit " :"")
-                  << (temp_command.error_word & FC_THERM_RANGE ? "flow-cell thermistor out of range " :"")
-                  << (temp_command.error_word & HSINK_THERM_OPEN ? "heatsink thermistor open-circuit " :"")
-                  << (temp_command.error_word & HSINK_THERM_SHORT ? "heatsink thermistor short-circuit " :"")
-                  << (temp_command.error_word & HSINK_THERM_RANGE ? "heatsink thermistor out of range " :"") << std::endl;
+        if (temp_command.error_word) {
+
+            auto check_error_bit = [error_word = temp_command.error_word](
+                auto error_bit,
+                char const * message
+            ) {
+                if (error_word & error_bit) {
+                    std::cout << "\t" << message << "\n";
+                }
+            };
+
+            std::cout << "error codes:\n";
+            check_error_bit(SENS_I2C_ERR, "Sensor I2C error");
+            check_error_bit(FC_SENS_ERR, "Flowcell sensor error");
+            check_error_bit(FC_SENS_RANGE, "Flowcell sensor out of range");
+            check_error_bit(HSINK_SENS_ERR, "Heatsink sensor error");
+            check_error_bit(HSINK_SENS_RANGE, "Heatsink  sensor out of range");
+            check_error_bit(FC_HSINK_DELTA, "Flowcell to heatsink difference out of range");
+            check_error_bit(ADC_ERR, "Monitor ADC (U10) error");
+            check_error_bit(REF_ERR, "2.5V reference out of range");
+            check_error_bit(DAC_ERR, "DAC error");
+            check_error_bit(SP_LOW_ERR, "Set point low out of range (0V)");
+            check_error_bit(SP_HIGH_ERR, "Set point high out of range (2.5V)");
+            check_error_bit(SP_MID_ERR, "Set point mid out of range (1.25V)");
+            check_error_bit(READY, "Ready (thermal control probed)");
+            std::cout << std::endl;
+        }
+
         return temp_command.error_word ? -1 : 0;
     } catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
