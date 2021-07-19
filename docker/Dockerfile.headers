@@ -7,3 +7,9 @@ ARG HEADERS_PACKAGE_URL
 RUN curl -LSsf -o linux-headers.deb "${HEADERS_PACKAGE_URL}" && \
     dpkg -i linux-headers.deb && \
     rm linux-headers.deb
+
+RUN apt-get update && apt-get -y upgrade && apt-get install -y \
+    build-essential \
+    debhelper \
+    dkms \
+    fakeroot

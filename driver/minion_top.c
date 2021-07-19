@@ -1867,8 +1867,7 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
     }
 
     pci_set_master(dev);
-
-    if (!pci_set_dma_mask(dev, DMA_BIT_MASK(64))) {
+    if (MINION_WANT_64BIT_DMA && !pci_set_dma_mask(dev, DMA_BIT_MASK(64))) {
         DPRINTK("64-bit DMA mask\n");
     } else if (!pci_set_dma_mask(dev, DMA_BIT_MASK(32))) {
         DPRINTK("32-bit DMA mask\n");
@@ -1877,7 +1876,7 @@ static int __init pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
         goto err;
     }
 
-    if (!pci_set_consistent_dma_mask(dev, DMA_BIT_MASK(64))) {
+    if (MINION_WANT_64BIT_DMA && !pci_set_consistent_dma_mask(dev, DMA_BIT_MASK(64))) {
         DPRINTK("64-bit DMA mask\n");
     } else if (!pci_set_consistent_dma_mask(dev, DMA_BIT_MASK(32))) {
         DPRINTK("32-bit DMA mask\n");

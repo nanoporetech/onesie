@@ -30,7 +30,7 @@ docker-u18.04-k4.9.140:
   variables:
     DOCKER_FILE: "./docker/Dockerfile.headers"
     BUILD_ARG_UBUNTU_VERSION: "18.04"
-    BUILD_ARG_HEADERS_PACKAGE_URL: "https://git.oxfordnanolabs.local/minit/linux-build-tegra-l4t32/-/jobs/4421405/artifacts/raw/linux-headers-4.9.140-minit_32.4.3-20201126185312_arm64.deb"
+    BUILD_ARG_HEADERS_PACKAGE_URL: "https://artifactory.oxfordnanolabs.local/artifactory/ONTDev-Deb/pool/linux-headers-4.9.140-minit_32.4.3-v0.1.1-13-gd69749d_arm64.deb"
 
 docker-u18.04:
   extends: .docker
@@ -86,6 +86,20 @@ package-u16.04-k4.4.197:
       - "ont-minion1c-driver-udev_*.deb"
       - "ont-minion1c-driver-utils_*.deb"
 
+package-u18.04-k4.9.140:
+  extends: .package
+  image: "${CI_REGISTRY_IMAGE}/u18.04-k4.9.140"
+  variables:
+    KERNELRELEASE: "4.9.140-minit"
+    COMPILED_DRIVER_PACKAGE: "1"
+  artifacts:
+    paths:
+      # omit dkms
+      - "ont-minion1c-driver-${KERNELRELEASE}_*_arm64.deb"
+      - "ont-minion1c-driver-dev_*.deb"
+      - "ont-minion1c-driver-udev_*.deb"
+      - "ont-minion1c-driver-utils_*.deb"
+
 package-u18.04-dkms:
   extends: .package
   image: "${CI_REGISTRY_IMAGE}/u18.04"
@@ -103,6 +117,7 @@ package-u18.04-dkms:
   dependencies:
     - package-u16.04-k4.4.38
     - package-u16.04-k4.4.197
+    - package-u18.04-k4.9.140
     - package-u18.04-dkms
   script:
    - for deb in ont-minion1c-driver*.deb; do
