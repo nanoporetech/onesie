@@ -21,13 +21,19 @@ SHARED_HEADERS := minion_ioctl.h
 KERNEL_SRCS    := minion_top.h dma.h minion_reg.h $(minion-objs:.o=.c) thermal_interface.h
 DISTFILES := Makefile $(SHARED_HEADERS) $(KERNEL_SRCS)
 
+ifeq ("$(KVERS)", "4.9.140-minit")
+WANT_64BIT_DMA=0
+else
+WANT_64BIT_DMA=1
+endif
+
 all: modules
 
 $(MODNAME).ko: $(KERNEL_SRCS) $(SHARED_HEADERS)
 	$(MAKE) modules
 
 modules:
-	$(MAKE) -C $(KERNELDIR)/build M=$(PWD)
+	KCPPFLAGS="-DMINION_WANT_64BIT_DMA=$(WANT_64BIT_DMA)" $(MAKE) -C $(KERNELDIR)/build M=$(PWD)
 
 install-modules: modules
 	install -d "$(DESTDIR)$(KERNELDIR)/misc"

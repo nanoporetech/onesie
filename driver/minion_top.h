@@ -52,6 +52,13 @@
 
 #define ONT_FIRST_MINOR 0
 
+// There' a bug in the Kernel used for Bionic distributions that prevents 64-bit
+// DMA from working. Things building the driver have to explicitly state they
+// want 64-bit DMA.
+#ifndef MINION_WANT_64BIT_DMA
+#define MINION_WANT_64BIT_DMA 0
+#endif
+
 /* set to 5 for potential use with gridion */
 #define MINION_MAX_DEVICES 5
 
