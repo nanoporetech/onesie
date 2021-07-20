@@ -128,8 +128,8 @@ int main(int argc, char* argv [])
     try {
         struct minion_temperature_command_s temp_command = {};
         if (set_arg || off_arg || restart_arg) {
+            temp_command.desired_temperature = std::uint16_t(temperature * 256.0);
             if (set_arg) {
-                temp_command.desired_temperature = std::uint16_t(temperature * 256.0);
                 temp_command.control_word = CTRL_EN_MASK;
             }
             if (off_arg) {
