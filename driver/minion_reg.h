@@ -35,6 +35,7 @@
 #define I2C_BASE                0x00000000
 #define ASIC_HS_DMA_PREF_BASE   0x00000040
 #define ASIC_HS_DMA_BASE        0x00000060
+#define AIR_TEMP_SENSOR         0x000000a0
 #define SYSTEM_ID_CORE          0x00000080
 #define NIOS_MESSAGE_RAM_BASE   0x00010000
 #define NIOS_MUTEX_BASE         0x00012000
@@ -105,10 +106,34 @@
 
 /* bitmask of HS Reveiver registers that can be written */
 #define ASIC_HS_REG_WRITE_MASK  ((1 << 0) | (1 << 9) | (1 << 0xb) | (1 << 0xc))
+
+/* air-temp sensor registers */
+#define AIR_TEMP_SENSOR_CTRL    0
+#define AIR_TEMP_SENSOR_DATA    4
+
+#define AIR_TEMP_SENSOR_BEGIN           (1<<0)
+#define AIR_TEMP_SENSOR_BUSY            (1<<1)
+#define AIR_TEMP_SENSOR_IN_CONV_TO      (1<<2)
+#define AIR_TEMP_SENSOR_IN_PULSE_TO     (1<<3)
+#define AIR_TEMP_SENSOR_IN_RANGE        (1<<4)
+#define AIR_TEMP_SENSOR_OUT_CONV_TO     (1<<5)
+#define AIR_TEMP_SENSOR_OUT_PULSE_TO    (1<<6)
+#define AIR_TEMP_SENSOR_OUT_RANGE       (1<<7)
+#define AIR_TEMP_SENSOR_ERROR_MASK 0x000000fe
+#define AIR_TEMP_SENSOR_START 0x000000fd
+
+/* from symlink lmt01 datasheet */
+#define AIR_TEMP_SENSOR_CONVERT(raw) ((raw) / 16) - 50
+
+#define AIR_TEMP_IN_SHIFT   0
+#define AIR_TEMP_IN_MASK    0x00000fff
+#define AIR_TEMP_OUT_SHIFT  16
+#define AIR_TEMP_OUT_MASK   0x0fff0000
+
+
 /* BASE ADDRESSES BAR-2*/
 #define ADC_SPI_BASE            0x00012000
 #define DAC_SPI_BASE            0x00012020
-
 
 /* BASE ADDRESSES BAR-4 */
 /* These are in a PCIe CRA core at offset-0 in the bar */

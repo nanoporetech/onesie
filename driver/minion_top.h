@@ -101,7 +101,7 @@ struct attribute_wrapper {
 
 struct thermal_control_sysfs {
     struct attribute_group thermal_group;
-    struct attribute* attributes[16];
+    struct attribute* attributes[17];
     struct attribute_wrapper control;
     struct attribute_wrapper error;
     struct attribute_wrapper tec_override;
@@ -117,6 +117,7 @@ struct thermal_control_sysfs {
     struct attribute_wrapper ext_sens2_reading;
     struct attribute_wrapper ext_sens_control;
     struct attribute_wrapper ext_sens_status;
+    struct attribute_wrapper air_temp;
 };
 
 struct shift_reg_access_parameters_s {
