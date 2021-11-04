@@ -1711,6 +1711,45 @@ DECLARE_ATTRIBUTE_READ(ext_sens2_reading);
 DECLARE_ATTRIBUTE_READ(ext_sens_control);
 DECLARE_ATTRIBUTE_READ_WRITE_ZERO(ext_sens_status);
 
+static ssize_t air_temp_show(struct kobject* kobj, struct kobj_attribute* attr, char* buf)
+{
+    u32 reg;
+    int in, out;
+    unsigned int error;
+    unsigned int patience;
+    struct attribute_wrapper* wrapper = container_of(attr, struct attribute_wrapper, attribute);
+
+    // is a 32-bit register, u8* used for correct pointer arithmetic
+    u8* air_temp_registers = wrapper->p_value;
+
+    // begin conversion
+    writel(AIR_TEMP_SENSOR_START, air_temp_registers + AIR_TEMP_SENSOR_CTRL);
+
+    // poll for completeness
+    patience = 5;
+    do {
+        reg = readl(air_temp_registers + AIR_TEMP_SENSOR_CTRL);
+        if (!(reg & AIR_TEMP_SENSOR_BUSY)) {
+            break;
+        }
+        --patience;
+        msleep(100);
+    } while (patience);
+
+    error = reg & AIR_TEMP_SENSOR_ERROR_MASK;
+    if (!patience) {
+        sprintf(buf,"- - %u\n", error);
+    }
+
+    // get temps and scale
+    reg = readl(air_temp_registers + AIR_TEMP_SENSOR_DATA);
+    in  = AIR_TEMP_SENSOR_CONVERT((reg & AIR_TEMP_IN_MASK) >> AIR_TEMP_IN_SHIFT);
+    out = AIR_TEMP_SENSOR_CONVERT((reg & AIR_TEMP_OUT_MASK) >> AIR_TEMP_OUT_SHIFT);
+
+    // output is:
+    // inlet-temperature <space> outlet-temperature <space> error code (0 = ok)
+    return sprintf(buf,"%d %d %u\n", in, out, error);
+}
 
 int setup_sysfs_entries(struct minion_device_s* mdev)
 {
@@ -1719,6 +1758,7 @@ int setup_sysfs_entries(struct minion_device_s* mdev)
 
     // associate attribute_wrappers with their data
     struct message_struct* message = (struct message_struct*)(mdev->ctrl_bar + NIOS_MESSAGE_RAM_BASE);
+    u32* air_temp = (u32*)(mdev->ctrl_bar + AIR_TEMP_SENSOR);
     VPRINTK("message ram base %p",message);
 
     mdev->tc_attr = (struct thermal_control_sysfs){
@@ -1742,6 +1782,7 @@ int setup_sysfs_entries(struct minion_device_s* mdev)
             &mdev->tc_attr.ext_sens2_reading.attribute.attr,
             &mdev->tc_attr.ext_sens_control.attribute.attr,
             &mdev->tc_attr.ext_sens_status.attribute.attr,
+            &mdev->tc_attr.air_temp.attribute.attr,
             NULL
         },
         // pointer to data, attribute-defn
@@ -1760,6 +1801,7 @@ int setup_sysfs_entries(struct minion_device_s* mdev)
         .ext_sens2_reading = { &message->ext_sens2_reading, __ATTR_RO(ext_sens2_reading) },
         .ext_sens_control = { &message->ext_sens_control, __ATTR_RO(ext_sens_control) },
         .ext_sens_status = { &message->ext_sens_status, __ATTR_RW(ext_sens_status) },
+        .air_temp = { air_temp, __ATTR_RO(air_temp) },
     };
 
     return sysfs_create_group(parent, &mdev->tc_attr.thermal_group);
