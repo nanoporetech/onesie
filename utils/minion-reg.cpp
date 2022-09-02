@@ -1,4 +1,4 @@
-#include "ont_minit_ioctl.h"
+#include "minion_ioctl.h"
 
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -11,6 +11,7 @@
 #include <iostream>
 #include <iomanip>
 #include <string>
+#include <stdexcept>
 
 using namespace std;
 
@@ -35,14 +36,14 @@ int reg_access_ioctl(
     int fd = open(filename, O_RDWR);
     if (fd < 0) {
         std::cerr << exe_name << " : Failed to open device node '" << filename << "'" << std::endl;
-        return fd;
+        throw std::runtime_error("Failed to open device-node");
     }
 
     // perform ioctl
     int rc = 0;
     do {
         // make structure
-        struct minit_register_s reg_ioctl = {
+        struct minion_register_s reg_ioctl = {
             offset,
             uint16_t(size),
             uint8_t(read ? 0 : 1),
@@ -50,7 +51,7 @@ int reg_access_ioctl(
             value
         };
 
-        rc = ioctl(fd, MINIT_IOCTL_REG_ACCESS, &reg_ioctl);
+        rc = ioctl(fd, MINION_IOCTL_REG_ACCESS, &reg_ioctl);
         if (rc < 0) {
             if (!success) {
                 cerr << "Error " << rc << " (" << strerror(-rc) << ")" << endl;
@@ -155,12 +156,13 @@ int main(int argc, char* argv[])
                 value = std::stol(option5,NULL, 0);
             }
         }
+        return reg_access_ioctl(device_filename, bar, offset, value, size, read, read_all);
     } catch (bad_parameters e) {
         help();
         return -1;
     } catch (...) {
+        help();
         return -1;
     }
 
-    return reg_access_ioctl(device_filename, bar, offset, value, size, read, read_all);
 }

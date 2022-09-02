@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+#DEBHELPER#
+
+# for situations when /boot/System.map doesn't exist
+if [ "$1" = "configure" ]; then
+	if [ ! -e /boot/System.map-_KVERS_ -a $(uname -r) = "_KVERS_" ]; then
+		depmod -a || true
+	fi
+fi
+
+# allow this to fail (eg: in docker, or if the driver is currently in use)
+if [ "$(uname -r)" = "_KVERS_" ]; then
+    modprobe -r minion && modprobe minion || /usr/share/update-notifier/notify-reboot-required
+fi
