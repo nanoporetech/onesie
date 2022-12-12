@@ -168,14 +168,15 @@ struct minion_eeprom_transfer_s {
  * buffer_size   to_driver The size of the abave buffer
  * transfer_id   to_driver Used to identify the transfer when completed
  * signal_number to_driver This signal number will be sent to signal that
- *                         transfers have completed. If this value is 0 no
- *                         signal will be sent. Signals may be coalesced by
- *                         the OS.
- * pid           to_driver Must be the PID of the calling process or 0. If 0,
- *                         no signal will be sent, even if signal_number is set.
- *                         It is recommended to always set to the PID of the
- *                         calling process, as the behaviour when 0 may change
- *                         in future versions of the driver.
+ *                         transfers have completed. Should be SIGUSER1,
+ *                         SIGUSER2 or zero. If this value is zore no signal
+ *                         will be sent. Signals may be coalesced by the OS.
+ *
+ * pid           N/A       Ignored. Recommend setting to zero as will become
+ *                         should-be-zero in future.
+ *                         Formerly this specified the target of the above
+ *                         signal. Now all signals are sent to the process that
+ *                         made the IOCTL.
  */
 struct minion_data_transfer_s {
     __u64           buffer;

@@ -104,7 +104,7 @@ public:
         data_transfer.buffer_size = _size;
         data_transfer.transfer_id = _transfer_id;
         data_transfer.signal_number = SIGUSR1;
-        data_transfer.pid = getpid();
+        data_transfer.pid = 0;
         _deadline = std::chrono::steady_clock::now() + timeout;
 
         const auto rc = ioctl(fd, MINION_IOCTL_SUBMIT_TRANSFER, &data_transfer);
