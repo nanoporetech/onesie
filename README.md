@@ -168,7 +168,7 @@ Sequencing current-measurement data is produced by ADCs in the ASIC and communic
 
 The API for the transfer, as seen from the perspective of a user-space client is:
 
-1.  Submit one or multiple transfer(s) with buffer location, size, transfer-id, signal-number and process-id (to receive the signal)
+1.  Submit one or multiple transfer(s) with buffer location, size, transfer-id, signal-number.
 2.  (Optionally) Wait for a signal
 3.  Enquire as to what's completed
 
@@ -211,7 +211,7 @@ The last descriptor for a job is prepared with the Transfer Complete IRQ Enable 
 5.  release the pages so once again, they can be swapped out to disk if memory is low
 6.  free the list of pages that represent the buffer (not the pages themselves, just a list of them).
 7.  move the job from the `post_hardware` queue to the `transfers_done` list
-8.  if required, send the required signal to the nominated process.
+8.  if required, send the required signal to the process that made the MINION_IOCTL_SUBMIT_TRANSFER IOCTL.
 
 The user-space application (MinKNOW) sends the `MINION_IOCTL_WHATS_COMPLETED` ioctl to enquire which jobs are complete. The transfer id and status of the jobs in the `transfers_done` list are copied into the buffer for the ioctl and the job structure is destroyed.
 
