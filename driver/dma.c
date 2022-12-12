@@ -750,6 +750,15 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minion_data_transfer_
         return -EINVAL;
     }
 
+    // check signal is SIGUSER1, SIGUSER2 or zero
+    if (transfer->signal_number != SIGUSR1 &&
+        transfer->signal_number != SIGUSR2 &&
+        transfer->signal_number != 0)
+    {
+        printk(KERN_ERR"signal must be SIGUSER1, SIGUSER2 or zero\n");
+        return -EINVAL;
+    }
+
     // create job structure, freed in get_completed_data_transfers, or cancel_data_transfer
     job = alloc_transfer_job();
     if (!job) {
