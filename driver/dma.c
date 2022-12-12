@@ -741,12 +741,12 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minion_data_transfer_
     // check the buffer the user supplied has the correct alignment to avoid
     // cache-coherency issues
     if (transfer->buffer & (ARCH_DMA_MINALIGN-1)) {
-        printk(KERN_ERR"Start of DMA buffer not aligned on %d-byte boundary\n",ARCH_DMA_MINALIGN);
+        printk(KERN_DEBUG"Start of DMA buffer not aligned on %d-byte boundary\n",ARCH_DMA_MINALIGN);
         return -EINVAL;
     }
 
     if ((transfer->buffer + transfer->buffer_size) & (ARCH_DMA_MINALIGN-1)) {
-        printk(KERN_ERR"End of DMA buffer not aligned on %d-byte boundary\n",ARCH_DMA_MINALIGN);
+        printk(KERN_DEBUG"End of DMA buffer not aligned on %d-byte boundary\n",ARCH_DMA_MINALIGN);
         return -EINVAL;
     }
 
@@ -755,7 +755,7 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minion_data_transfer_
         transfer->signal_number != SIGUSR2 &&
         transfer->signal_number != 0)
     {
-        printk(KERN_ERR"signal must be SIGUSER1, SIGUSER2 or zero\n");
+        printk(KERN_DEBUG"signal must be SIGUSER1, SIGUSER2 or zero\n");
         return -EINVAL;
     }
 
@@ -768,16 +768,23 @@ long queue_data_transfer(struct altr_dma_dev* adma, struct minion_data_transfer_
     job->transfer_id = transfer->transfer_id;
     job->signal_number = transfer->signal_number;
     job->pid = find_get_pid(task_pid_nr(current));
+    if (!job->pid) {
+        printk(KERN_DEBUG"Unable to find process-id for current process");
+        rc = -ESRCH;
+        goto err_free_job;
+    }
     job->file = file;
 
     rc = setup_dma(adma, job, (char*)transfer->buffer, transfer->buffer_size);
     if (rc != 0) {
-        free_transfer_job(job);
-        return rc;
+        goto err_free_job;
     }
 
     submit_transfer_to_hw_or_queue(adma, job);
     return 0;
+err_free_job:
+    free_transfer_job(job);
+    return rc;
 }
 
 /**
