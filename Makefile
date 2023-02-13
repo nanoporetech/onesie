@@ -121,6 +121,8 @@ dist-deb:
 	# generate .deb filse for the rest
 	fakeroot dh_strip
 	fakeroot dh_dkms -p $(PACKAGE_BASE_NAME)-dkms
+	fakeroot dh_makeshlibs
+	fakeroot dh_shlibdeps
 	fakeroot dh_installdeb
 	fakeroot dh_gencontrol
 	fakeroot dh_md5sums
