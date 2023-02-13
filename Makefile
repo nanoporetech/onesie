@@ -69,16 +69,18 @@ clean:
 	$(RM) $(PACKAGE_BASE_NAME)_*.dsc
 	$(RM) $(PACKAGE_BASE_NAME)_*.tar.gz
 
+.PHONY: dist-deb
+.ONESHELL: # The rules execute in a single shell (as opposed to one shell per line.)
 dist-deb:
 	# assmeble all the files under package
 	rm -rf package
 	mkdir -p package/debian
 	# make the .deb control file and change kernel verison number
 	cp debian/control package/debian/control
-	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then\
-		sed -e "s/_KVERS_/$(KVERS)/g;s/_VERSION_/$(VERSION)/g;s/_FIRMWARE-VERSION_/$(FIRMWARE_VERSION)/g" debian/control.modules.in >> package/debian/control;\
-		sed -e "s/_KVERS_/$(KVERS)/g" debian/postinst.modules.in > package/debian/ont-minion1c-driver-$(KVERS).postinst;\
-		sed -e "s/_KVERS_/$(KVERS)/g" debian/postrm.modules.in > package/debian/ont-minion1c-driver-$(KVERS).postrm;\
+	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then
+		sed -e "s/_KVERS_/$(KVERS)/g;s/_VERSION_/$(VERSION)/g;s/_FIRMWARE-VERSION_/$(FIRMWARE_VERSION)/g" debian/control.modules.in >> package/debian/control
+		sed -e "s/_KVERS_/$(KVERS)/g" debian/postinst.modules.in > package/debian/ont-minion1c-driver-$(KVERS).postinst
+		sed -e "s/_KVERS_/$(KVERS)/g" debian/postrm.modules.in > package/debian/ont-minion1c-driver-$(KVERS).postrm
 	fi
 	sed -i -e "s/_ARCH_/$(DEB_ARCH)/g;s/_VERSION_/$(VERSION)/g;s/_FIRMWARE-VERSION_/$(FIRMWARE_VERSION)/g" package/debian/control
 	# debhelper version-9, changelog is just version number
@@ -94,12 +96,14 @@ dist-deb:
 	$(RM) -r $(PACKAGE_BASE_NAME)-$(VERSION)
 
 	# cleanup
-	cd package && fakeroot dh_prep
+	(cd package && fakeroot dh_prep)
 	# add utils
 	$(MAKE) -C utils DESTDIR=$(PWD)/package/debian/ont-minion1c-driver-utils install
 
 	# if this is a binary then make and add driver object file.
-	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then $(MAKE) -C driver DESTDIR=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-$(KVERS) PREFIX=/usr install-modules; fi
+	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then
+		$(MAKE) -C driver DESTDIR=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-$(KVERS) PREFIX=/usr install-modules
+	fi
 	# add driver-includes, add source files for DKMS
 	$(MAKE) -C driver DESTDIR=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-dev PREFIX=/usr install-dev
 	$(MAKE) -C driver distdir=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-dkms/usr/src/$(PACKAGE_BASE_NAME)-$(VERSION) dist
@@ -107,15 +111,20 @@ dist-deb:
 	$(MAKE) -C utils DESTDIR=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-utils PREFIX=/usr install
 	# change the DKMS version to match the driver
 	sed -e "s/_VERSION_/$(VERSION)/g" debian/dkms.conf.in > package/debian/$(PACKAGE_BASE_NAME)-dkms.dkms
+
+	cd package
 	# generate .deb files to install binary driver
-	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then cd package && fakeroot dh_installmodules; fi
+	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then
+		fakeroot dh_installmodules
+	fi
 	# generate .deb filse for the rest
-	cd package && fakeroot dh_strip
-	cd package && fakeroot dh_dkms -p $(PACKAGE_BASE_NAME)-dkms
-	cd package && fakeroot dh_installdeb
-	cd package && fakeroot dh_gencontrol
-	cd package && fakeroot dh_md5sums
-	cd package && fakeroot dh_builddeb
+	fakeroot dh_strip
+	fakeroot dh_dkms -p $(PACKAGE_BASE_NAME)-dkms
+	fakeroot dh_installdeb
+	fakeroot dh_gencontrol
+	fakeroot dh_md5sums
+	fakeroot dh_builddeb
+	cd ..
 	$(RM) -r package
 
 .PHONY: all install driver utils clean
