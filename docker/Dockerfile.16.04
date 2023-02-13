@@ -7,7 +7,8 @@ RUN apt-get update && apt-get -y upgrade && apt-get -y install \
     dkms \
     fakeroot \
     git \
-    lintian
+    lintian \
+    pandoc
 
 ARG BUILD_TAG=minion1c_v1.1.0
 
