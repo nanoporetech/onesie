@@ -57,6 +57,8 @@ build-u18.04-k4.9.140:
     - linux_aarch64
   script:
     - make dist-deb
+    # We install the utilities into /opt/ont
+    - lintian --display-info --dont-check-part "files/hierarchy-standard" *.deb
   artifacts:
     paths:
       - "*.deb"
