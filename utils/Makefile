@@ -31,12 +31,12 @@ $(UTILS): %: %.cpp $(IOCTL)
 %.1: %.md
 	sed -e "s/@VERSION@/$(VERSION)/g" $< | pandoc --standalone --to man --output $@
 
-# Compress the man pages
+# Compress the man pages --no-name needed to not save the timestamp
 $(MANUALS): %.1.gz: %.1
-	# --no-name needed to not save the timestamp
+	rm -f $@
 	gzip --best --no-name --keep $<
 
 clean:
-	rm -f $(UTILS) $(MANUALS)
+	rm -f $(UTILS) $(MANUALS) $(MANUALS:.1.gz=.1)
 	
 PHONY: all install clean uninstall

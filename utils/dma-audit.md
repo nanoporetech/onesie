@@ -8,7 +8,7 @@ NAME
 SYNOPSIS
 ========
 
-| **dma-audit** \[**OPTIONS**\]
+| **dma-audit** \[_OPTIONS_\]
 
 DESCRIPTION
 ===========
@@ -27,15 +27,15 @@ operating correctly.
 OPTIONS
 =======
 
--x, --hex
+-x, \-\-hex
 
 :   Accept input in comma separated hexadecimal format.
 
--o, --otp
+-o, \-\-otp
 
 :   Only decode the OTP part of the shift register.
 
--n, --not-input-select
+-n, \-\-not-input-select
 
 :   Do not decode the input select for the channels.
 
@@ -47,7 +47,7 @@ $ dma-audit < captured-data
 
 :   Audit a file containing previously captured data.
 
-$ minion-dma /dev/flowcell0 -s 84480 -r --stream | dma-audit
+$ minion-dma /dev/flowcell0 -s 84480 -r \-\-stream | dma-audit
 
 :   Audit data as it is being acquired from the hardware.
 

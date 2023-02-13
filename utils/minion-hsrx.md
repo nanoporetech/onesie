@@ -8,7 +8,7 @@ NAME
 SYNOPSIS
 ========
 
-| **minion-hsrx** \[**OPTIONS**\] **DEVICE**
+| **minion-hsrx** \[_OPTIONS_\] _DEVICE_
 
 DESCRIPTION
 ===========
@@ -21,30 +21,30 @@ to read) or optionally as hexadecimal.
 OPTIONS
 =======
 
--e, --enable
+-e, \-\-enable
 
 :   Set the enable-bit in hs-rx word-0.
 
--r, --sync-reset
+-r, \-\-sync-reset
 
 :   Set the reset-bit in hs-rx word-0.
 
--x, --hex
+-x, \-\-hex
 
 :   Output registers read as hexadecimal rather than a byte-stream.
 
--f, --frames <no-frames>
+-f, \-\-frames <no-frames>
 
 :   Set the number of frames of data between "End-of-Packet" signals.
 
--h, --human
+-h, \-\-human
 
 :   Output the registers in (vaguely) human-readable format.
 
 EXAMPLES
 ========
 
-minon-hsrx -h /dev/flowcell0
+$ minon-hsrx -h /dev/flowcell0
 
 :   Show the current state of the HSRX core registers.
 
