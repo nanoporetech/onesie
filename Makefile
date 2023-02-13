@@ -40,6 +40,8 @@ FIRMWARE_VERSION := 2.4.1
 # Each time the driver changes, ie whenever VERSION is different, this should be set back to 1
 DEBIAN_REVISION := 1
 
+export
+
 all: utils driver test
 
 driver:
