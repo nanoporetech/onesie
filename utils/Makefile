@@ -7,7 +7,7 @@ RM := rm -f
 UTILS := minion-reg minion-hsrx minion-shift minion-eeprom minion-temp minion-dma dma-audit shift-decode
 
 #MANUALS := $(UTILS:=.1.gz)
-MANUALS := dma-audit.1.gz
+MANUALS := dma-audit.1.gz minion-dma.1.gz
 
 IOCTL := ../driver/minion_ioctl.h
 
@@ -28,10 +28,11 @@ uninstall:
 $(UTILS): %: %.cpp $(IOCTL)
 	g++ $(CXXFLAGS) -o $@ $@.cpp
 
+# Fix-up the version then convert from markdown to man page format
 %.1: %.md
-	# Fix-up the version then convert from markdown to man format
 	sed -e "s/@VERSION@/$(VERSION)/g" $< | pandoc --standalone --to man --output $@
 
+# Compress the man pages
 $(MANUALS): %.1.gz: %.1
 	# --no-name needed to not save the timestamp
 	gzip --best --no-name --keep $<
