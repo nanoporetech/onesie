@@ -72,6 +72,7 @@ clean:
 .PHONY: dist-deb
 .ONESHELL: # The rules execute in a single shell (as opposed to one shell per line.)
 dist-deb:
+	set -e
 	# assmeble all the files under package
 	rm -rf package
 	mkdir -p package/debian

@@ -6,8 +6,7 @@ RM := rm -f
 # list of all the programs to build
 UTILS := minion-reg minion-hsrx minion-shift minion-eeprom minion-temp minion-dma dma-audit shift-decode
 
-#MANUALS := $(UTILS:=.1.gz)
-MANUALS := dma-audit.1.gz minion-dma.1.gz
+MANUALS := $(UTILS:=.1.gz)
 
 IOCTL := ../driver/minion_ioctl.h
 
