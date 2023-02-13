@@ -84,22 +84,25 @@ dist-deb:
 		sed -e "s/_KVERS_/$(KVERS)/g" debian/postrm.modules.in > package/debian/ont-minion1c-driver-$(KVERS).postrm
 	fi
 	sed -i -e "s/_ARCH_/$(DEB_ARCH)/g;s/_VERSION_/$(VERSION)/g;s/_FIRMWARE-VERSION_/$(FIRMWARE_VERSION)/g" package/debian/control
-	# debhelper version-9, changelog is just version number
+	# debhelper version-9
 	echo 9 > package/debian/compat
 	echo "VERSION_SUFFIX=$(VERSION_SUFFIX)"
-	echo "$(PACKAGE_BASE_NAME) ($(VERSION)-$(DEBIAN_REVISION)$(VERSION_SUFFIX)) unstable; urgency=low" > package/debian/changelog
+
+	# Create a changelog is just version number
+	cp debian/changelog package/debian/changelog
+	sed -e "s/@NAME@/$(PACKAGE_BASE_NAME)/g" -i package/debian/changelog
+	sed -e "s/@VERSION@/$(VERSION)-$(DEBIAN_REVISION)$(VERSION_SUFFIX)/g" -i package/debian/changelog
+	sed -e "s/@DATE@/$$(date -R)/g" -i package/debian/changelog
 
 	# copy the source and packaging information, make the source package
 	mkdir $(PACKAGE_BASE_NAME)-$(VERSION)
 	cp -r package/debian $(PACKAGE_BASE_NAME)-$(VERSION)
 	cp -r driver utils Makefile $(PACKAGE_BASE_NAME)-$(VERSION)
-	dpkg-source -b $(PACKAGE_BASE_NAME)-$(VERSION)
+	dpkg-source --build $(PACKAGE_BASE_NAME)-$(VERSION)
 	$(RM) -r $(PACKAGE_BASE_NAME)-$(VERSION)
 
 	# cleanup
 	(cd package && fakeroot dh_prep)
-	# add utils
-	$(MAKE) -C utils DESTDIR=$(PWD)/package/debian/ont-minion1c-driver-utils install
 
 	# if this is a binary then make and add driver object file.
 	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then
@@ -118,13 +121,15 @@ dist-deb:
 	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then
 		fakeroot dh_installmodules
 	fi
-	# generate .deb filse for the rest
-	fakeroot dh_strip
+	# generate .deb files for the rest
+	fakeroot dh_strip --no-automatic-dbgsym
+	fakeroot dh_installchangelogs
 	fakeroot dh_dkms -p $(PACKAGE_BASE_NAME)-dkms
 	fakeroot dh_makeshlibs
 	fakeroot dh_shlibdeps
 	fakeroot dh_installdeb
 	fakeroot dh_gencontrol
+	fakeroot dh_compress
 	fakeroot dh_md5sums
 	fakeroot dh_builddeb
 	cd ..
