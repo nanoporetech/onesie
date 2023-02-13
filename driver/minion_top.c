@@ -2049,7 +2049,7 @@ static void __exit minion_exit(void)
 module_init(minion_init);
 module_exit(minion_exit);
 
-MODULE_AUTHOR("Oxford Nanopore Technologies Ltd <info@nanoporetech.com>");
+MODULE_AUTHOR("Oxford Nanopore Technologies PLC <info@nanoporetech.com>");
 MODULE_DESCRIPTION("MinION-mk1C PCIe Driver");
 MODULE_VERSION(ONT_DRIVER_VERSION);
 
