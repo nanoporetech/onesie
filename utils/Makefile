@@ -7,7 +7,7 @@ UTILS := minion-reg minion-hsrx minion-shift minion-eeprom minion-temp minion-dm
 
 IOCTL := ../driver/minion_ioctl.h
 
-CXXFLAGS += -std=c++14 -I ../driver -pthread -Wl,--no-as-needed
+CXXFLAGS += -std=c++14 -O2 -I ../driver -pthread -Wl,--no-as-needed -D_FORTIFY_SOURCE=2
 
 all: $(UTILS)
 

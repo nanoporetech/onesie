@@ -108,9 +108,11 @@ dist-deb:
 	# generate .deb files to install binary driver
 	if [ $(COMPILED_DRIVER_PACKAGE) -eq 1 ]; then cd package && fakeroot dh_installmodules; fi
 	# generate .deb filse for the rest
+	cd package && fakeroot dh_strip
 	cd package && fakeroot dh_dkms -p $(PACKAGE_BASE_NAME)-dkms
 	cd package && fakeroot dh_installdeb
 	cd package && fakeroot dh_gencontrol
+	cd package && fakeroot dh_md5sums
 	cd package && fakeroot dh_builddeb
 	$(RM) -r package
 
