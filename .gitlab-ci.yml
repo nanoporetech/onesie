@@ -30,7 +30,7 @@ docker-u18.04-k4.9.140:
   variables:
     DOCKER_FILE: "./docker/Dockerfile.headers"
     BUILD_ARG_UBUNTU_VERSION: "18.04"
-    BUILD_ARG_HEADERS_PACKAGE_URL: "https://artifactory.oxfordnanolabs.local/artifactory/ONTDev-Deb/pool/linux-headers-4.9.140-minit_32.4.3-v0.1.1-13-gd69749d_arm64.deb"
+    BUILD_ARG_HEADERS_PACKAGE_URL: "https://artifactory.oxfordnanolabs.local/artifactory/ONT-Deb/pool/linux-headers-4.9.140-minit_32.4.3-v1.0.3_arm64.deb"
 
 docker-u18.04:
   extends: .docker
