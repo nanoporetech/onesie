@@ -88,8 +88,8 @@ dist-deb:
 	echo 9 > package/debian/compat
 	echo "VERSION_SUFFIX=$(VERSION_SUFFIX)"
 
-	# Create a changelog is just version number
-	cp debian/changelog package/debian/changelog
+	# Create a changelog. (Specialise the template.)
+	cp debian/changelog.template package/debian/changelog
 	sed -e "s/@NAME@/$(PACKAGE_BASE_NAME)/g" -i package/debian/changelog
 	sed -e "s/@VERSION@/$(VERSION)-$(DEBIAN_REVISION)$(VERSION_SUFFIX)/g" -i package/debian/changelog
 	sed -e "s/@DATE@/$$(date -R)/g" -i package/debian/changelog

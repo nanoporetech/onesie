@@ -229,6 +229,8 @@ The utils director contains a number of tools for debugging the driver and firmw
 *  dma-audit        - check the format of the acquired data
 *  shift-decode     - decode the bits in the shift-register to human-readable form
 
+Manual pages have been written for these tools. Them manual pages are written in markdown, then converted to manual page format (roff) using pandoc.
+
 ### minion-reg
 
 `minion-reg` performs read and write accesses to registers in the firmware via an ioctl. It provides an option to read all the registers in a BAR.
@@ -412,5 +414,7 @@ Three (or four) Debian packages are produces by the Makefile:
 | ont-minion1c-driver-dkms_0.0.1-1~xenial_all.deb | Sources and rules for building the driver under the DKMS system. **Due to the lack of suitable packages and tools for the MinIT/MinION-mk1C Kernel it is not recommended to distribute this package.** |
 
 These are built by the Makefile when run with the target `dist-deb`. The binary driver package is only produced when setting the environment variable `COMPILED_DRIVER_PACKAGE=1`.
+
+After the Debian files are produced, they are checked for conformance with Debian distribution guidelines by Lintian.
 
 The GitLab CI system is set-up to produce these packages in a build artefact.
