@@ -11,7 +11,7 @@ MANUALS := $(UTILS:=.1.gz)
 
 IOCTL := ../driver/minion_ioctl.h
 
-CXXFLAGS += -std=c++14 -O2 -I ../driver -pthread -Wl,--no-as-needed -D_FORTIFY_SOURCE=2
+CXXFLAGS += -std=c++14 -O2 -I ../driver -pthread -Wl,--no-as-needed -D_FORTIFY_SOURCE=2 -pie -Wl,-z,now
 
 all: $(UTILS) $(MANUALS)
 
