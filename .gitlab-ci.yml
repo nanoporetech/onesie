@@ -56,6 +56,12 @@ build-u18.04-k4.9.140:
   tags:
     - linux_aarch64
   script:
+    - |
+      if ! command -v pandoc > /dev/null || ! command -v lintian > /dev/null
+      then
+        apt -q update
+        apt -q -y install lintian pandoc
+      fi
     - make dist-deb
     # Don't fail whilst waiting for copyright file (CORE-4911)
     - lintian --display-info *.deb || true
