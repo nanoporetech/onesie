@@ -48,6 +48,7 @@ Architecture: all
 # provide an equivalent file, so once that version is everywhere, we can drop this
 Depends: ${misc:Depends}, build-essential, dkms, ont-minion1c-fpga (>= _FIRMWARE-VERSION_), ont-minion1c-driver-udev (>= 0.5.3)
 Provides: ont-minion1c-driver-module (= _VERSION_)
+Conflicts: ont-minion1c-driver-module
 Description: MinION-mk1C hardware device-driver kernel module (DKMS)
  This provides the source code for the MinION-mk1C acquisition-hardware
  device-driver kernel module packaged in a way that allows them to be with DKMS.

@@ -7,6 +7,7 @@ Architecture: _ARCH_
 Depends: ${misc:Depends}, ont-minion1c-fpga (>= _FIRMWARE-VERSION_), update-notifier-common, kmod, ont-minion1c-driver-udev (>= 0.5.3)
 Recommends: linux-modules-_KVERS_ | linux-image-_KVERS_
 Provides: ont-minion1c-driver-module (= _VERSION_)
+Conflicts: ont-minion1c-driver-module
 Description: MinION-mk1C sequencing-hardware device-driver
  This package contains the MinION-mk1C acquisition-hardware loadable
  kernel module for the linux-images-_KVERS_ package. This package
