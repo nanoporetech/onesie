@@ -1,6 +1,7 @@
 # unless told otherwise, files will be installed in this directory
 PREFIX ?= /opt/ONT/minion1c-driver-utils
 DOC_PREFIX ?= /usr/share/man/man1
+VERSION ?= "Unknown"
 RM := rm -f
 
 # list of all the programs to build

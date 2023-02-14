@@ -40,8 +40,6 @@ FIRMWARE_VERSION := 2.4.1
 # Each time the driver changes, ie whenever VERSION is different, this should be set back to 1
 DEBIAN_REVISION := 1
 
-export
-
 all: utils driver test
 
 driver:
@@ -112,7 +110,7 @@ dist-deb:
 	$(MAKE) -C driver DESTDIR=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-dev PREFIX=/usr install-dev
 	$(MAKE) -C driver distdir=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-dkms/usr/src/$(PACKAGE_BASE_NAME)-$(VERSION) dist
 	$(MAKE) -C udev DESTDIR=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-udev install
-	$(MAKE) -C utils DESTDIR=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-utils PREFIX=/usr install
+	$(MAKE) -C utils VERSION=$(VERSION) DESTDIR=$(PWD)/package/debian/$(PACKAGE_BASE_NAME)-utils PREFIX=/usr install
 	# change the DKMS version to match the driver
 	sed -e "s/_VERSION_/$(VERSION)/g" debian/dkms.conf.in > package/debian/$(PACKAGE_BASE_NAME)-dkms.dkms
 
