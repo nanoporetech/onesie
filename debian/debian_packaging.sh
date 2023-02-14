@@ -1,5 +1,5 @@
 #! /bin/bash -e
-set -x
+
 function make_lintian_override_if_needed() {
     local package_name="$1"
 
@@ -9,7 +9,6 @@ function make_lintian_override_if_needed() {
     # specified with a greater-than or less-than.
     if dpkg --compare-versions "$(lintian --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+.*$')" "gt" "2.5.43"
     then
-        lintian --version
         return
     fi
 
