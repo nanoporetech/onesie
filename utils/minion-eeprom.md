@@ -24,22 +24,22 @@ recommended to pipe the data into a hex-viewer such as hexdump or xxd.
 OPTIONS
 =======
 
--r, \-\-read 
+-r, \-\-read
 
 :   Read from EEPROM to standard output.
 
--w, \-\-write 
+-w, \-\-write
 
 :   Write data from standard input to EEPROM.
 
--s, \-\-start <offset bytes>
+-s, \-\-start _start-address_
 
-:   Start address in decimal or hex if starting with 0x. Defaults to 0.
+:   _Start-address_ in decimal or hex if starting with 0x. Defaults to 0.
 
--l, \-\-length <size bytes>
+-l, \-\-length <length>
 
-:   Length of transfer in decimal or hex if starting with 0x. Defaults to the
-maximum possible lengthe given the size of the EEPROM and the start offset.
+:   _Length_ of transfer in decimal or hex if starting with 0x. Defaults to the
+maximum possible length given the size of the EEPROM and the _start-address_.
 
 EXAMPLES
 ========

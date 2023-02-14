@@ -17,9 +17,8 @@ function make_lintian_override_if_needed() {
 }
 
 # expect to be run from the base directory
-echo "$0"
 if [ "$0" != "debian/debian_packaging.sh" ]; then
-    echo "expect to be run from the base directory of the onsie project"
+    echo "expect to be run from the base directory of the onesie project"
     exit 1
 fi
 
@@ -30,7 +29,7 @@ while [ -n "$1" ] ;do
         VERSION="$2"
         shift 2
         ;;
-    "--debian_revision")
+    "--debian-revision")
         DEBIAN_REVISION="$2"
         shift 2
         ;;
@@ -64,11 +63,11 @@ while [ -n "$1" ] ;do
     esac
 done
 
-# assmeble all the files under package
+# assemble all the files under the directory "package/"
 rm -rf package
 mkdir -p package/debian
 
-# make the .deb control file and change kernel verison number
+# make the .deb control file and change kernel version number
 cp debian/control package/debian/control
 if [ -n "${COMPILED_DRIVER_PACKAGE}" ]; then
     sed -e "s/_KVERS_/${KVERS}/g;s/_VERSION_/${VERSION}/g;s/_FIRMWARE-VERSION_/${FIRMWARE_VERSION}/g" debian/control.modules.in >> package/debian/control

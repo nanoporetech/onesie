@@ -13,8 +13,8 @@ Recommends: ont-minion1c-driver-dkms | ont-minion1c-driver-module
 Breaks: ont-minion1c-driver-module (<< 0.5.3)
 # for file overwriting to work properly, we need to use real package names
 Replaces: ont-minion1c-driver-4.4.38-minit (<< 0.5.3), ont-minion1c-driver-4.4.197-minit (<< 0.5.3), ont-minion1c-driver-dkms (<< 0.5.3)
-Description: udev rules for MinION-mk1C acquisition hardware
- These rules direct the udev system to create a ont-minion1c device node and a
+Description: udev rules for MinION mk1C acquisition hardware
+ These rules direct the udev system to create an ont-minion1c device node and a
  softlink with a more descriptive name when the device-driver detects suitable
  hardware.
 
@@ -24,8 +24,8 @@ Architecture: _ARCH_
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Recommends: ont-minion1c-driver-dkms, ont-minion1c-driver-udev
 Suggests: ont-minion1c-driver-dkms, ont-minion1c-driver-udev
-Description: MinION-mk1C acquisition hardware device-driver debug utilities
- Utilities for interacting with the MinION-mk1C firmware and hardware at a
+Description: MinION mk1C acquisition hardware device-driver debug utilities
+ Utilities for interacting with the MinION mk1C firmware and hardware at a
  lower level than is possible working through MinKNOW. You do not need to
  install this package unless you are developing device-drivers or firmware for
  the MinION mk1C.
@@ -35,9 +35,9 @@ Section: kernel
 Architecture: all
 Depends: ${misc:Depends}
 Recommends: ont-minion1c-driver-dkms
-Description: Headers for the MinION-mk1C acquisition-hardware device-driver module
+Description: Headers for the MinION mk1C acquisition-hardware device-driver module
  Contains C/C++ header files needed to develop software that communicates with
- the MinION-mk1C acquisition-hardware device-driver kernel module. You only need
+ the MinION mk1C acquisition-hardware device-driver kernel module. You only need
  to install this package if you are developing software that talks to the device
  driver directly. You do not need to install it just to use MinKNOW.
 
@@ -49,9 +49,10 @@ Architecture: all
 Depends: ${misc:Depends}, build-essential, dkms, ont-minion1c-fpga (>= _FIRMWARE-VERSION_), ont-minion1c-driver-udev (>= 0.5.3)
 Provides: ont-minion1c-driver-module (= _VERSION_)
 Conflicts: ont-minion1c-driver-module
-Description: MinION-mk1C hardware device-driver kernel module (DKMS)
- This provides the source code for the MinION-mk1C acquisition-hardware
+Description: MinION mk1C hardware device-driver kernel module (DKMS)
+ This provides the source code for the MinION mk1C acquisition-hardware
  device-driver kernel module packaged in a way that allows them to be with DKMS.
- Binary device-driver packages are preferred for reasons, but DKMS packages
- provide a way to used the module when a binary package isn't available.
+ Binary device-driver packages are preferred for due to how the MinION Mk1C
+ kernel is built, but DKMS packages provide a way to used the module when a
+ binary package isn't available.
 

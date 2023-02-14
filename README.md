@@ -1,4 +1,4 @@
-# MinION-mk1C Linux device-driver
+# MinION mk1C Linux device-driver
 
 This project contains a Linux device-driver for the FPGA firmware that enables interaction with a
 MinION flowcell over a PCIe link.
@@ -411,7 +411,7 @@ Three (or four) Debian packages are produces by the Makefile:
 | ont-minion1c-driver-4.4.38-minit_0.0.1-1~xenial_amd64.deb | Binary package containing the driver and rules for creating device nodes. |
 | ont-minion1c-driver-utils_0.0.1-1~xenial_amd64.deb | Binaries for the executables described in the Tools section above. **This package will not be produced correctly when cross-compiling.** |
 | ont-minion1c-driver-dev_0.0.1-1~xenial_all.deb | Sources for driver development. |
-| ont-minion1c-driver-dkms_0.0.1-1~xenial_all.deb | Sources and rules for building the driver under the DKMS system. **Due to the lack of suitable packages and tools for the MinIT/MinION-mk1C Kernel it is not recommended to distribute this package.** |
+| ont-minion1c-driver-dkms_0.0.1-1~xenial_all.deb | Sources and rules for building the driver under the DKMS system. **Due to the lack of suitable packages and tools for the MinIT/MinION mk1C Kernel it is not recommended to distribute this package.** |
 
 These are built by the Makefile when run with the target `dist-deb`. The binary driver package is only produced when setting the environment variable `COMPILED_DRIVER_PACKAGE=1`.
 

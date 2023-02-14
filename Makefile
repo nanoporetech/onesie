@@ -70,7 +70,7 @@ clean:
 dist-deb:
 	debian/debian_packaging.sh \
 		--version $(VERSION)\
-		--debian_revision $(DEBIAN_REVISION)\
+		--debian-revision $(DEBIAN_REVISION)\
 		--version-suffix $(VERSION_SUFFIX)\
 		--kernel $(KVERS)\
 		--firmware $(FIRMWARE_VERSION)\

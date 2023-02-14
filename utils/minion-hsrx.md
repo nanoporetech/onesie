@@ -3,7 +3,7 @@
 NAME
 ====
 
-**minion-hsrx** - Read/Write registers in MinION-mk1C 
+**minion-hsrx** - Read/Write registers in MinION mk1C
 
 SYNOPSIS
 ========
@@ -33,9 +33,9 @@ OPTIONS
 
 :   Output registers read as hexadecimal rather than a byte-stream.
 
--f, \-\-frames <no-frames>
+-f, \-\-frames _number_
 
-:   Set the number of frames of data between "End-of-Packet" signals.
+:   Set the _number_ of frames of data between "End-of-Packet" signals.
 
 -h, \-\-human
 

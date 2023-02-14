@@ -3,7 +3,7 @@
 NAME
 ====
 
-**minion-dma** - Exercise MinION-mk1C device-driver data acquisition
+**minion-dma** - Exercise MinION mk1C device-driver data acquisition
 
 SYNOPSIS
 ========
@@ -41,21 +41,21 @@ other tool such as **hexdump**
 OPTIONS
 =======
 
--s, \-\-size <size>
+-s, \-\-size _size_
 
-:   Size of each transfer, defaults to 514*2-bytes.
+:   _Size_ of each transfer, defaults to 514*2-bytes.
 
--n, \-\-no-transfers <no transfers>
+-n, \-\-no-transfers _transfers_
 
-:   Number of transfers, (default 1)
+:   Number of _transfers_, (default 1)
 
 \-\-stream
 
 :   Transfer data repeatedly until further notice. If this is set \-\-no-transfers will be ignored.
 
--q, \-\-max-queue <max queue-size>
+-q, \-\-max-queue _maximum_
 
-:   Maximum number of transfers to queue at once (default 8)
+:   _Maximum_ number of transfers to queue at once (default 8)
 
 -p, \-\-poll
 

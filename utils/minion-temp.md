@@ -1,4 +1,4 @@
-% MINION-TEMP(1) Version @VERSION@ | MinION-mk1C Temperature Control
+% MINION-TEMP(1) Version @VERSION@ | MinION mk1C Temperature Control
 
 NAME
 ====
