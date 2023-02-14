@@ -7,7 +7,7 @@ function make_lintian_override_if_needed() {
     # packages specified with a version number. This is thought to be a bug in
     # Lintian, later version of Lintian only complain if the version is
     # specified with a greater-than or less-than.
-    if dpkg --compare-versions "$(lintian --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+.*$')" "gt" "2.5.43"
+    if dpkg --compare-versions "$(lintian --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+.*$')" "gt" "2.6.0"
     then
         return
     fi
