@@ -1,11 +1,11 @@
-# MinION-mk1C Linux device-driver
+# MinION Mk1C Linux device-driver
 
 This project contains a Linux device-driver for the FPGA firmware that enables interaction with a
 MinION flowcell over a PCIe link.
 
 ## Getting Started
 
-Building is more complicated than `make all` due to the need to access the MinIT kernel include files, these are not installed in the MinIT/MinION-1C by default and there are no packages available for them. There are instructions for building in Docker [here](https://wiki.oxfordnanolabs.local/pages/viewpage.action?pageId=138836195#You'veBeenGivenaMinION-mk1CandYouWantTo...-...BuildtheDriverinDocker)
+Building is more complicated than `make all` due to the need to access the MinIT kernel include files, these are not installed in the MinIT/MinION-1C by default and there are no packages available for them. There are instructions for building in Docker [here](https://wiki.oxfordnanolabs.local/pages/viewpage.action?pageId=138836195#You'veBeenGivenaMinION-Mk1CandYouWantTo...-...BuildtheDriverinDocker)
 
 ### Build Driver
 
@@ -229,6 +229,8 @@ The utils director contains a number of tools for debugging the driver and firmw
 *  dma-audit        - check the format of the acquired data
 *  shift-decode     - decode the bits in the shift-register to human-readable form
 
+Manual pages have been written for these tools. Them manual pages are written in markdown, then converted to manual page format (roff) using pandoc.
+
 ### minion-reg
 
 `minion-reg` performs read and write accesses to registers in the firmware via an ioctl. It provides an option to read all the registers in a BAR.
@@ -409,8 +411,10 @@ Three (or four) Debian packages are produces by the Makefile:
 | ont-minion1c-driver-4.4.38-minit_0.0.1-1~xenial_amd64.deb | Binary package containing the driver and rules for creating device nodes. |
 | ont-minion1c-driver-utils_0.0.1-1~xenial_amd64.deb | Binaries for the executables described in the Tools section above. **This package will not be produced correctly when cross-compiling.** |
 | ont-minion1c-driver-dev_0.0.1-1~xenial_all.deb | Sources for driver development. |
-| ont-minion1c-driver-dkms_0.0.1-1~xenial_all.deb | Sources and rules for building the driver under the DKMS system. **Due to the lack of suitable packages and tools for the MinIT/MinION-mk1C Kernel it is not recommended to distribute this package.** |
+| ont-minion1c-driver-dkms_0.0.1-1~xenial_all.deb | Sources and rules for building the driver under the DKMS system. **Due to the lack of suitable packages and tools for the MinIT/MinION Mk1C Kernel it is not recommended to distribute this package.** |
 
 These are built by the Makefile when run with the target `dist-deb`. The binary driver package is only produced when setting the environment variable `COMPILED_DRIVER_PACKAGE=1`.
+
+After the Debian files are produced, they are checked for conformance with Debian distribution guidelines by Lintian.
 
 The GitLab CI system is set-up to produce these packages in a build artefact.

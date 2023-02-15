@@ -6,7 +6,9 @@ RUN apt-get update && apt-get -y upgrade && apt-get -y install \
     debhelper \
     dkms \
     fakeroot \
-    git
+    git \
+    lintian \
+    pandoc
 
 ARG BUILD_TAG=minion1c_v1.1.0
 

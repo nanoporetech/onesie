@@ -57,7 +57,7 @@ endif
 
 clean:
 	$(MAKE) -C $(KERNELDIR)/build M=$(PWD) clean
-	rm -f *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions *.symvers *.order
+	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions *.symvers *.order
 
 dist:
 	install -d $(distdir)
