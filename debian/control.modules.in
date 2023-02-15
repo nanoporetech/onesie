@@ -8,7 +8,7 @@ Depends: ${misc:Depends}, ont-minion1c-fpga (>= _FIRMWARE-VERSION_), update-noti
 Recommends: linux-modules-_KVERS_ | linux-image-_KVERS_
 Provides: ont-minion1c-driver-module (= _VERSION_)
 Conflicts: ont-minion1c-driver-module
-Description: MinION-mk1C sequencing-hardware device-driver
- This package contains the MinION-mk1C acquisition-hardware loadable
+Description: MinION-Mk1C sequencing-hardware device-driver
+ This package contains the MinION Mk1C acquisition-hardware loadable
  kernel module for the linux-images-_KVERS_ package. This package
- is needed for the MinION mk1C to control the sequencing hardware.
+ is needed for the MinION Mk1C to control the sequencing hardware.

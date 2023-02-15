@@ -3,7 +3,7 @@
 NAME
 ====
 
-**minion-dma** - Exercise MinION mk1C device-driver data acquisition
+**minion-dma** - Exercise MinION Mk1C device-driver data acquisition
 
 SYNOPSIS
 ========

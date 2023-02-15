@@ -3,7 +3,7 @@
 NAME
 ====
 
-**minion-reg** - Read and write registers in the MinION mk1C firmware.
+**minion-reg** - Read and write registers in the MinION Mk1C firmware.
 
 SYNOPSIS
 ========
@@ -16,7 +16,7 @@ SYNOPSIS
 DESCRIPTION
 ===========
 
-Read and write registers in the MinION mk1C firmware. Register accesses are
+Read and write registers in the MinION Mk1C firmware. Register accesses are
 done through IOCTLs to _DEVICE_. There are 2 _BAR_s (PCI Basic Address
 Register groups), 0 and 2. If no _OFFSET_ is specified, then **minion-reg** will
 read all the registers in the BAR. _OFFSET_ is in bytes and can be specified in

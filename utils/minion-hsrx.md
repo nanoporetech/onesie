@@ -3,7 +3,7 @@
 NAME
 ====
 
-**minion-hsrx** - Read/Write registers in MinION mk1C
+**minion-hsrx** - Read/Write registers in MinION Mk1C
 
 SYNOPSIS
 ========

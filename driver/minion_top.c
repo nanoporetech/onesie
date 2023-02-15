@@ -891,7 +891,7 @@ static void get_fw_info(struct minion_device_s* mdev,
 
 static void dump_firmware_info(struct minion_firmware_info_s* fw_info)
 {
-    printk(KERN_INFO"MinION-mk1C firmware version %d.%d.%d timestamp %u\n",
+    printk(KERN_INFO"MinION-Mk1C firmware version %d.%d.%d timestamp %u\n",
            fw_info->major,
            fw_info->minor,
            fw_info->patch,
@@ -2050,7 +2050,7 @@ module_init(minion_init);
 module_exit(minion_exit);
 
 MODULE_AUTHOR("Oxford Nanopore Technologies PLC <info@nanoporetech.com>");
-MODULE_DESCRIPTION("MinION-mk1C PCIe Driver");
+MODULE_DESCRIPTION("MinION-Mk1C PCIe Driver");
 MODULE_VERSION(ONT_DRIVER_VERSION);
 
 MODULE_LICENSE("GPL v2");

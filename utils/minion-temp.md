@@ -1,9 +1,9 @@
-% MINION-TEMP(1) Version @VERSION@ | MinION mk1C Temperature Control
+% MINION-TEMP(1) Version @VERSION@ | MinION Mk1C Temperature Control
 
 NAME
 ====
 
-**minion-temp** - Reads Minion mk1C temperature sensors and control the set-point.
+**minion-temp** - Reads Minion Mk1C temperature sensors and control the set-point.
 
 SYNOPSIS
 ========
