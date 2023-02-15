@@ -1,0 +1,3 @@
+# Earlier versions of Lintian don't seem happy about any type of versioning
+# for virtual packages.
+PACKAGE binary: versioned-provides

@@ -1,0 +1,6 @@
+@NAME@ (@VERSION@) unstable; urgency=low
+
+  * For release notes including a change-log, please refer to the Oxford
+  Nanopore website at https://community.nanoporetech.com/downloads
+
+ -- Oxford Nanopore PLC <info@nanoporetech.com>  @DATE@
