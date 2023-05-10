@@ -63,8 +63,7 @@ build-u18.04-k4.9.140:
         apt -q -y install lintian pandoc
       fi
     - make dist-deb
-    # Don't fail whilst waiting for copyright file (CORE-4911)
-    - lintian --display-info *.deb || true
+    - lintian --display-info *.deb
   artifacts:
     paths:
       - "*.deb"
