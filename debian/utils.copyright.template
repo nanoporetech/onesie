@@ -1,0 +1,15 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: ont-minion1c-driver
+Upstream-Contact: Nanopore Customer Support <support@nanoporetech.com>
+Source: https://community.nanoporetech.com/downloads
+
+Files: *
+Copyright: 2019-@DATE@ Oxford Nanopore Technologies, PLC
+License: MinKNOW
+ This software is provided under the Terms and Conditions of the
+ Nanopore Community. These are available on the Oxford Nanopore Technologies
+ website (https://nanoporetech.com/) and also in the included pdf file,
+ "Nanopore Product Terms and Conditions (28 November 2018).pdf".
+ .
+ Proprietary and confidential information of Oxford Nanopore Technologies,
+ Limited. All rights reserved.
