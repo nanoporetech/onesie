@@ -1,0 +1,17 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: ont-minion1c-driver
+Upstream-Contact: Nanopore Customer Support <support@nanoporetech.com>
+Source: https://community.nanoporetech.com/downloads
+
+Files: *
+Copyright: 2019-@DATE@ Oxford Nanopore Technologies, PLC
+License: GPL-2
+
+Files: driver/i2c-altera.c
+Copyright:
+    2019-@DATE@ Oxford Nanopore Technologies, PLC
+    Intel Corporation (C) 2017
+Notes:
+    This is a derivative work of the Linux kernel file drivers/i2c/busses/i2c-altera.c
+    (Intel), this file itself is a derivative of i2c-axxia.c
+License: GPL-2
