@@ -85,6 +85,9 @@ sed -e "s/@NAME@/${PACKAGE_BASE_NAME}/g" -i package/debian/changelog
 sed -e "s/@VERSION@/${VERSION}-${DEBIAN_REVISION}${VERSION_SUFFIX}/g" -i package/debian/changelog
 sed -e "s/@DATE@/$(date -R)/g" -i package/debian/changelog
 
+sed -e "s/@DATE@/$(date +%Y)/g" debian/utils.copyright.template > "package/debian/${PACKAGE_BASE_NAME}-utils.copyright"
+sed -e "s/@DATE@/$(date +%Y)/g" debian/other.copyright.template > "package/debian/copyright"
+
 # Create lintian-overrides for the package
 make_lintian_override_if_needed "${PACKAGE_BASE_NAME}-dkms"
 
@@ -120,6 +123,7 @@ fi
 # generate .deb files for the rest
 fakeroot dh_strip --no-automatic-dbgsym
 fakeroot dh_lintian
+fakeroot dh_installdocs
 fakeroot dh_installchangelogs
 fakeroot dh_dkms -p "${PACKAGE_BASE_NAME}-dkms"
 fakeroot dh_makeshlibs
