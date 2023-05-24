@@ -5,7 +5,7 @@ set -e
 
 # for situations when /boot/System.map doesn't exist
 if [ "$1" = "configure" ]; then
-	if [ ! -e /boot/System.map-_KVERS_ -a $(uname -r) = "_KVERS_" ]; then
+	if [ ! -e /boot/System.map-_KVERS_ ] && [ "$(uname -r)" = "_KVERS_" ]; then
 		depmod -a || true
 	fi
 fi
