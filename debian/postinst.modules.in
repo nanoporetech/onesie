@@ -10,7 +10,15 @@ if [ "$1" = "configure" ]; then
 	fi
 fi
 
+ask_for_reboot() {
+    # As per Debian policy 9.12
+    touch "/run/reboot-required"
+    why_file="/var/run/reboot-required.pkgs"
+    touch "${why_file}" && grep -q "@NAME@" "${why_file}" || echo "@NAME@" >> "${why_file}"
+}
+
+
 # allow this to fail (eg: in docker, or if the driver is currently in use)
 if [ "$(uname -r)" = "_KVERS_" ]; then
-    modprobe -r minion && modprobe minion || touch "/run/reboot-required"
+    modprobe -r minion && modprobe minion || ask_for_reboot
 fi
