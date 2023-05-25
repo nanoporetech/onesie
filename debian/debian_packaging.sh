@@ -71,8 +71,8 @@ mkdir -p package/debian
 cp debian/control package/debian/control
 if [ -n "${COMPILED_DRIVER_PACKAGE}" ]; then
     sed -e "s/_KVERS_/${KVERS}/g;s/_VERSION_/${VERSION}/g;s/_FIRMWARE-VERSION_/${FIRMWARE_VERSION}/g" debian/control.modules.in >> package/debian/control
-    sed -e "s/_KVERS_/${KVERS}/g" debian/postinst.modules.in > "package/debian/ont-minion1c-driver-${KVERS}.postinst"
-    sed -e "s/_KVERS_/${KVERS}/g" debian/postrm.modules.in > "package/debian/ont-minion1c-driver-${KVERS}.postrm"
+    sed -e "s/_KVERS_/${KVERS}/g;s/@NAME@/${PACKAGE_BASE_NAME}/g" debian/postinst.modules.in > "package/debian/ont-minion1c-driver-${KVERS}.postinst"
+    sed -e "s/_KVERS_/${KVERS}/g;s/@NAME@/${PACKAGE_BASE_NAME}/g" debian/postrm.modules.in > "package/debian/ont-minion1c-driver-${KVERS}.postrm"
 fi
 sed -i -e "s/_ARCH_/${DEB_ARCH}/g;s/_VERSION_/${VERSION}/g;s/_FIRMWARE-VERSION_/${FIRMWARE_VERSION}/g" package/debian/control
 # debhelper version-9
